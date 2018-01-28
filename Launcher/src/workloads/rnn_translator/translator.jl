@@ -52,6 +52,7 @@ function create(rnn::Translator; kw...)
     return container
 end
 
+translator_parser(file::String) = open(translator_parser, file)
 function translator_parser(io::IO)
     seekstart(io)
 
