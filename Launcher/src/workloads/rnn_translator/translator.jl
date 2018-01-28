@@ -37,7 +37,7 @@ function create(
         env = [],
         kmp_blocktime = 1,
         kmp_settings = 1,
-        omp_num_threads = 48,
+        omp_num_threads = 24,
         kw...)
     # Bind the Imagenet dataset into the top level of the container
     bind_dataset = bind(
