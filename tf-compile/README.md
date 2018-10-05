@@ -104,3 +104,15 @@ New containers can be layered on top of this base by beginning new Dockerfiles w
 ```
 FROM hildebrandmw/tf-compiled-base
 ```
+
+## `tf-resnet`
+
+Image for running Resnet based on the [keras](https://github.com/keras-team/keras) framework.
+
+### Issues
+* In order to work without throwing an error (thanks keras-team), we must set
+    ```python
+    data_augmentation = False
+    ```
+    Thus, I just copied the `cifar10_resnet.py` file, changed the required line, and linked
+    it into the container during the build process.

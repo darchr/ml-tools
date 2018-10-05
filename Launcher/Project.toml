@@ -1,0 +1,14 @@
+name = "Launcher"
+uuid = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+DockerX = "d141d394-c665-11e8-14fa-718cafd270b3"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
