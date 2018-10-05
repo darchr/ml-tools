@@ -6,6 +6,11 @@ FROM python:3.5.6
 # versions of tensorflow.
 ARG tensorflow
 
+RUN apt-get update && apt-get install -y --no-install-recommends sysstat
+
+# Map over the local "sysstat" file to enable data collection.
+ADD sysstat /etc/default/sysstat
+
 # Add and install local tensorflow
 ADD ${tensorflow} /home/${tensorflow}
 RUN pip3 install /home/${tensorflow}

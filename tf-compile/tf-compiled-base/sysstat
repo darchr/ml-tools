@@ -1,0 +1,2 @@
+# Enable sysstat to record data
+ENABLED="true"

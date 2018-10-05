@@ -7,8 +7,8 @@ instructions, I compiled Tensorflow from source on `amarillo`. The directory `tf
 has instructions and tools for how to do this.
 
 The Docker Hub where the most current version of this container lives is
-here: <https://hub.docker.com/r/hildebrandmw/tf-sandbox/>. This repo will be kept up-to-date
-as I make needed changes to the container.
+here: <https://hub.docker.com/r/hildebrandmw/tf-compiled-base/>. This repo will be kept 
+up-to-date as I make needed changes to the container.
 
 ## Docker API Interface
 Right now, I think the running of experiments and workloads will take place in Docker 
