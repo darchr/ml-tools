@@ -87,13 +87,22 @@ for past Python versions. We can use this as a starting point for our `Dockerfil
 
 The Dockerfile is pretty self-explanatory. The one tricky bit is that the 
 tensorflow `.whl` built in the previous step must be linked to the container so we can 
-install the compiled tensorflow.
+install the compiled tensorflow. You can use the build script as
 ```sh
-docker build hildebrandmw/tf-sandbox . --build-arg tensorflow=tensorflow-1.11.0rc1-cp35-cp35m-linux_x86_64.whl
+./build.sh tensorflow-1.11.0rc1-cp35-cm35m-linux_x86_64.whl
+```
+or run the docker command directly as
+```sh
+docker build -t hildebrandmw/tf-compiled-base . --build-arg tensorflow=tensorflow-1.11.0rc1-cp35-cp35m-linux_x86_64.whl
 ```
 
 As a side note, I've added [sysstat](https://github.com/sysstat/sysstat) to the Docker image
 to allow collection of CPU and memory data.
+
+To push the container to the Docker hub repository, run
+```sh
+docker push hildebrandmw/tf-compiled-base
+```
 
 ### Using `tf-compiled-base`
 Finally, we can run the compiled container with
@@ -105,9 +114,16 @@ New containers can be layered on top of this base by beginning new Dockerfiles w
 FROM hildebrandmw/tf-compiled-base
 ```
 
+# Custom containers built on top of `tf-compiled-base`
 ## `tf-resnet`
 
 Image for running Resnet based on the [keras](https://github.com/keras-team/keras) framework.
+Just enter the `tf-resnet/` directory and run
+```
+./build.sh
+```
+To build the container. Running the container can be controlled from `Launcher.jl` (needs
+documentation)
 
 ### Issues
 * In order to work without throwing an error (thanks keras-team), we must set

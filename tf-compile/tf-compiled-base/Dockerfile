@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends sysstat
 
 # Map over the local "sysstat" file to enable data collection.
 ADD sysstat /etc/default/sysstat
+RUN service sysstat restart
 
 # Add and install local tensorflow
 ADD ${tensorflow} /home/${tensorflow}
