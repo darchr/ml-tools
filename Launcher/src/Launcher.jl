@@ -2,8 +2,17 @@ module Launcher
 
 export Resnet
 
+
+# Set up some static things
+if Base.Sys.isapple()
+    const CIFAR_PATH = "/Users/mark/projects/ml-tools/cifar-10-batches-py.tar.gz"
+else
+    const CIFAR_PATH = "/data1/ml-datasets/cifar-10-batches-py.tar.gz"
+end
+
 # Add DockerX to talk to the Docker Daemon.
 using DockerX
+using HTTP
 using ProgressMeter
 
 abstract type AbstractWorkload end
@@ -14,45 +23,45 @@ image(::Type{Resnet}) = "hildebrandmw/tf-resnet:latest"
 function create(::Type{Resnet})
     # Attach the cifar dataset at /data1 to the keras cache 
     bind_dataset = join([
-            "/data1/ml-datasets/cifar-10-batches-py.tar.gz",
+            CIFAR_PATH,
             "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
         ], ":")
 
     # Create the container
     container = DockerX.create_container( 
         image(Resnet);
+        attachStdin = true,
         binds = [bind_dataset],
         cmd = `python3 /home/cifar10_resnet.py`,
     )
 
     return container
 end
+
 """
     run_resnet(time)
 
 Run `tf-resnet` for the specified amount of time.
 """
-function Base.run(::Type{Resnet}, time)
+function Base.run(::Type{Resnet}, runtime)
     # Start the Docker proxy
     DockerX.runproxy() 
 
     container = create(Resnet)
-    id = container["Id"]
 
-    @info "Container ID: $id"
+    @info "Created: $container"
 
     try 
-        DockerX.start_container(id)
-        @showprogress for _ in 1:time
+        DockerX.start(container)
+        @showprogress for i in 1:runtime
             sleep(1)
         end
+        log = DockerX.log(container)
+        println(log)
 
-        # Open a stream to the containers log
-        log = DockerX.get_log(id)
-        println.(eachline(IOBuffer(log)))
     finally
-        DockerX.stop_container(id)
-        DockerX.remove_container(id)
+        DockerX.stop(container)
+        DockerX.remove(container)
         DockerX.killproxy()
 
         @info "Container stopped and removed"
