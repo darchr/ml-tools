@@ -1,3 +1,4 @@
 *.whl
 *.gz
 *.swp
+Launcher/deps

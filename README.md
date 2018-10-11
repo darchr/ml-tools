@@ -19,3 +19,10 @@ Docker has a nice `http` based interface for launching, controlling, and cleanin
 I wrote a Julia tool: <https://github.com/hildebrandmw/DockerX.jl> (still a WIP, will be 
 extended as needed) to interface with this API. Hopefully, this will help with 
 programatically running experiments.
+
+## Directories created on `amarillo`
+
+Below is (hopefully) a comprehensive list of directories created on `amarillo` during
+this project. The goal of this list is to aid in cleaning up after maintainance.
+
+* `/data1/ml-datasets` - Datasets for machine learning algorithms.

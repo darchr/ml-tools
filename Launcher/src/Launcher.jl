@@ -2,6 +2,12 @@ module Launcher
 
 export Resnet
 
+const SRCDIR = @__DIR__
+const PKGDIR = dirname(SRCDIR)
+const DEPSDIR = joinpath(PKGDIR, "deps")
+
+const LOG_PATH = joinpath(DEPSDIR, "logs")
+const SCRIPT_PATH = joinpath(DEPSDIR, "scripts")
 
 # Set up some static things
 if Base.Sys.isapple()
@@ -9,6 +15,7 @@ if Base.Sys.isapple()
 else
     const CIFAR_PATH = "/data1/ml-datasets/cifar-10-batches-py.tar.gz"
 end
+
 
 # Add DockerX to talk to the Docker Daemon.
 using DockerX
@@ -19,27 +26,59 @@ abstract type AbstractWorkload end
 
 struct Resnet <: AbstractWorkload end
 
-image(::Type{Resnet}) = "hildebrandmw/tf-resnet:latest"
+image(::Type{Resnet}) = "darchr/tf-resnet:latest"
+startscript(::Type{Resnet}; kw...) = """
+#!/bin/bash
+collectl -scCdDmMZ -i 1 -R 60s -f /syslog/log &
+python3 /home/cifar10_resnet.py
+"""
+
 function create(::Type{Resnet})
     # Attach the cifar dataset at /data1 to the keras cache 
+    # Need to put the dataset into the cache expected by Keras in order to avoid Keras
+    # automatically downloading the dataset. That's why the path
+    #
+    # /root/.keras/datasets/cifar...
+    # 
+    # is so specific.
     bind_dataset = join([
-            CIFAR_PATH,
-            "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
-        ], ":")
+        CIFAR_PATH,
+        "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
+    ], ":")
+    
+    # Attach log path to get the collectl output log
+    bind_logs = join([
+        LOG_PATH,
+        "/syslog/"
+    ], ":")
+
+    bind_startup = join([
+        SCRIPT_PATH,
+        "/startup/",
+    ], ":")
+
+    # Create start script
+    filepath = joinpath(SCRIPT_PATH, "resnet.sh") 
+    open(filepath, "w") do f
+        print(f, startscript(Resnet))
+    end
+    chmod(filepath, 0o777)
 
     # Create the container
     container = DockerX.create_container( 
         image(Resnet);
         attachStdin = true,
-        binds = [bind_dataset],
-        cmd = `python3 /home/cifar10_resnet.py`,
+        binds = [bind_dataset, bind_logs, bind_startup],
+        cmd = `/startup/resnet.sh`,
+        # cpuPeriod = 1000000,
+        # cpuQuota = 1000000,
     )
 
     return container
 end
 
 """
-    run_resnet(time)
+    run(::Resnet, time)
 
 Run `tf-resnet` for the specified amount of time.
 """

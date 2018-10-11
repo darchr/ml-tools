@@ -9,7 +9,7 @@ https://www.tensorflow.org/install/docker
 
 ## Compilation Overview
 
-Containers will be build incrementally, starting with `hildebrandmw/tf-compiled-base`, which
+Containers will be build incrementally, starting with `darchr/tf-compiled-base`, which
 is the base image containing Tensorflow that has been compiled on `amarillo`. Compiling
 Tensorflow is important because the default Tensorflow binary is not compiled to use AVX2
 instructions. Using the very scientific "eyeballing" approach, this compiled version of
@@ -93,7 +93,7 @@ install the compiled tensorflow. You can use the build script as
 ```
 or run the docker command directly as
 ```sh
-docker build -t hildebrandmw/tf-compiled-base . --build-arg tensorflow=tensorflow-1.11.0rc1-cp35-cp35m-linux_x86_64.whl
+docker build -t darchr/tf-compiled-base . --build-arg tensorflow=tensorflow-1.11.0rc1-cp35-cp35m-linux_x86_64.whl
 ```
 
 As a side note, I've added [sysstat](https://github.com/sysstat/sysstat) to the Docker image
@@ -101,17 +101,17 @@ to allow collection of CPU and memory data.
 
 To push the container to the Docker hub repository, run
 ```sh
-docker push hildebrandmw/tf-compiled-base
+docker push darchr/tf-compiled-base
 ```
 
 ### Using `tf-compiled-base`
 Finally, we can run the compiled container with
 ```
-docker run -it --rm hildebrandmw/tf-compiled-base /bin/bash
+docker run -it --rm darchr/tf-compiled-base /bin/bash
 ```
 New containers can be layered on top of this base by beginning new Dockerfiles with
 ```
-FROM hildebrandmw/tf-compiled-base
+FROM darchr/tf-compiled-base
 ```
 
 # Custom containers built on top of `tf-compiled-base`

@@ -7,6 +7,7 @@ version = "0.1.0"
 DockerX = "d141d394-c665-11e8-14fa-718cafd270b3"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
