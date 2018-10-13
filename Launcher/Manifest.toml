@@ -7,6 +7,11 @@ git-tree-sha1 = "38be61810f280c3c478f5c38aaf387f8f9199275"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 version = "0.5.1"
 
+[[Consecutive]]
+path = "/Users/mark/projects/Consecutive"
+uuid = "2403063f-daa1-541b-a506-4f4b1e4d0bb7"
+version = "0.1.0"
+
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections", "REPL", "Random", "Serialization", "Test"]
 git-tree-sha1 = "8fc6e166e24fda04b2b648d4260cdad241788c54"

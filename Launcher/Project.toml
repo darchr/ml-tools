@@ -4,8 +4,10 @@ authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
 version = "0.1.0"
 
 [deps]
+Consecutive = "2403063f-daa1-541b-a506-4f4b1e4d0bb7"
 DockerX = "d141d394-c665-11e8-14fa-718cafd270b3"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
