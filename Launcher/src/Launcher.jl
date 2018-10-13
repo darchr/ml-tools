@@ -1,6 +1,6 @@
 module Launcher
 
-export Resnet
+export Resnet, CifarCnn
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -50,113 +50,24 @@ function collectstats(container::Container; sleepinterval = 0)
 end
 
 
+# Location information. Specify whether paths are supposed to be on the host computer or
+# on the container.
+abstract type Location end
+struct OnHost <: Location end
+struct OnContainer <: Location end
+
 ## Workloads
 abstract type AbstractWorkload end
 
-startfile(::Type{T}) where T <: AbstractWorkload = error("""
-    Startfile not defined for workload type $T
+startfile(::Type{T}, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
+    Startfile not defined for workload type $T on location $L
     """)
 
-function modelbind(::Type{T}) where T <: AbstractWorkload
-    # Get the path here.
-    localpath = startfile(T) 
-    localdir = dirname(localpath)
-
-    remotepath = "/home/startup/$(basename(localpath))" 
-    remotedir = dirname(remotepath)
-    return "$localdir:$remotedir"
-end
+runcommand(::Type{T}) where T = `$(startfile(T, OnContainer))`
 
 ############################################################################################
-# CIFAR CNN
-############################################################################################
-# Small CNN on cifar - used mainly for testing out infrastructure here because of its short
-# training time.
-struct CifarCnn <: AbstractWorkload end
-image(::Type{CifarCnn}) = "darchr/tf-keras:latest"
-startfile(::Type{CifarCnn}) = joinpath(MLTOOLS, "tf-compiled", "tf-keras", "models", "cifar10_cnn.py")
-
-function create(::Type{CifarCnn})
-    bind_dataset = join([
-        CIFAR_PATH,
-        "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
-    ], ":")
-
-
-    
-    # Create the container
-    container = DockerX.create_container( 
-        image(CifarCnn);
-        attachStdin = true,
-        binds = [bind_dataset],
-        cmd = `python3 /home/cifar10_cnn.py`,
-    )
-
-    return container
-end
-
-############################################################################################
-# RESNET
-############################################################################################
-struct Resnet <: AbstractWorkload end
-
-image(::Type{Resnet}) = "darchr/tf-keras:latest"
-
-function create(::Type{Resnet}; memory = nothing, cpus = nothing)
-    # Attach the cifar dataset at /data1 to the keras cache 
-    # Need to put the dataset into the cache expected by Keras in order to avoid Keras
-    # automatically downloading the dataset. That's why the path
-    #
-    # /root/.keras/datasets/cifar...
-    # 
-    # is so specific.
-    bind_dataset = join([
-        CIFAR_PATH,
-        "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
-    ], ":")
-    
-    ## Decode keyword arguments.
-    # Strategy: Build up a named tuple. Only add fields if the corresponding keyword 
-    # arguments are supplied.
-    kw = NamedTuple() 
-
-    # CPU - Ratio of cpuQuota over cpuPeriod approximately gives the number of CPUs 
-    # available for work.
-    #
-    # TODO: Once amarillo quiets down, mayby switch this over to assigning processors 
-    # directly to avoid the container getting scheduled all over the place.
-    if !isnothing(cpus)
-        # cpu units in Microseconds - set the default period to 1 second.
-        cpuPeriod = 1000000
-        cpuQuota = cpus * cpuPeriod
-        kw = merge(kw, (cpuPeriod = cpuPeriod, cpuQuota = cpuQuota))
-    end
-
-    if !isnothing(memory)
-        kw = merge(kw, (Memory = memory,))
-    end
-
-    # Create the container
-    container = DockerX.create_container( 
-        image(Resnet);
-        attachStdin = true,
-        binds = [bind_dataset],
-        cmd = `python3 /home/cifar10_resnet.py`,
-        kw...
-    )
-
-    return container
-end
-
-"""
-    run(::Resnet, time)
-
-Run `tf-resnet` for the specified amount of time.
-"""
+# Basic run command
 function Base.run(::Type{T}; interval = 10, logio = devnull) where T <: AbstractWorkload
-    # Start the Docker proxy
-    DockerX.runproxy() 
-
     container = create(T)
     local stats
 
@@ -173,12 +84,16 @@ function Base.run(::Type{T}; interval = 10, logio = devnull) where T <: Abstract
         print(logio, DockerX.log(container))
     finally
         DockerX.remove(container, force = true)
-        DockerX.killproxy()
 
         @info "Container stopped and removed"
     end
     return stats
 end
 
+
+# Include files - TODO: Move these to a more resonable location instead of at the bottom
+# of this file. That's dumb.
+include("cifar_cnn.jl")
+include("cifar_resnet.jl")
 
 end # module
