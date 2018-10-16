@@ -1,4 +1,4 @@
 *.whl
 *.gz
 *.swp
-Launcher/deps
+*.json
