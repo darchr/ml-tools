@@ -12,9 +12,26 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 import os
 
-batch_size = 512
+# Use argparse to pass arguments such as batch size and number of epochs.
+# NOTE: We have to use the Python 3.5 version of argparse - keep this in mind when looking
+# up documentation.
+import argparse
+parser = argparse.ArgumentParser(description='Configure training parameters for small cifar cnn')
+
+# Add parser arguments
+parser.add_argument('--batchsize', default = 32, type=int, help='Set Batchsize for training')
+parser.add_argument('--epochs', default = 1, type=int, help='Set number of training epochs')
+
+# Parse and unpack arguments
+args = parser.parse_args()
+batch_size = args.batchsize
+epochs = args.epochs
+
+#-- old arguments
+#batch_size = 512
+#epochs = 1
+
 num_classes = 10
-epochs = 1
 data_augmentation = False
 num_predictions = 20
 save_dir = os.path.join(os.getcwd(), 'saved_models')

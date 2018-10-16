@@ -1,6 +1,8 @@
 module Launcher
 
-export Resnet, CifarCnn
+import Base.Iterators: flatten
+
+export k_str, Resnet, CifarCnn
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -17,12 +19,18 @@ else
     const CIFAR_PATH = "/data1/ml-datasets/cifar-10-batches-py.tar.gz"
 end
 
+## STDLIB
+using Dates
+
 
 # Add DockerX to talk to the Docker daemon.
 using DockerX
 using HTTP
 using ProgressMeter
 using JSON
+
+include("stats.jl")
+include("wss.jl")
 
 # Helper functions
 isnothing(x) = false
@@ -37,6 +45,11 @@ function isrunning(container::Container)
     return first(list).params["State"] == "running"
 end
 
+function Base.getpid(container::Container)
+    data = DockerX.inspect(container)
+    return data[k"State/Pid"]
+end 
+
 function collectstats(container::Container; sleepinterval = 0)
     # Check if the container is running.
     stats = [] 
@@ -49,6 +62,9 @@ function collectstats(container::Container; sleepinterval = 0)
     return stats
 end
 
+dash(x) = "--$x"
+makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) in pairs(nt)))
+
 
 # Location information. Specify whether paths are supposed to be on the host computer or
 # on the container.
@@ -59,16 +75,16 @@ struct OnContainer <: Location end
 ## Workloads
 abstract type AbstractWorkload end
 
-startfile(::Type{T}, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
+startfile(::T, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
     Startfile not defined for workload type $T on location $L
     """)
 
-runcommand(::Type{T}) where T = `$(startfile(T, OnContainer))`
+runcommand(::T) where T = `$(startfile(T, OnContainer))`
 
 ############################################################################################
 # Basic run command
-function Base.run(::Type{T}; interval = 10, logio = devnull) where T <: AbstractWorkload
-    container = create(T)
+function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
+    container = create(net)
     local stats
 
     @info "Created: $container"
