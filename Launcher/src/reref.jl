@@ -2,6 +2,9 @@
 #
 # http://www.brendangregg.com/wss.pl
 
+#using RecipesBase
+using Makie
+
 struct Page 
     address :: UInt64
 end
@@ -27,6 +30,16 @@ samples(T::Trace) = values(T.samples)
 times(T::Trace) = keys(T.samples)
 Base.setindex!(T::Trace, sample, time::DateTime) = T.samples[time] = sample
 Base.getindex(T::Trace, time::DateTime) = T.samples[time]
+
+function allpages(T::Trace)
+    pageset = Set{Page}()
+    for sample in samples(T)
+        # Use broadcasting to do this tersly. Wrap "pages" in a Ref because we want it
+        # to behave as a scalar for broadcasting.
+        push!.(Ref(pageset), pages(sample))
+    end
+    return (sort ∘ collect)(pageset)
+end
 
 
 # Proc accessors
@@ -87,23 +100,12 @@ function monitor(pid::Int; sampletime = 1.0)
     local trace = Trace()
     try
         # Run until process dies - not great :(
-        clear_ref(pid) 
-        stoptime = time() + sampletime
         while true
-            # Make sure we are meeting out timing requirements.
-            t = time() 
-            if t > stoptime 
-                @error "Spin loop failed at time $t"
-            end
-
-            while time() < stoptime 
-            end
-            # Grab the sample, then clear refs again
-            buffer = read_smaps(pid) 
-            timestamp = now()
-
             clear_ref(pid)
-            stoptime = time() + sampletime
+
+            # Sleep, then sample
+            pause(sampletime)
+            buffer = read_smaps(pid) 
 
             # Parse and save result
             trace[timestamp] = parse(Sample, buffer)
@@ -115,29 +117,30 @@ function monitor(pid::Int; sampletime = 1.0)
 end
 
 ## Plotting
+
 function plot(trace::Trace)
-    # Step 1: Get all of the unique pages
-    pageset = Set{Page}()
-    for sample in samples(trace)
-        # Use broadcasting to do this tersly. Wrap "pages" in a Ref because we want it
-        # to behave as a scalar for broadcasting.
-        push!.(Ref(pageset), pages.(sample))
-    end
-    pages = (sort ∘ collect)(pageset)
+    pages = allpages(trace)
+    timestamps = times(trace)
 
-    # Step 2: Get all of the time stamps.
-    # Data is probably already sorted, but might as well make sure.
-    timestamps = sort(collect(times(trace)))
+    references = [trace[timestamp][page] for page in pages, timestamp in timestamps]
 
-    # Step 3: Make a 2d array for number of bytes accessed over the grid of pages and 
-    # timestamps.
-    amounts_referenced = [trace[time][page] for page in pages, time in timestamps]
-
-    # Step 4: Need to clamp the jj
-    z = log2.(amounts_referenced)
-    scene = heatmap(z)
-    # Get the axis and set some labels
-    axis = scene[Axis]
-    axis[:names, :axisnames] = ("Sample Number", "Page (ordered by virtual address)")
-    return scene
+    z = clamp.(log2.(references), 0, Inf)
+    return heatmap(z)
 end
+
+# @recipe function f(trace::Trace)
+#     # Get all the pages and timestamps seen in this trace
+#     pages = allpages(trace)
+#     timestamps = times(trace)
+# 
+#     references = [trace[timestamp][page] for page in pages, timestamp in timestamps]
+# 
+#     size := (1000, 1000)
+#     # Create the plot
+#     @series begin 
+#         seriestype := :heatmap
+#         x = 1:length(pages)
+#         y = 1:length(timestamps)
+#         x, y, clamp.(log2.(references), 0, Inf)
+#     end
+# end
