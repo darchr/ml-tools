@@ -82,7 +82,7 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
         DockerX.start(container)
 
         # Run until the epoch finishes.
-        pages = monitor(getpid(container); sleeptime = interval) 
+        pages = monitor(getpid(container); sampletime = interval) 
         # @sync begin 
         #     @async docker_stats = getstats(container; sleepinterval = interval)
         #     @async rereference = monitor_reref(getpid(container); sleepinterval = interval)

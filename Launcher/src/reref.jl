@@ -1,55 +1,58 @@
 # Tools for computing the rereference intervals of memory blocks. Based on WSS:
 #
 # http://www.brendangregg.com/wss.pl
-#
-
-# Libraries needed for plotting
-using Makie
 
 struct Page 
     address :: UInt64
 end
 getaddress(p::Page) = p.address
-Base.parse(::Type{Page}, x) = Page(parse(UInt, x; base = 16))
+Base.parse(::Type{Page}, s::AbstractString) = Page(parse(UInt, s; base = 16))
 Base.isless(a::Page, b::Page) = isless(a.address, b.address)
 
-struct SmapsSample
-    timestamp :: DateTime
-    pages :: Dict{Page, Int}
-end
-# Accessors to allow for broadcasting.
-gettimestamp(s::SmapsSample) = s.timestamp
-getpages(s::SmapsSample) = s.pages
 
+struct Sample
+    mmap :: Dict{Page, Int}
+end
+pages(s::Sample) = keys(s.mmap)
+Base.getindex(s::Sample, p::Page) = get(s.mmap, p, zero(valtype(s.mmap)))
+
+
+struct Trace
+    samples::Dict{DateTime,Sample}
+end
+Trace() = Trace(Dict{DateTime,Sample}())
+
+Base.iterate(T::Trace, args...) = iterate(T.samples, args...)
+samples(T::Trace) = values(T.samples)
+times(T::Trace) = keys(T.samples)
+Base.setindex!(T::Trace, sample, time::DateTime) = T.samples[time] = sample
+Base.getindex(T::Trace, time::DateTime) = T.samples[time]
+
+
+# Proc accessors
 function clear_ref(pid)
     open("/proc/$pid/clear_refs", "w") do clr
         write(clr, '1')
     end
 end
 
-function sample(pid, sleeptime = 0.1)
-    # Clear the reference bits
-    clear_ref(pid) 
-    # Sleep for the specified time
-    sleep(sleeptime) 
-    return IOBuffer(read("/proc/$pid/smaps")), now()
-end
+read_smaps(pid) = (IOBuffer ∘ read)("/proc/$pid/smaps")
 
+# Helper Functions
 islowerhex(c::AbstractChar) = '0'<=c<='9' || 'a'<=c<='f'
 
-# TODO: move timestamp out of this function ... 
 """
-    getpages(smaps) -> SmapeSample
+    parse(::Type{Sample}, buffer::IO) -> Sample
 
-Return a collection of pages referenced in a `smaps` trace as a dict mapping page to the
+Return a collection of pages referenced in a `buffer` trace as a dict mapping page to the
 number of `kB` of memory of that page that was referenced.
 """
-function getpages(smaps)
-    referenced_pages = Dict{Page,Int}()
+function Base.parse(::Type{Sample}, buffer::IO)
+    mmap = Dict{Page,Int}()
     page = UInt(0)
 
     # Iterate over lines
-    for ln in eachline(smaps)
+    for ln in eachline(buffer)
         # Address references begin with hex digits, and should be the only items beginning
         # with hex digits in the trace.
         if islowerhex(first(ln))
@@ -68,61 +71,67 @@ function getpages(smaps)
         # Where the 4 kB indicates that this page was referenced since we last clear the
         # reference flags. If this page was not referenced, this value would be 0
         elseif startswith(ln, "Ref")
-            size_referenced = split(ln)[2]
+            size = split(ln)[2]
             # If this page was referenced, push this address onto the set of seen addresses.
-            if size_referenced != "0"
+            if size != "0"
                 # Parse the amount of memory referenced and save this sample
-                referenced_pages[page] = parse(Int, size_referenced)
+                mmap[page] = parse(Int, size)
             end
         end
     end
-    return referenced_pages
+    return Sample(mmap)
 end
 
 
-function monitor(pid::Int; sleeptime = 1.0)
-    local samples = SmapsSample[] 
-    while true
-        try
-            buffer, timestamp = sample(pid, sleeptime) 
-            referenced_pages = getpages(buffer)
-            this_sample = Page(timestamp, referenced_pages)
-            push!(samples, this_sample)
-        catch err
-            @error err
-            return samples
-        end
-    end
-end
+function monitor(pid::Int; sampletime = 1.0)
+    local trace = Trace()
+    try
+        # Run until process dies - not great :(
+        clear_ref(pid) 
+        stoptime = time() + sampletime
+        while true
+            # Make sure we are meeting out timing requirements.
+            t = time() 
+            if t > stoptime 
+                @error "Spin loop failed at time $t"
+            end
 
-function getref(smaps, page, time)
-    # Iterate through the samples until the correct time stamp is found.
-    for sample in smaps    
-        if gettimestamp(sample) == time
-            return get(getpages(sample), page, 0)
+            while time() < stoptime 
+            end
+            # Grab the sample, then clear refs again
+            buffer = read_smaps(pid) 
+            timestamp = now()
+
+            clear_ref(pid)
+            stoptime = time() + sampletime
+
+            # Parse and save result
+            trace[timestamp] = parse(Sample, buffer)
         end
+    catch err
+        @error err
+        return trace
     end
-    error("Timestamp $time not found in trace!")
 end
 
 ## Plotting
-function plotsamples(smaps::Vector{SmapsSample})
+function plot(trace::Trace)
     # Step 1: Get all of the unique pages
     pageset = Set{Page}()
-    for sample in smaps
+    for sample in samples(trace)
         # Use broadcasting to do this tersly. Wrap "pages" in a Ref because we want it
         # to behave as a scalar for broadcasting.
-        push!.(Ref(pageset), keys(sample.pages))
+        push!.(Ref(pageset), pages.(sample))
     end
     pages = (sort ∘ collect)(pageset)
 
     # Step 2: Get all of the time stamps.
     # Data is probably already sorted, but might as well make sure.
-    timestamps = sort(gettimestamp.(smaps))
+    timestamps = sort(collect(times(trace)))
 
     # Step 3: Make a 2d array for number of bytes accessed over the grid of pages and 
     # timestamps.
-    amounts_referenced = [getref(smaps, page, time) for page in pages, time in timestamps]
+    amounts_referenced = [trace[time][page] for page in pages, time in timestamps]
 
     # Step 4: Need to clamp the jj
     z = log2.(amounts_referenced)
@@ -132,52 +141,3 @@ function plotsamples(smaps::Vector{SmapsSample})
     axis[:names, :axisnames] = ("Sample Number", "Page (ordered by virtual address)")
     return scene
 end
-
-############################################################################################
-# Older functions
-
-# increment!(d::AbstractDict, k, v) = haskey(d, k) ? (d[k] += v) : (d[k] = v)
-# 
-# 
-# function cleantrailing!(bucketstack)
-#     while !isempty(bucketstack) && (isempty ∘ last)(bucketstack)
-#         pop!(bucketstack)
-#     end
-#     return nothing
-# end
-# 
-# 
-# function rereference!(distribution::AbstractDict, bucketstack, items)
-#     for (depth, bucket) in enumerate(bucketstack)
-#         # Get the indices of items in this bucket that are in the list of items to look
-#         # for.
-#         inds = findall(x -> in(x, items), bucket)
-#         if !isempty(inds)
-#             increment!(distribution, depth, length(inds))
-#         end
-#         # Remove the matching items from the bucket.
-#         deleteat!(bucket, inds)
-#     end
-# 
-#     # Add the new items to the front of the bucketstack
-#     pushfirst!(bucketstack, items)
-# 
-#     # Do some cleanup
-#     cleantrailing!(bucketstack)
-# end
-
-
-# function monitor_reref(pid; sleeptime = 1.0)
-#     distribution = Dict{Int, Int}()
-#     bucketstack = Vector{Vector{UInt}}()
-# 
-#     while true
-#         local addresses
-#         try
-#             addresses = sample(pid, sleeptime) |> parse_smaps
-#         catch
-#             return distribution
-#         end
-#         rereference!(distribution, bucketstack, addresses)
-#     end
-# end 
