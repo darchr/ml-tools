@@ -5,8 +5,12 @@
 # training time.
 struct CifarCnn <: AbstractWorkload 
     args::NamedTuple
+    interactive::Bool
 end
-CifarCnn() = CifarCnn(NamedTuple())
+CifarCnn(;
+    args = NamedTuple(),
+    interactive = false
+   ) = CifarCnn(args, interactive)
 
 const cifarfile = "cifar10_cnn.py"
 
@@ -15,14 +19,18 @@ startfile(::CifarCnn, ::Type{OnHost}) = joinpath(MLTOOLS, "tf-compiled", "tf-ker
 startfile(::CifarCnn, ::Type{OnContainer}) = joinpath("/home", "startup", cifarfile)
 
 function runcommand(cifar::CifarCnn)
-    `python3 $(startfile(cifar, OnContainer)) $(makeargs(cifar.args))`
+    if cifar.interactive
+        return `/bin/bash`
+    else
+        return `python3 $(startfile(cifar, OnContainer)) $(makeargs(cifar.args))`
+    end
 end
 
 
 function create(cifar::CifarCnn)
     bind_dataset = join([
         CIFAR_PATH,
-        "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
+        "/.keras/datasets/cifar-10-batches-py.tar.gz"
     ], ":")
 
     bind_start = join([
@@ -35,6 +43,7 @@ function create(cifar::CifarCnn)
     container = DockerX.create_container( 
         image(cifar);
         attachStdin = true,
+        user = currentuser(),
         binds = [bind_dataset, bind_start],
         cmd = runcommand(cifar),
     )

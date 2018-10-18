@@ -1,6 +1,6 @@
 module Launcher
 
-import Base.Iterators: flatten
+import Base.Iterators: flatten, drop
 
 export k_str, Resnet, CifarCnn
 
@@ -31,6 +31,19 @@ using JSON
 
 include("stats.jl")
 include("wss.jl")
+include("reref.jl")
+include("models/models.jl")
+
+"""
+    currentuser() -> String
+
+Return a string formatted for the current unix User and Group.
+"""
+function currentuser()
+    uid = (chomp ∘ read)(`id -u`, String)
+    gid = (chomp ∘ read)(`id -g`, String)
+    return "$uid:$gid"
+end
 
 # Helper functions
 isnothing(x) = false
@@ -50,42 +63,16 @@ function Base.getpid(container::Container)
     return data[k"State/Pid"]
 end 
 
-function collectstats(container::Container; sleepinterval = 0)
-    # Check if the container is running.
-    stats = [] 
-    while isrunning(container)
-        push!(stats, DockerX.stats(container))
-        if sleepinterval > 0
-            sleep(sleepinterval)
-        end
-    end
-    return stats
-end
 
 dash(x) = "--$x"
 makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) in pairs(nt)))
 
 
-# Location information. Specify whether paths are supposed to be on the host computer or
-# on the container.
-abstract type Location end
-struct OnHost <: Location end
-struct OnContainer <: Location end
-
-## Workloads
-abstract type AbstractWorkload end
-
-startfile(::T, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
-    Startfile not defined for workload type $T on location $L
-    """)
-
-runcommand(::T) where T = `$(startfile(T, OnContainer))`
-
 ############################################################################################
 # Basic run command
 function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
     container = create(net)
-    local stats
+    local pages
 
     @info "Created: $container"
 
@@ -95,21 +82,22 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
         DockerX.start(container)
 
         # Run until the epoch finishes.
-        stats = collectstats(container; sleepinterval = interval)
+        pages = monitor(getpid(container); sleeptime = interval) 
+        # @sync begin 
+        #     @async docker_stats = getstats(container; sleepinterval = interval)
+        #     @async rereference = monitor_reref(getpid(container); sleepinterval = interval)
+        # end
 
         print(logio, DockerX.log(container))
+    catch err
+        print(stdout, DockerX.log(container))
+        @error "Error" err
     finally
         DockerX.remove(container, force = true)
 
         @info "Container stopped and removed"
     end
-    return stats
+    return pages
 end
-
-
-# Include files - TODO: Move these to a more resonable location instead of at the bottom
-# of this file. That's dumb.
-include("cifar_cnn.jl")
-include("cifar_resnet.jl")
 
 end # module

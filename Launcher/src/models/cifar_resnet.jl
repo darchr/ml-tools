@@ -18,12 +18,13 @@ function create(::Type{Resnet}; memory = nothing, cpus = nothing)
     # Need to put the dataset into the cache expected by Keras in order to avoid Keras
     # automatically downloading the dataset. That's why the path
     #
-    # /root/.keras/datasets/cifar...
+    # /tmp/.keras/datasets/cifar...
     # 
-    # is so specific.
+    # is so specific. Also, since we are no longer running as root, have to put the keras
+    # directory in /tmp
     bind_dataset = join([
         CIFAR_PATH,
-        "/root/.keras/datasets/cifar-10-batches-py.tar.gz"
+        "/tmp/.keras/datasets/cifar-10-batches-py.tar.gz"
     ], ":")
 
     bind_start = join([

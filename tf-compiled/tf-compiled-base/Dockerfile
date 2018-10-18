@@ -9,3 +9,5 @@ ARG tensorflow
 # Add and install local tensorflow
 ADD ${tensorflow} /home/${tensorflow}
 RUN pip3 install /home/${tensorflow}
+
+# Add a normal user

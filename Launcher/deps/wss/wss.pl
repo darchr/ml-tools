@@ -143,7 +143,7 @@ if ($duration < 0.001) {
 	print STDERR "ERROR: Duration too short. Exiting.\n";
 	exit;
 }
-my $clear_ref = "/proc/$pid/clear_refs";
+my $clear_ref = "/proc/$pid/clear_ref";
 my $smaps = "/proc/$pid/smaps";
 my @profilesecs = ($duration);
 my $d;

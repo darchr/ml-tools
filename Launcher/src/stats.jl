@@ -1,6 +1,26 @@
 # Methods for working with stats
 #
 # Docker Stats
+
+"""
+    getstats(container::Container; sleepinterval = 0)
+
+Get JSON stats from the docker daemon for `container` every `sleepinterval` seconds.
+See <https://docs.docker.com/config/containers/runmetrics/> for a break down of what stats
+are available and how the JSON dictionary is structures.
+"""
+function getstats(container::Container; sleepinterval = 0)
+    # Check if the container is running.
+    stats = Dict{String,Any}[] 
+    while isrunning(container)
+        push!(stats, DockerX.stats(container))
+        if sleepinterval > 0
+            sleep(sleepinterval)
+        end
+    end
+    return stats
+end
+
 """
     KeyChain{T}
 
