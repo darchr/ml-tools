@@ -3,16 +3,23 @@
 # http://www.brendangregg.com/wss.pl
 #
 
+# Libraries needed for plotting
+using Makie
+
 struct Page 
     address :: UInt64
 end
-
+getaddress(p::Page) = p.address
 Base.parse(::Type{Page}, x) = Page(parse(UInt, x; base = 16))
+Base.isless(a::Page, b::Page) = isless(a.address, b.address)
 
 struct SmapsSample
     timestamp :: DateTime
     pages :: Dict{Page, Int}
 end
+# Accessors to allow for broadcasting.
+gettimestamp(s::SmapsSample) = s.timestamp
+getpages(s::SmapsSample) = s.pages
 
 function clear_ref(pid)
     open("/proc/$pid/clear_refs", "w") do clr
@@ -86,6 +93,44 @@ function monitor(pid::Int; sleeptime = 1.0)
             return samples
         end
     end
+end
+
+function getref(smaps, page, time)
+    # Iterate through the samples until the correct time stamp is found.
+    for sample in smaps    
+        if gettimestamp(sample) == time
+            return get(getpages(sample), page, 0)
+        end
+    end
+    error("Timestamp $time not found in trace!")
+end
+
+## Plotting
+function plotsamples(smaps::Vector{SmapsSample})
+    # Step 1: Get all of the unique pages
+    pageset = Set{Page}()
+    for sample in smaps
+        # Use broadcasting to do this tersly. Wrap "pages" in a Ref because we want it
+        # to behave as a scalar for broadcasting.
+        push!.(Ref(pageset), keys(sample.pages))
+    end
+    pages = (sort ∘ collect)(pageset)
+
+    # Step 2: Get all of the time stamps.
+    # Data is probably already sorted, but might as well make sure.
+    timestamps = sort(gettimestamp.(smaps))
+
+    # Step 3: Make a 2d array for number of bytes accessed over the grid of pages and 
+    # timestamps.
+    amounts_referenced = [getref(smaps, page, time) for page in pages, time in timestamps]
+
+    # Step 4: Need to clamp the jj
+    z = log2.(amounts_referenced)
+    scene = heatmap(z)
+    # Get the axis and set some labels
+    axis = scene[Axis]
+    axis[:names, :axisnames] = ("Sample Number", "Page (ordered by virtual address)")
+    return scene
 end
 
 ############################################################################################
