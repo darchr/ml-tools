@@ -1,0 +1,15 @@
+name = "Plotting"
+uuid = "a5266029-cf53-5927-b34a-a2aec49ae649"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+DockerX = "d141d394-c665-11e8-14fa-718cafd270b3"
+Launcher = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

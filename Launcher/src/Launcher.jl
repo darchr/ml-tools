@@ -19,19 +19,19 @@ else
     const CIFAR_PATH = "/data1/ml-datasets/cifar-10-batches-py.tar.gz"
 end
 
-## STDLIB
+## STDLIBs
 using Dates
 
 
 # Add DockerX to talk to the Docker daemon.
+using MemSnoop
 using DockerX
 using HTTP
 using ProgressMeter
 using JSON
 
 include("stats.jl")
-include("wss.jl")
-include("reref.jl")
+#include("reref.jl")
 include("models/models.jl")
 
 """
@@ -72,7 +72,6 @@ makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) i
 # Basic run command
 function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
     container = create(net)
-    local pages
 
     @info "Created: $container"
 
@@ -81,8 +80,11 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
     try 
         DockerX.start(container)
 
+        @show getpid(container)
+
+        DockerX.attach(container)
         # Run until the epoch finishes.
-        pages = monitor(getpid(container); sampletime = interval) 
+        #trace = MemSnoop.snoop(getpid(container); sampletime = interval) 
         # @sync begin 
         #     @async docker_stats = getstats(container; sleepinterval = interval)
         #     @async rereference = monitor_reref(getpid(container); sleepinterval = interval)
@@ -97,7 +99,7 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
 
         @info "Container stopped and removed"
     end
-    return pages
+    return nothing
 end
 
 end # module
