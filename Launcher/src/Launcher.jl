@@ -1,23 +1,24 @@
 module Launcher
 
+function __init__()
+    # Set up the paths to datasets
+    setup()
+end
+
 import Base.Iterators: flatten, drop
 
-export k_str, Resnet, CifarCnn
+export k_str, Resnet, CifarCnn, create_setup
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
 const MLTOOLS = dirname(PKGDIR)
 const DEPSDIR = joinpath(PKGDIR, "deps")
 
-const LOG_PATH = joinpath(DEPSDIR, "logs")
-const SCRIPT_PATH = joinpath(DEPSDIR, "scripts")
+# Path to the setup JSON file.
+const SETUP_PATH = joinpath(PKGDIR, "setup.json")
 
-# Set up some static things
-if Base.Sys.isapple()
-    const CIFAR_PATH = "/Users/mark/projects/ml-tools/cifar-10-batches-py.tar.gz"
-else
-    const CIFAR_PATH = "/data1/ml-datasets/cifar-10-batches-py.tar.gz"
-end
+# Location of datasets - initialized in __init__()
+const DATASET_PATHS = Dict{String,String}()
 
 ## STDLIBs
 using Dates
@@ -30,6 +31,7 @@ using HTTP
 using ProgressMeter
 using JSON
 
+include("setup.jl")
 include("stats.jl")
 #include("reref.jl")
 include("models/models.jl")
@@ -53,7 +55,7 @@ function isrunning(container::Container)
     # List the containers, filter on ID. Should only get one result.
     filters = Dict("id" => [DockerX.getid(container)])
     list = DockerX.list_containers(all = true, filters = filters)
-    @assert length(list) == 1
+    @ssert length(list) == 1
 
     return first(list).params["State"] == "running"
 end
@@ -70,8 +72,9 @@ makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) i
 
 ############################################################################################
 # Basic run command
-function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
+function Base.run(net::AbstractWorkload; interval = 5, logio = devnull)
     container = create(net)
+    local stack
 
     @info "Created: $container"
 
@@ -82,13 +85,13 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
 
         @show getpid(container)
 
-        DockerX.attach(container)
-        # Run until the epoch finishes.
-        #trace = MemSnoop.snoop(getpid(container); sampletime = interval) 
-        # @sync begin 
-        #     @async docker_stats = getstats(container; sleepinterval = interval)
-        #     @async rereference = monitor_reref(getpid(container); sleepinterval = interval)
-        # end
+        # Sleep for a little bit - let everything start up.
+        #sleep(5)
+        #stack = MemSnoop.trackstack(getpid(container); sampletime = interval)
+        @sync begin
+            @async stack = MemSnoop.trackstack(getpid(container); sampletime = interval)
+            @async DockerX.attach(container)
+        end
 
         print(logio, DockerX.log(container))
     catch err
@@ -99,7 +102,7 @@ function Base.run(net::AbstractWorkload; interval = 10, logio = devnull)
 
         @info "Container stopped and removed"
     end
-    return nothing
+    return stack
 end
 
 end # module

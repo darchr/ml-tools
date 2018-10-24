@@ -29,8 +29,8 @@ end
 
 function create(cifar::CifarCnn)
     bind_dataset = join([
-        CIFAR_PATH,
-        "/.keras/datasets/cifar-10-batches-py.tar.gz"
+        DATASET_PATHS["cifar"]
+        "/home/user/.keras/datasets/cifar-10-batches-py.tar.gz"
     ], ":")
 
     bind_start = join([
@@ -43,7 +43,7 @@ function create(cifar::CifarCnn)
     container = DockerX.create_container( 
         image(cifar);
         attachStdin = true,
-        user = currentuser(),
+        #user = currentuser(),
         binds = [bind_dataset, bind_start],
         cmd = runcommand(cifar),
     )

@@ -7,6 +7,9 @@ https://www.tensorflow.org/install/source
 https://www.tensorflow.org/install/docker
 ```
 
+Helpful post talking about docker permissions <https://denibertovic.com/posts/handling-permissions-with-docker-volumes/>
+
+
 ## Compilation Overview
 
 Containers will be build incrementally, starting with `darchr/tf-compiled-base`, which
