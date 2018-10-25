@@ -1,3 +1,0 @@
-# Plotting
-
-*Documentation goes here.*

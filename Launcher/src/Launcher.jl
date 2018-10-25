@@ -55,7 +55,7 @@ function isrunning(container::Container)
     # List the containers, filter on ID. Should only get one result.
     filters = Dict("id" => [DockerX.getid(container)])
     list = DockerX.list_containers(all = true, filters = filters)
-    @ssert length(list) == 1
+    @assert length(list) == 1
 
     return first(list).params["State"] == "running"
 end
