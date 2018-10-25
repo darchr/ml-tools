@@ -5,6 +5,7 @@
 *.log
 *.jls
 *.png
+.DS_Store
 
 docs/build
 .ipynb_checkpoints

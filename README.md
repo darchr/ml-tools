@@ -1,15 +1,6 @@
 # ML-Tools
 
-
-## Tensorflow
-We will use [Tensorflow](https://www.tensorflow.org/) as one of the ML frameworks for 
-testing. Since the standard distribution for Tensorflow is not compiled with AVX2 
-instructions, I compiled Tensorflow from source on `amarillo`. The directory `tf-compile/`
-has instructions and tools for how to do this.
-
-The Docker Hub where the most current version of this container lives is
-here: <https://hub.docker.com/r/hildebrandmw/tf-compiled-base/>. This repo will be kept 
-up-to-date as I make needed changes to the container.
+Collection of tools for analyzing machine learning workloads.
 
 ## Docker API Interface
 Right now, I think the running of experiments and workloads will take place in Docker 

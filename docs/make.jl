@@ -3,8 +3,18 @@ using Documenter, Launcher
 makedocs(
     modules = [Launcher],
     format = :html,
-    sitename = "Launcher.jl",
-    pages = Any["index.md"]
+    sitename = "ml-tools",
+    pages = Any[
+        "index.md", 
+        "notebooks.md",
+        "Tensorflow" => Any[
+           "tensorflow.md",
+           "tf-compiled-base.md"
+        ],
+        "Launcher" => Any[
+            "launcher.md"
+        ]
+    ]
 )
 
 deploydocs(
