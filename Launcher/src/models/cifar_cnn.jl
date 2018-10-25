@@ -3,14 +3,18 @@
 ############################################################################################
 # Small CNN on cifar - used mainly for testing out infrastructure here because of its short
 # training time.
-struct CifarCnn <: AbstractWorkload 
-    args::NamedTuple
-    interactive::Bool
+"""
+    CifarCnn
+
+# `create` keywords
+
+* `cpuSets = ""` - The CPU sets on which to run the workload.
+"""
+@with_kw struct CifarCnn <: AbstractWorkload 
+    args::NamedTuple    = NamedTuple()
+    interactive::Bool   = false
 end
-CifarCnn(;
-    args = NamedTuple(),
-    interactive = false
-   ) = CifarCnn(args, interactive)
+
 
 const cifarfile = "cifar10_cnn.py"
 
@@ -27,7 +31,7 @@ function runcommand(cifar::CifarCnn)
 end
 
 
-function create(cifar::CifarCnn)
+function create(cifar::CifarCnn; cpuSets = "", kw...)
     bind_dataset = join([
         DATASET_PATHS["cifar"]
         "/home/user/.keras/datasets/cifar-10-batches-py.tar.gz"
@@ -38,14 +42,14 @@ function create(cifar::CifarCnn)
         dirname(startfile(cifar, OnContainer)),
     ], ":")
 
-    
+    @show cpuSets 
     # Create the container
     container = DockerX.create_container( 
         image(cifar);
         attachStdin = true,
-        #user = currentuser(),
         binds = [bind_dataset, bind_start],
         cmd = runcommand(cifar),
+        cpuSets = cpuSets
     )
 
     return container

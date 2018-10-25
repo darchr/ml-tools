@@ -30,6 +30,7 @@ using DockerX
 using HTTP
 using ProgressMeter
 using JSON
+using Parameters
 
 include("setup.jl")
 include("stats.jl")
@@ -72,8 +73,8 @@ makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) i
 
 ############################################################################################
 # Basic run command
-function Base.run(net::AbstractWorkload; interval = 5, logio = devnull)
-    container = create(net)
+function Base.run(net::AbstractWorkload; interval = 5, logio = devnull, kw...)
+    container = create(net; kw...)
     local stack
 
     @info "Created: $container"

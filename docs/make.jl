@@ -8,7 +8,7 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/hildebrandmw/Launcher.jl.git",
+    repo = "github.com/darchr/ml-tools",
     target = "build",
     julia = "1.0",
     deps = nothing,

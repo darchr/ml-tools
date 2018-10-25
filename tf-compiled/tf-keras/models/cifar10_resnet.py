@@ -33,6 +33,28 @@ num_classes = 10
 # Subtracting pixel mean improves accuracy
 subtract_pixel_mean = True
 
+# Parser for arguments.
+import argparse
+parser = argparse.ArgumentParser(description='Configure training parameters for Resnet')
+
+parser.add_argument('--batchsize', default = 32, type=int,
+        help='Set Batchsize for training')
+parser.add_argument('--epochs', default = 1, type = int,
+        help='Set number of training epochs')
+
+model_choices = ["ResNet20", "ResNet32", "ResNet44", "ResNet56", "ResNet110"]
+parser.add_argument('--model', choices = model_choices, default = "ResNet56")
+parser.add_argument('--version', type = int, choices = [1,2], default = 1)
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Extract the simple arguments
+batch_size = args.batchsize
+epochs = args.epochs
+
+# Extract the model parameters from the table below
+
 # Model parameter
 # ----------------------------------------------------------------------------
 #           |      | 200-epoch | Orig Paper| 200-epoch | Orig Paper| sec/epoch
@@ -47,7 +69,21 @@ subtract_pixel_mean = True
 # ResNet164 |27(18)| -----     | 94.07     | -----     | 94.54     | ---(---)
 # ResNet1001| (111)| -----     | 92.39     | -----     | 95.08+-.14| ---(---)
 # ---------------------------------------------------------------------------
-n = 9
+
+model = args.model
+version = args.version
+
+ndict = {
+    ("ResNet20",1) : 3,
+    ("ResNet20",2) : 2,
+    ("ResNet32",1) : 5,
+    ("ResNet44",1) : 7,
+    ("ResNet56",1) : 9,
+    ("ResNet56",2) : 6,
+    ("ResNet110",1) : 18,
+    ("ResNet110",2) : 12,
+}
+n = ndict[(model, version)]
 
 # Model version
 # Orig paper: version = 1 (ResNet v1), Improved ResNet: version = 2 (ResNet v2)
