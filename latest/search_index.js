@@ -45,7 +45,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Notebooks",
     "title": "CPU Analysis",
     "category": "section",
-    "text": "Plots and some analysis of how the memory requirements for training (specifically for Tensorflow) scale as the number of available processors is increased."
+    "text": "Plots and some analysis of how the memory requirements and training speed for 2 epochs of  training scale as the number of available processors is increased."
 },
 
 {
