@@ -22,5 +22,5 @@ sampling window was 0.2 seconds. That is, the sampling procedure went something 
 
 ## [CPU Analysis](https://github.com/darchr/ml-tools/blob/master/notebooks/cpu_analysis/cpu_analysis.ipynb)
 
-Plots and some analysis of how the memory requirements for training (specifically for Tensorflow)
-scale as the number of available processors is increased.
+Plots and some analysis of how the memory requirements and training speed for 2 epochs of 
+training scale as the number of available processors is increased.
