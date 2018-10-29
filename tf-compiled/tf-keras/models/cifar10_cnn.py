@@ -11,6 +11,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 import os
+import time
 
 # Use argparse to pass arguments such as batch size and number of epochs.
 # NOTE: We have to use the Python 3.5 version of argparse - keep this in mind when looking
@@ -21,11 +22,16 @@ parser = argparse.ArgumentParser(description='Configure training parameters for 
 # Add parser arguments
 parser.add_argument('--batchsize', default = 32, type=int, help='Set Batchsize for training')
 parser.add_argument('--epochs', default = 1, type=int, help='Set number of training epochs')
+parser.add_argument('--abort', action='store_true')
 
 # Parse and unpack arguments
 args = parser.parse_args()
 batch_size = args.batchsize
 epochs = args.epochs
+
+if args.abort:
+    time.sleep(5)
+    exit()
 
 #-- old arguments
 #batch_size = 512

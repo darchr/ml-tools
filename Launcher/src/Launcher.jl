@@ -7,7 +7,7 @@ end
 
 import Base.Iterators: flatten, drop
 
-export k_str, Resnet, CifarCnn, create_setup
+export k_str, Resnet, CifarCnn, create_setup, size_mb, make_cdf, memory_vec
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -22,6 +22,7 @@ const DATASET_PATHS = Dict{String,String}()
 
 ## STDLIBs
 using Dates
+using Serialization
 
 
 # Add DockerX to talk to the Docker daemon.
@@ -32,21 +33,11 @@ using ProgressMeter
 using JSON
 using Parameters
 
+include("utils.jl")
 include("setup.jl")
 include("stats.jl")
-#include("reref.jl")
 include("models/models.jl")
 
-"""
-    currentuser() -> String
-
-Return a string formatted for the current unix User and Group.
-"""
-function currentuser()
-    uid = (chomp ∘ read)(`id -u`, String)
-    gid = (chomp ∘ read)(`id -g`, String)
-    return "$uid:$gid"
-end
 
 # Helper functions
 isnothing(x) = false
@@ -68,42 +59,28 @@ end
 
 
 dash(x) = "--$x"
-makeargs(@nospecialize nt::NamedTuple) = collect(flatten((dash(a),b) for (a,b) in pairs(nt)))
-
+argify(a, b::Nothing) = (dash(a),)
+argify(a, b) = (dash(a), b)
+makeargs(@nospecialize nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
 
 ############################################################################################
 # Basic run command
-function Base.run(net::AbstractWorkload; interval = 5, logio = devnull, kw...)
-    container = create(net; kw...)
-    local stack
+run(net::AbstractWorkload; kw...) = run(DockerX.attach, net; kw...)
 
+function Base.run(f::Function, net::AbstractWorkload; kw...)
+    container = create(net; kw...)
     @info "Created: $container"
 
     # Wrap a try-finally for graceful cleanup in case something goes wrong, or someone gets
     # bored and hits ctrl+c
+    DockerX.start(container)
     try 
-        DockerX.start(container)
-
-        @show getpid(container)
-
-        # Sleep for a little bit - let everything start up.
-        #sleep(5)
-        #stack = MemSnoop.trackstack(getpid(container); sampletime = interval)
-        @sync begin
-            @async stack = MemSnoop.trackstack(getpid(container); sampletime = interval)
-            @async DockerX.attach(container)
-        end
-
-        print(logio, DockerX.log(container))
-    catch err
-        print(stdout, DockerX.log(container))
-        @error "Error" err
+        f(container)
     finally
         DockerX.remove(container, force = true)
 
         @info "Container stopped and removed"
     end
-    return stack
 end
 
 end # module
