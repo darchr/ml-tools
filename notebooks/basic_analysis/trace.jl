@@ -17,14 +17,7 @@ trace = run(cnn; cpuSets = cpuset) do container
 end
 
 # Function to generate the plots.
-function plot(trace::MemSnoop.Trace)
-    # Get all of the virtual pages seen in the trace.
-    all_addresses = MemSnoop.addresses(trace)
-
-    bitmap = [MemSnoop.isactive(sample, address) for address in all_addresses, sample in trace]
-
-    return heatmap(bitmap)
-end
+plot(trace::MemSnoop.Trace) = heatmap(MemSnoop.HeatmapWrapper(trace))
 
 plt = plot(trace)
 savefig(savefile)

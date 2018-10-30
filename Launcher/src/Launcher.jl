@@ -7,7 +7,16 @@ end
 
 import Base.Iterators: flatten, drop
 
-export k_str, Resnet, CifarCnn, create_setup, size_mb, make_cdf, memory_vec
+export  k_str, create_setup,
+        # Models
+        Resnet, 
+        CifarCnn, 
+        # Trace functions
+        trace, trackstack, 
+        # Util Functions
+        size_mb, make_cdf, memory_vec
+
+
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -38,6 +47,9 @@ include("setup.jl")
 include("stats.jl")
 include("models/models.jl")
 
+# Forward function from MemSnoop
+const trace = MemSnoop.trace
+const trackstack = MemSnoop.trackstack
 
 # Helper functions
 isnothing(x) = false
@@ -65,10 +77,20 @@ makeargs(@nospecialize nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) i
 
 ############################################################################################
 # Basic run command
-run(net::AbstractWorkload; kw...) = run(DockerX.attach, net; kw...)
+run(work::AbstractWorkload; kw...) = run(DockerX.attach, net; kw...)
 
-function Base.run(f::Function, net::AbstractWorkload; kw...)
-    container = create(net; kw...)
+"""
+    run([f::Function], work::AbstractWorkload; kw...)
+
+Create and launch a container from `work` with
+```
+    container = create(work; kw...)
+```
+Start the container and then call `f(container)`. If `f` is not given, then attach to the
+container's `stdout`.
+"""
+function Base.run(f::Function, work::AbstractWorkload; kw...)
+    container = create(work; kw...)
     @info "Created: $container"
 
     # Wrap a try-finally for graceful cleanup in case something goes wrong, or someone gets

@@ -11,14 +11,16 @@ batchsizes = (16, 32, 64, 128, 256, 512, 1024)
 cnn = CifarCnn(args = (batchsize = 128, epochs = 2))
 
 # Time intervals to test
-interval = 0.5
+sampletime = 0.5
 cpuset = "8" # Try to avoid clashing with an existing process.
 
 trackers = MemSnoop.StackTracker[]
 
 for batchsize in batchsizes
     cnn = CifarCnn(args = (batchsize = batchsize, epochs  = 2))
-    tracker = run(cnn; interval = interval, cpuSets = cpuset)
+    tracker = run(cnn; cpuSets = cpuset) do container
+        trackstack(getpid(container); sampletime = sampletime)
+    end
     push!(trackers, tracker)
 end
 

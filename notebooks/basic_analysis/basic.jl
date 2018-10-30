@@ -22,7 +22,7 @@ cnn = CifarCnn(interactive = true)
 nsamples = 40
 
 tracker = run(cnn; cpuSets = cpuset) do container
-    MemSnoop.trackstack(getpid(container), sampletime = sampletime, iter = 1:nsamples)
+    trackstack(getpid(container), sampletime = sampletime, iter = 1:nsamples)
 end
 Launcher.save(sample_file, tracker)
 
@@ -30,13 +30,14 @@ Launcher.save(sample_file, tracker)
 # but not actually running training.
 cnn = CifarCnn(args = (abort = nothing,))
 tracker = run(cnn; cpuSets = cpuset) do container
-    MemSnoop.trackstack(getpid(container), sampletime = sampletime)
+    trackstack(getpid(container), sampletime = sampletime)
 end
 Launcher.save(python_file, tracker)
 
 # Now generate the actual trace
 cnn = CifarCnn(args = (batchsize = 128, epochs = 2))
 tracker = run(cnn; cpuSets = cpuset) do container
-    MemSnoop.trackstack(getpid(container), sampletime = sampletime)
+    trackstack(getpid(container), sampletime = sampletime)
 end
+
 Launcher.save(serialized_file, tracker)
