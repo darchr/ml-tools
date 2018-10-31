@@ -2,10 +2,10 @@
 struct TestWorkload <: AbstractWorkload end
 
 image(::TestWorkload) = "darchr/tf-keras:latest"
-startfile(::TestWorkload, ::Type{OnHost}) = joinpath(MLTOOLS, "tf-compiled", "tf-keras", "models", "test.py")
-startfile(::TestWorkload, ::Type{OnContainer}) = joinpath("/home", "startup", "test.py")
+startfile(::TestWorkload, ::Type{OnHost}) = joinpath(WORKLOADS, "ubuntu", "sleep.sh" )
+startfile(::TestWorkload, ::Type{OnContainer}) = joinpath("/home", "startup", "sleep.sh")
 
-runcommand(test::TestWorkload) = `python3 $(startfile(test, OnContainer))`
+runcommand(test::TestWorkload) = `$(startfile(test, OnContainer))`
 
 function create(test::TestWorkload; cpuSets = "", kw...)
     bind_start = join([
@@ -13,6 +13,7 @@ function create(test::TestWorkload; cpuSets = "", kw...)
         dirname(startfile(test, OnContainer)),
     ], ":")
 
+    @show runcommand(test)
     # Create the container
     container = DockerX.create_container( 
         image(test);

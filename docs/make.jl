@@ -7,9 +7,12 @@ makedocs(
     pages = Any[
         "index.md", 
         "notebooks.md",
-        "Tensorflow" => Any[
-           "tensorflow.md",
-           "tf-compiled-base.md"
+        "Docker" => Any[
+            "docker.md",
+            "tensorflow.md",
+        ],
+        "Workloads" => Any[
+            "keras.md",
         ],
         "Launcher" => Any[
             "launcher.md"

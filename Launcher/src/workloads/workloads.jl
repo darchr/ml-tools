@@ -7,6 +7,8 @@ struct OnContainer <: Location end
 ## Workloads
 abstract type AbstractWorkload end
 
+const WORKLOADS = joinpath(MLTOOLS, "workloads")
+
 startfile(::T, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
     Startfile not defined for workload type $T on location $L
     """)

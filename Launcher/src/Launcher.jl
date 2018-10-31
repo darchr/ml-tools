@@ -77,7 +77,7 @@ makeargs(@nospecialize nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) i
 
 ############################################################################################
 # Basic run command
-run(work::AbstractWorkload; kw...) = run(DockerX.attach, net; kw...)
+Base.run(workload::AbstractWorkload; kw...) = run(DockerX.attach, workload; kw...)
 
 """
     run([f::Function], work::AbstractWorkload; kw...)

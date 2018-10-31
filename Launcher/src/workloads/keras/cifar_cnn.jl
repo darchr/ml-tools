@@ -19,7 +19,7 @@ end
 const cifarfile = "cifar10_cnn.py"
 
 image(::CifarCnn) = "darchr/tf-keras:latest"
-startfile(::CifarCnn, ::Type{OnHost}) = joinpath(MLTOOLS, "tf-compiled", "tf-keras", "models", cifarfile)
+startfile(::CifarCnn, ::Type{OnHost}) = joinpath(WORKLOADS, "keras", cifarfile)
 startfile(::CifarCnn, ::Type{OnContainer}) = joinpath("/home", "startup", cifarfile)
 
 function runcommand(cifar::CifarCnn)
