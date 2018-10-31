@@ -37,7 +37,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Notebooks",
     "title": "Basic Analysis",
     "category": "section",
-    "text": "Basic analysis of the memory usage during the training of a simple CNN on a single CPU. The sampling window was 0.2 seconds. That is, the sampling procedure went something like this:Mark all the applications pages as idle.\nRun applition for 0.2 seconds\nPause application\nDetermine which pages are active and update datastructures.\nRepeatPlots included in this section:WSS estimation for a single threaded process.\nReuse distance analysis.\nVerification that Docker and Python are not interfering with the measurements.\nHeatmap plots visualizing the memory access patterns to the Python heap and for the whole  application during 1 epoch of training."
+    "text": "Basic analysis of the memory usage during the training of a simple CNN on a single CPU. The sampling window was 0.2 seconds. That is, the sampling procedure went something like this:Mark all the applications pages as idle.\nRun application for 0.2 seconds\nPause application\nDetermine which pages are active and update data structures.\nRepeatPlots included in this section:WSS estimation for a single threaded process.\nReuse distance analysis.\nVerification that Docker and Python are not interfering with the measurements.\nHeatmap plots visualizing the memory access patterns to the Python heap and for the whole  application during 1 epoch of training."
 },
 
 {
@@ -53,7 +53,15 @@ var documenterSearchIndex = {"docs": [
     "page": "Notebooks",
     "title": "Batchsize",
     "category": "section",
-    "text": "Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:* Small CNN on Cifar10 dataset\n* Single thread\n* Unlimited memory\n* 0.5 second sampletime\n* 1 epoch of training\n* Batchsizes: 16, 32, 64, 128, 256, 512, 1024I\'m not entirely sure what that data means yet ...<!–"
+    "text": "Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:* Small CNN on Cifar10 dataset\n* Single thread\n* Unlimited memory\n* 0.5 second sampletime\n* 1 epoch of training\n* Batchsizes: 16, 32, 64, 128, 256, 512, 1024I\'m not entirely sure what that data means yet ..."
+},
+
+{
+    "location": "notebooks.html#[Filters](https://github.com/darchr/ml-notebooks/blob/master/filters/filters.ipynb)-1",
+    "page": "Notebooks",
+    "title": "Filters",
+    "category": "section",
+    "text": "The goal of this experiment is to see if we can filter out some types of memory during the trace without significantly affecting the results. Filtering out some regions of memory can speed up the idle page tracking process and reduce the memory footprint of the snooper.In particular, I explore filtering out Virtual Memory Areas (VMAs) that are* Executable\n* Neither readable nor writable\n* Smaller than 4 pagesConclusion - It\'s probably okay to do this. However, I need to try this on non single threaded models just in case."
 },
 
 {
@@ -61,7 +69,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Notebooks",
     "title": "Sample Time",
     "category": "section",
-    "text": "–>"
+    "text": "Experiment to investigate how sensitive our estimates of WSS and Reuse Distance are to the sample time. Parameters of the experiment:* Small CNN on Cifar dataset\n* Both single threaded and with 12 threads\n* Sample times of 0.2, 0.5, 1, 2, 4, and 8 seconds\n* Batch size of 128\n* Training for 1 epoch"
 },
 
 {
@@ -153,6 +161,38 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "ubuntu.html#",
+    "page": "Ubuntu Workloads",
+    "title": "Ubuntu Workloads",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "ubuntu.html#Ubuntu-Workloads-1",
+    "page": "Ubuntu Workloads",
+    "title": "Ubuntu Workloads",
+    "category": "section",
+    "text": "Workloads that run under the official ubuntu docker image."
+},
+
+{
+    "location": "ubuntu.html#Launcher.TestWorkload",
+    "page": "Ubuntu Workloads",
+    "title": "Launcher.TestWorkload",
+    "category": "type",
+    "text": "Launch the test workload in a ubuntu image.\n\nFields\n\nnone\n\ncreate Keyword Arguments\n\nnone\n\n\n\n\n\n"
+},
+
+{
+    "location": "ubuntu.html#Test-1",
+    "page": "Ubuntu Workloads",
+    "title": "Test",
+    "category": "section",
+    "text": "A simple shell script that prints a message, sleeps for a few seconds, prints another message and exits. The point of this workload is to provide a simple and quick to run test to decrease debugging time.File name: /workloads/ubuntu/sleep.sh\nContainer entry point: /home/startup/sleep.shLauncher DocsLauncher.TestWorkload"
+},
+
+{
     "location": "keras.html#",
     "page": "Keras Models",
     "title": "Keras Models",
@@ -181,7 +221,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Keras Models",
     "title": "Cifar Cnn",
     "category": "section",
-    "text": "A simple CNN for training on the cifar-10 dataset. This model is small enough that a couple epochs of training takes a reasonably short amount of time, even when snooping memory.File name: /workloads/keras/cifar_cnn.py\nDataset: cifar-10-batches-py.tar.gz    (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz)\nEndpoint for dataset in container: /home/user/.keras/datasets/cifar-10-batches-py.tar.gz.   If dataset doesn\'t exist, it will automatically be downloaded. However, this can take   a while and is a bit rude to the site hosting the dataset.\nScript Arguments:\n--batchsize [size] : Configure the batch size for training.\n--epochs [n] : Train for n epochs\n--abort : Import the keras and tensorflow libraries and then exit. Used for    testing the overhead of code loading.Launcher docs:Launcher.CifarCnn"
+    "text": "A simple CNN for training on the cifar-10 dataset. This model is small enough that a couple epochs of training takes a reasonably short amount of time, even when snooping memory.File name: /workloads/keras/cifar_cnn.py\nContainer entry point: /home/startup/cifar_cnn.py\nDataset: cifar-10-batches-py.tar.gz    (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz)\nEndpoint for dataset in container: /home/user/.keras/datasets/cifar-10-batches-py.tar.gz.   If dataset doesn\'t exist, it will automatically be downloaded. However, this can take   a while and is a bit rude to the site hosting the dataset.\nScript Arguments:\n--batchsize [size] : Configure the batch size for training.\n--epochs [n] : Train for n epochs\n--abort : Import the keras and tensorflow libraries and then exit. Used for    testing the overhead of code loading.Launcher Docs:Launcher.CifarCnn"
 },
 
 {
@@ -206,6 +246,54 @@ var documenterSearchIndex = {"docs": [
     "title": "Launcher",
     "category": "section",
     "text": "Launcher is the Julia package (sorry, I really, really like writing Julia code) for handling the launching of containers, aggregation of results, binding containers with relevant datasets, and generally making sure everything is working correctly. Documentation for this package can be found in this section.The functionality provided by this model is very straightforward and can probably be ported to another language if needed.Note that Launcher is built on top of two other packages:DockerX - Package for interacting with   the Docker API.\nMemSnoop - Package for tracking the memory   usage patterns of applications on the Linux operating system.These two packages are still works in progress and documentation on them is forthcoming. However, I plan on registering at least DockerX and probably MemSnoop as well as soon as I take the time to get them production ready."
+},
+
+{
+    "location": "launcher.html#Base.run",
+    "page": "Launcher",
+    "title": "Base.run",
+    "category": "function",
+    "text": "run([f::Function], work::AbstractWorkload; kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nExamples\n\nUsing Julia\'s do syntax to perform a stack based analysis\n\ntracker = run(TestWorkload()) do container\n    trackstack(getpid(container))\nend\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher.html#Launcher.AbstractWorkload",
+    "page": "Launcher",
+    "title": "Launcher.AbstractWorkload",
+    "category": "type",
+    "text": "Abstract supertype for workloads. Concrete subtypes should be implemented for each workload desired for analysis.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher.html#Launcher.startfile",
+    "page": "Launcher",
+    "title": "Launcher.startfile",
+    "category": "function",
+    "text": "startfile(work::AbstractWorkload, ::Type{OnHost}) -> String\n\nReturn the path of the entrypoint file of work on the host machine.\n\nstartfile(work::AbstractWorkload, ::Type{OnContainer}) -> String\n\nReturn the path of the entrypoint file of work on the Docker Container.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher.html#Launcher.runcommand",
+    "page": "Launcher",
+    "title": "Launcher.runcommand",
+    "category": "function",
+    "text": "runcommand(work::AbstractWorkload) -> Cmd\n\nReturn the Docker Container entry command for work.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher.html#Launcher.create",
+    "page": "Launcher",
+    "title": "Launcher.create",
+    "category": "function",
+    "text": "create(work::AbstractWorkload; kw...) -> Container\n\nCreate a Docker Container for work, with optional keyword arguments. Concrete subtypes of AbstractWorkload must define this method and perform all the necessary steps to creating the Container. Note that the container should just be created by a call to DockerX.create_container, and not actually started.\n\nKeyword arguments supported by work should be included in that types documentation.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher.html#Temporary-Documentation-1",
+    "page": "Launcher",
+    "title": "Temporary Documentation",
+    "category": "section",
+    "text": "Launcher.run\nLauncher.AbstractWorkload\nLauncher.startfile\nLauncher.runcommand\nLauncher.create"
 },
 
 ]}
