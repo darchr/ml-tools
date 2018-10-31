@@ -18,3 +18,13 @@ Note that `Launcher` is built on top of two other packages:
 These two packages are still works in progress and documentation on them is forthcoming.
 However, I plan on registering at least DockerX and probably MemSnoop as well as soon as I
 take the time to get them production ready.
+
+## Temporary Documentation
+
+```@docs
+Launcher.run
+Launcher.AbstractWorkload
+Launcher.startfile
+Launcher.runcommand
+Launcher.create
+```

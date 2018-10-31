@@ -15,9 +15,9 @@ Basic analysis of the memory usage during the training of a simple CNN on a sing
 sampling window was 0.2 seconds. That is, the sampling procedure went something like this:
 
 1. Mark all the applications pages as idle.
-2. Run applition for 0.2 seconds
+2. Run application for 0.2 seconds
 3. Pause application
-4. Determine which pages are active and update datastructures.
+4. Determine which pages are active and update data structures.
 5. Repeat
 
 Plots included in this section:
@@ -47,6 +47,29 @@ Data on how WSS and Reuse Distance vary with training batch size. Parameters of 
 
 I'm not entirely sure what that data means yet ...
 
-<!--
+## [Filters](https://github.com/darchr/ml-notebooks/blob/master/filters/filters.ipynb)
+
+The goal of this experiment is to see if we can filter out some types of memory during the
+trace without significantly affecting the results. Filtering out some regions of memory can
+speed up the idle page tracking process and reduce the memory footprint of the snooper.
+
+In particular, I explore filtering out Virtual Memory Areas (VMAs) that are
+
+    * Executable
+    * Neither readable nor writable
+    * Smaller than 4 pages
+
+**Conclusion** - It's probably okay to do this. However, I need to try this on non single
+threaded models just in case.
+
 ## [Sample Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)
--->
+
+Experiment to investigate how sensitive our estimates of WSS and Reuse Distance are to
+the sample time. Parameters of the experiment:
+
+    * Small CNN on Cifar dataset
+    * Both single threaded and with 12 threads
+    * Sample times of 0.2, 0.5, 1, 2, 4, and 8 seconds
+    * Batch size of 128
+    * Training for 1 epoch
+

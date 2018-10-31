@@ -55,6 +55,11 @@ const trackstack = MemSnoop.trackstack
 isnothing(x) = false
 isnothing(::Nothing) = true
 
+"""
+    isrunning(container::Container) -> Bool
+
+Return `true` if `container` is running.
+"""
 function isrunning(container::Container)
     # List the containers, filter on ID. Should only get one result.
     filters = Dict("id" => [DockerX.getid(container)])
@@ -83,11 +88,25 @@ Base.run(workload::AbstractWorkload; kw...) = run(DockerX.attach, workload; kw..
     run([f::Function], work::AbstractWorkload; kw...)
 
 Create and launch a container from `work` with
+
+```julia
+container = create(work; kw...)
 ```
-    container = create(work; kw...)
-```
+
 Start the container and then call `f(container)`. If `f` is not given, then attach to the
 container's `stdout`.
+
+This function ensures that containers are stopped and cleaned up in case something goes wrong.
+
+Examples
+--------
+Using Julia's `do` syntax to perform a stack based analysis
+
+```julia
+tracker = run(TestWorkload()) do container
+    trackstack(getpid(container))
+end
+```
 """
 function Base.run(f::Function, work::AbstractWorkload; kw...)
     container = create(work; kw...)

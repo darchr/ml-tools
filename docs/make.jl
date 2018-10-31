@@ -12,6 +12,7 @@ makedocs(
             "tensorflow.md",
         ],
         "Workloads" => Any[
+            "ubuntu.md",
             "keras.md",
         ],
         "Launcher" => Any[

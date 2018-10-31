@@ -13,7 +13,7 @@ Fields
 * `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
     instead of Python. Used for debugging the container. Default: `false`.
 
-`create` keywords
+[`create`](@ref) keywords
 -----------------
 
 * `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
