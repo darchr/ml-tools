@@ -49,6 +49,22 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "notebooks.html#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsize.ipynb)-1",
+    "page": "Notebooks",
+    "title": "Batchsize",
+    "category": "section",
+    "text": "Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:* Small CNN on Cifar10 dataset\n* Single thread\n* Unlimited memory\n* 0.5 second sampletime\n* 1 epoch of training\n* Batchsizes: 16, 32, 64, 128, 256, 512, 1024I\'m not entirely sure what that data means yet ...<!–"
+},
+
+{
+    "location": "notebooks.html#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)-1",
+    "page": "Notebooks",
+    "title": "Sample Time",
+    "category": "section",
+    "text": "–>"
+},
+
+{
     "location": "docker.html#",
     "page": "Docker",
     "title": "Docker",
@@ -153,11 +169,19 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "keras.html#Launcher.CifarCnn",
+    "page": "Keras Models",
+    "title": "Launcher.CifarCnn",
+    "category": "type",
+    "text": "Workload object for the Keras Cifar10 cnn. Build type using keyword constructors.\n\nFields\n\nargs :: NamedTuple - Arguments to pass to the startup script (see docs).    Default: NamedTuple()\ninteractive :: Bool - If set to true, the container will launch into /bin/bash   instead of Python. Used for debugging the container. Default: false.\n\ncreate keywords\n\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.    Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
+},
+
+{
     "location": "keras.html#Cifar-Cnn-1",
     "page": "Keras Models",
     "title": "Cifar Cnn",
     "category": "section",
-    "text": "TODO"
+    "text": "A simple CNN for training on the cifar-10 dataset. This model is small enough that a couple epochs of training takes a reasonably short amount of time, even when snooping memory.File name: /workloads/keras/cifar_cnn.py\nDataset: cifar-10-batches-py.tar.gz    (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz)\nEndpoint for dataset in container: /home/user/.keras/datasets/cifar-10-batches-py.tar.gz.   If dataset doesn\'t exist, it will automatically be downloaded. However, this can take   a while and is a bit rude to the site hosting the dataset.\nScript Arguments:\n--batchsize [size] : Configure the batch size for training.\n--epochs [n] : Train for n epochs\n--abort : Import the keras and tensorflow libraries and then exit. Used for    testing the overhead of code loading.Launcher docs:Launcher.CifarCnn"
 },
 
 {
