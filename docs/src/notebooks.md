@@ -9,7 +9,7 @@ In general, each directory contains a notebook and a collection of scripts. Sinc
 
 Note that these scripts should be run before the notebooks if trying to recreate the plots.
 
-## [Basic Analysis](https://github.com/darchr/ml-tools/blob/master/notebooks/basic_analysis/basic_analysis.ipynb)
+## [Basic Analysis](https://github.com/darchr/ml-notebooks/blob/master/basic_analysis/basic_analysis.ipynb)
 
 Basic analysis of the memory usage during the training of a simple CNN on a single CPU. The
 sampling window was 0.2 seconds. That is, the sampling procedure went something like this:
@@ -29,7 +29,7 @@ Plots included in this section:
     application during 1 epoch of training.
 
 
-## [CPU Analysis](https://github.com/darchr/ml-tools/blob/master/notebooks/cpu_analysis/cpu_analysis.ipynb)
+## [CPU Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)
 
 Plots and some analysis of how the memory requirements and training speed for 2 epochs of 
 training scale as the number of available processors is increased.

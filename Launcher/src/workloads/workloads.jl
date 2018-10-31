@@ -14,5 +14,6 @@ startfile(::T, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("
 runcommand(::T) where T = `$(startfile(T, OnContainer))`
 
 ## Concrete model
-include("cifar_cnn.jl")
-include("cifar_resnet.jl")
+include("ubuntu/test.jl")
+include("keras/cifar_cnn.jl")
+include("keras/cifar_resnet.jl")

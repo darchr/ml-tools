@@ -11,8 +11,8 @@
 * `cpuSets = ""` - The CPU sets on which to run the workload.
 """
 @with_kw struct CifarCnn <: AbstractWorkload 
-    args::NamedTuple    = NamedTuple()
-    interactive::Bool   = false
+    args :: NamedTuple    = NamedTuple()
+    interactive :: Bool   = false
 end
 
 

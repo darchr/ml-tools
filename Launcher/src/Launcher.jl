@@ -45,7 +45,7 @@ using Parameters
 include("utils.jl")
 include("setup.jl")
 include("stats.jl")
-include("models/models.jl")
+include("workloads/workloads.jl")
 
 # Forward function from MemSnoop
 const trace = MemSnoop.trace
