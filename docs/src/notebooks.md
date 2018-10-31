@@ -34,7 +34,7 @@ Plots included in this section:
 Plots and some analysis of how the memory requirements and training speed for 2 epochs of 
 training scale as the number of available processors is increased.
 
-## [Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsize.ipynb)
+## [Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsizes.ipynb)
 
 Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:
 
