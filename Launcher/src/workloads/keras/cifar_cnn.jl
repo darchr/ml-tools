@@ -4,11 +4,20 @@
 # Small CNN on cifar - used mainly for testing out infrastructure here because of its short
 # training time.
 """
-    CifarCnn
+Workload object for the Keras Cifar10 cnn. Build type using keyword constructors.
 
-# `create` keywords
+Fields
+------
+* `args :: NamedTuple` - Arguments to pass to the startup script (see docs). 
+    Default: `NamedTuple()`
+* `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
+    instead of Python. Used for debugging the container. Default: `false`.
 
-* `cpuSets = ""` - The CPU sets on which to run the workload.
+`create` keywords
+-----------------
+
+* `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
+    Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
 @with_kw struct CifarCnn <: AbstractWorkload 
     args :: NamedTuple    = NamedTuple()

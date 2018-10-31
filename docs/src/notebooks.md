@@ -33,3 +33,20 @@ Plots included in this section:
 
 Plots and some analysis of how the memory requirements and training speed for 2 epochs of 
 training scale as the number of available processors is increased.
+
+## [Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsize.ipynb)
+
+Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:
+
+    * Small CNN on Cifar10 dataset
+    * Single thread
+    * Unlimited memory
+    * 0.5 second sampletime
+    * 1 epoch of training
+    * Batchsizes: 16, 32, 64, 128, 256, 512, 1024
+
+I'm not entirely sure what that data means yet ...
+
+<!--
+## [Sample Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)
+-->
