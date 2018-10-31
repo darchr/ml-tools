@@ -49,7 +49,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsize.ipynb)-1",
+    "location": "notebooks.html#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsizes.ipynb)-1",
     "page": "Notebooks",
     "title": "Batchsize",
     "category": "section",
