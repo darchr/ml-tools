@@ -1,4 +1,4 @@
-# Tensorflow
+# Tensorflow CPU
 
 We will use [Tensorflow](https://www.tensorflow.org/) as one of the ML frameworks for 
 testing. Since the standard distribution for Tensorflow is not compiled with AVX2 
@@ -28,7 +28,7 @@ Tensorflow runs ~60% faster.
 
 Other containers that use Tensorflow can be build from `darchr/tf-compiled/base`.
 
-## Building `tf-compiled-base`
+## `darchr/tf-compiled-base`
 
 As a high level overview, we use an official Tensorflow docker containers to build a 
 Python 3.5 "wheel" (package). We then use a Python 3.5.6 docker container as a base to 
@@ -134,9 +134,22 @@ found a solution that works by installing `gosu`:
 Essentially, a dummy account `user` is created that does not have root privileges, but we
 can still create directories within the docker containers.
 
-## Building `tf-keras`
+## `darchr/tf-keras`
+
+Container built from `darchr/tf-compiled-base` with the `keras` package installed.
 
 Just run the build script with:
+```sh
+./build.sh
+```
+
+## `darchr/tf-official-models`
+
+Container build from `darchr/tf-compiled-base`. Installs the dependencies required to run
+the [official models](https://github.com/tensorflow/models/tree/master/official) for
+Tensorflow.
+
+Building is simple, just run
 ```sh
 ./build.sh
 ```

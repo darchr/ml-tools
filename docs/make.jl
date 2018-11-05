@@ -3,21 +3,27 @@ using Documenter, Launcher
 makedocs(
     modules = [Launcher],
     format = :html,
-    sitename = "ml-tools",
+    sitename = "ML-Tools",
+    # Make local build look good.
+    html_prettyurls = get(ENV, "CI", nothing) == "true",
+    linkcheck = true,
     pages = Any[
-        "index.md", 
-        "notebooks.md",
-        "Docker" => Any[
-            "docker.md",
-            "tensorflow.md",
+        "Home" => "index.md", 
+        "Notebooks" => "notebooks.md",
+        "Docker" => [
+            "docker/docker.md",
+            "docker/tensorflow.md",
         ],
-        "Workloads" => Any[
-            "ubuntu.md",
-            "keras.md",
+        "Datasets" => [
+            "datasets/imagenet.md",
         ],
-        "Launcher" => Any[
+        "Workloads" => [
+            "workloads/ubuntu.md",
+            "workloads/keras.md",
+        ],
+        "Launcher" => [
             "launcher.md"
-        ]
+        ],
     ]
 )
 
