@@ -3,32 +3,35 @@
 ############################################################################################
 """
 Struct representing parameters for launching Resnet on the Cifar training set.
+Construct type using a key-word constructor
 
 Fields
 ------
-* `args` - Arguments passed to the Keras Python script that creates and trains Resnet.
-* `interactive` - Set to `true` to create a container that does not automatically run
+* `args::NamedTuple` - Arguments passed to the Keras Python script that creates and 
+    trains Resnet.
+
+* `interactive::Bool` - Set to `true` to create a container that does not automatically run
     Resnet when launched. Useful for debugging what's going on inside the container.
+
+[`create`](@ref) keywords
+-------------------------
 * `memory::Union{Nothing, Int}` - The amount of memory to assign to this container. If
     this value is `nothing`, the container will have access to all system memory.
-* `cpus::Union{Nothing, Int}` - Limit the number of cpus available to this container.
-    If `nothing`, the container can use all available cpus.
+    Default: `nothing`.
+
+* `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
+    Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
 @with_kw struct Resnet <: AbstractWorkload
     args :: NamedTuple              = NamedTuple()
     interactive :: Bool             = false
-    memory :: Union{Nothing, Int}   = nothing
-    cpus :: Union{Nothing, Int}     = nothing
 end
 
 # Setup parameters
 const resnetfile = "cifar10_resnet.py"
 image(::Resnet) = "darchr/tf-keras:latest"
 
-startfile(::Resnet, ::Type{OnHost}) = joinpath(
-    MLTOOLS, "tf-compiled", "tf-keras", "models", resnetfile
-)
-
+startfile(::Resnet, ::Type{OnHost}) = joinpath(WORKLOADS, "keras", resnetfile)
 startfile(::Resnet, ::Type{OnContainer}) = joinpath("/home", "startup", resnetfile)
 function runcommand(resnet::Resnet)
     if resnet.interactive
@@ -39,7 +42,7 @@ function runcommand(resnet::Resnet)
 end
 
 
-function create(resnet::Resnet; memory = nothing, cpus = nothing)
+function create(resnet::Resnet; memory = nothing, cpuSets = "")
     # Attach the cifar dataset at /data1 to the keras cache
     # Need to put the dataset into the cache expected by Keras in order to avoid Keras
     # automatically downloading the dataset. That's why the path
@@ -63,18 +66,6 @@ function create(resnet::Resnet; memory = nothing, cpus = nothing)
     # arguments are supplied.
     kw = NamedTuple()
 
-    # CPU - Ratio of cpuQuota over cpuPeriod approximately gives the number of CPUs
-    # available for work.
-    #
-    # TODO: Once amarillo quiets down, mayby switch this over to assigning processors
-    # directly to avoid the container getting scheduled all over the place.
-    if !isnothing(cpus)
-        # cpu units in Microseconds - set the default period to 1 second.
-        cpuPeriod = 1000000
-        cpuQuota = cpus * cpuPeriod
-        kw = merge(kw, (cpuPeriod = cpuPeriod, cpuQuota = cpuQuota))
-    end
-
     if !isnothing(memory)
         kw = merge(kw, (Memory = memory,))
     end
@@ -85,6 +76,7 @@ function create(resnet::Resnet; memory = nothing, cpus = nothing)
         attachStdin = true,
         binds = [bind_dataset, bind_start],
         cmd = runcommand(resnet),
+        cpuSets = cpuSets,
         kw...
     )
 

@@ -25,8 +25,8 @@ import numpy as np
 import os
 
 # Training parameters
-batch_size = 32  # orig paper trained all networks with batch_size=128
-epochs = 1
+#batch_size = 32  # orig paper trained all networks with batch_size=128
+#epochs = 1
 data_augmentation = False
 num_classes = 10
 
@@ -45,6 +45,7 @@ parser.add_argument('--epochs', default = 1, type = int,
 model_choices = ["ResNet20", "ResNet32", "ResNet44", "ResNet56", "ResNet110"]
 parser.add_argument('--model', choices = model_choices, default = "ResNet56")
 parser.add_argument('--version', type = int, choices = [1,2], default = 1)
+parser.add_argument('--trainingsize', type = int, default = 50000)
 
 # Parse the arguments
 args = parser.parse_args()
@@ -52,6 +53,7 @@ args = parser.parse_args()
 # Extract the simple arguments
 batch_size = args.batchsize
 epochs = args.epochs
+trainintsize = args.trainingsize
 
 # Extract the model parameters from the table below
 
@@ -100,6 +102,13 @@ model_type = 'ResNet%dv%d' % (depth, version)
 
 # Load the CIFAR10 data.
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+####
+# Perform training data limitiation if requested
+x_train = x_train[0:trainingsize]
+y_train = y_train[0:trainingsize]
+
+####
 
 # Input image dimensions.
 input_shape = x_train.shape[1:]
@@ -360,7 +369,7 @@ def resnet_v2(input_shape, depth, num_classes=10):
                     kernel_initializer='he_normal')(y)
 
     # Instantiate model.
-    model = Model(inputs=inputs, outputs=outputs)
+   model = Model(inputs=inputs, outputs=outputs)
     return model
 
 

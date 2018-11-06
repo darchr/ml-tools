@@ -92,13 +92,13 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[MbedTLS]]
 deps = ["BinaryProvider", "Dates", "Libdl", "Random", "Sockets", "Test"]
-git-tree-sha1 = "294100fb8907956b1afd9ce3294e085c2de5bd5e"
+git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "0.6.5"
+version = "0.6.6"
 
 [[MemSnoop]]
 deps = ["Serialization"]
-git-tree-sha1 = "f46577a3f6a8ce96b90859b4837ee17ad5a2a137"
+git-tree-sha1 = "f547e2faddce948880868f35200086cb27730ed0"
 repo-rev = "master"
 repo-url = "https://github.com/hildebrandmw/MemSnoop.jl"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"

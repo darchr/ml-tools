@@ -12,7 +12,7 @@ export  k_str, create_setup,
         Resnet, 
         CifarCnn, 
         # Trace functions
-        trace, trackstack, 
+        trace, track_distance, 
         # Util Functions
         size_mb, make_cdf, memory_vec
 
@@ -49,7 +49,9 @@ include("workloads/workloads.jl")
 
 # Forward function from MemSnoop
 const trace = MemSnoop.trace
-const trackstack = MemSnoop.trackstack
+
+@deprecate trackstack track_distance
+const track_distance = MemSnoop.track_distance
 
 # Helper functions
 isnothing(x) = false
