@@ -65,7 +65,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks/#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)-1",
+    "location": "notebooks/#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/sampletime/sampletime.ipynb)-1",
     "page": "Notebooks",
     "title": "Sample Time",
     "category": "section",
