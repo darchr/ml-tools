@@ -1,23 +1,23 @@
 var documenterSearchIndex = {"docs": [
 
 {
-    "location": "index.html#",
-    "page": "ML-Tools",
-    "title": "ML-Tools",
+    "location": "#",
+    "page": "Home",
+    "title": "Home",
     "category": "page",
     "text": ""
 },
 
 {
-    "location": "index.html#ML-Tools-1",
-    "page": "ML-Tools",
+    "location": "#ML-Tools-1",
+    "page": "Home",
     "title": "ML-Tools",
     "category": "section",
     "text": "This repo contains a collection of tools, containers, and scripts for launching machine learning workloads in Docker containers and collecting statistics about the  containers."
 },
 
 {
-    "location": "notebooks.html#",
+    "location": "notebooks/#",
     "page": "Notebooks",
     "title": "Notebooks",
     "category": "page",
@@ -25,7 +25,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#Notebooks-1",
+    "location": "notebooks/#Notebooks-1",
     "page": "Notebooks",
     "title": "Notebooks",
     "category": "section",
@@ -33,7 +33,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[Basic-Analysis](https://github.com/darchr/ml-notebooks/blob/master/basic_analysis/basic_analysis.ipynb)-1",
+    "location": "notebooks/#[Basic-Analysis](https://github.com/darchr/ml-notebooks/blob/master/basic_analysis/basic_analysis.ipynb)-1",
     "page": "Notebooks",
     "title": "Basic Analysis",
     "category": "section",
@@ -41,7 +41,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[CPU-Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)-1",
+    "location": "notebooks/#[CPU-Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)-1",
     "page": "Notebooks",
     "title": "CPU Analysis",
     "category": "section",
@@ -49,7 +49,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsizes.ipynb)-1",
+    "location": "notebooks/#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsizes.ipynb)-1",
     "page": "Notebooks",
     "title": "Batchsize",
     "category": "section",
@@ -57,7 +57,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[Filters](https://github.com/darchr/ml-notebooks/blob/master/filters/filters.ipynb)-1",
+    "location": "notebooks/#[Filters](https://github.com/darchr/ml-notebooks/blob/master/filters/filters.ipynb)-1",
     "page": "Notebooks",
     "title": "Filters",
     "category": "section",
@@ -65,7 +65,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks.html#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)-1",
+    "location": "notebooks/#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)-1",
     "page": "Notebooks",
     "title": "Sample Time",
     "category": "section",
@@ -73,7 +73,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "docker.html#",
+    "location": "docker/docker/#",
     "page": "Docker",
     "title": "Docker",
     "category": "page",
@@ -81,7 +81,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "docker.html#Docker-1",
+    "location": "docker/docker/#Docker-1",
     "page": "Docker",
     "title": "Docker",
     "category": "section",
@@ -89,79 +89,127 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "tensorflow.html#",
-    "page": "Tensorflow",
-    "title": "Tensorflow",
+    "location": "docker/tensorflow/#",
+    "page": "Tensorflow CPU",
+    "title": "Tensorflow CPU",
     "category": "page",
     "text": ""
 },
 
 {
-    "location": "tensorflow.html#Tensorflow-1",
-    "page": "Tensorflow",
-    "title": "Tensorflow",
+    "location": "docker/tensorflow/#Tensorflow-CPU-1",
+    "page": "Tensorflow CPU",
+    "title": "Tensorflow CPU",
     "category": "section",
     "text": "We will use Tensorflow as one of the ML frameworks for  testing. Since the standard distribution for Tensorflow is not compiled with AVX2  instructions, I compiled Tensorflow from source on amarillo. The directory tf-compile/ has the relevant files for how this is done.The Docker Hub where the most current version of this container lives is here: https://hub.docker.com/r/darchr/tf-compiled-base/. This repo will be kept  up-to-date as I make needed changes to the container.I\'m using the official tensorflow docker approach to compile and build the pip package for tensor flow.https://www.tensorflow.org/install/source\nhttps://www.tensorflow.org/install/dockerHelpful post talking about docker permissions https://denibertovic.com/posts/handling-permissions-with-docker-volumes/"
 },
 
 {
-    "location": "tensorflow.html#Compilation-Overview-1",
-    "page": "Tensorflow",
+    "location": "docker/tensorflow/#Compilation-Overview-1",
+    "page": "Tensorflow CPU",
     "title": "Compilation Overview",
     "category": "section",
     "text": "Containers will be build incrementally, starting with darchr/tf-compiled-base, which is the base image containing Tensorflow that has been compiled on amarillo. Compiling Tensorflow is important because the default Tensorflow binary is not compiled to use AVX2 instructions. Using the very scientific \"eyeballing\" approach, this compiled version of Tensorflow runs ~60% faster.Other containers that use Tensorflow can be build from darchr/tf-compiled/base."
 },
 
 {
-    "location": "tensorflow.html#Building-tf-compiled-base-1",
-    "page": "Tensorflow",
-    "title": "Building tf-compiled-base",
+    "location": "docker/tensorflow/#darchr/tf-compiled-base-1",
+    "page": "Tensorflow CPU",
+    "title": "darchr/tf-compiled-base",
     "category": "section",
     "text": "As a high level overview, we use an official Tensorflow docker containers to build a  Python 3.5 \"wheel\" (package). We then use a Python 3.5.6 docker container as a base to  install the compiled tensorflow wheel."
 },
 
 {
-    "location": "tensorflow.html#Compiling-Tensorflow-1",
-    "page": "Tensorflow",
+    "location": "docker/tensorflow/#Compiling-Tensorflow-1",
+    "page": "Tensorflow CPU",
     "title": "Compiling Tensorflow",
     "category": "section",
     "text": "Pull the docker container with the source code:docker pull tensorflow/tensorflow:1.10.0-devel-py3Launch the container withdocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:1.10.0-devel-py3 bashThis does the following:Opens the container in the /tensorflow directory, which contains the tensorflow source   code\nMounts the current directory into the /mnt directory in the container. This allows the   .whl build to be dropped in the PWD after compilation.Inside the container, rungit pullto pull the latest copy of the tensorflow source. Then configure the build with./configureSettings used:Python Location: default\nPython Library Path: default\njemalloc support: Y\nGoogle cloud platform support: n\nHadoop file system support: n\nAmazon AWS platform support: n\nApache Kafka Platform support: n\nXLA Jis support: N\nGDR support: N\nVERBs support: N\nnGraph support: N\nOpenCL SYCL support: N\nCUDA support: N\nFresh clang release: N\nMPI support: N\nOptimization flags: default\nInteractively configure ./WORKSPACE: NSteps to build:bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.10.1-cp35-cp35m-linux_x86_64.whlNote, compilation takes quite a while, so be patient. If running on amarillo, enjoy the 96 thread awesomeness."
 },
 
 {
-    "location": "tensorflow.html#Summary-1",
-    "page": "Tensorflow",
+    "location": "docker/tensorflow/#Summary-1",
+    "page": "Tensorflow CPU",
     "title": "Summary",
     "category": "section",
     "text": "docker pull tensorflow/tensorflow:nightly-devel-py3\ndocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:nightly-devel-py3 bash\n# inside container\ngit pull\n./configure # Look at options above\nbazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.10.1-cp35-cp35m-linux_x86_64.whl"
 },
 
 {
-    "location": "tensorflow.html#Building-the-Docker-Image-1",
-    "page": "Tensorflow",
+    "location": "docker/tensorflow/#Building-the-Docker-Image-1",
+    "page": "Tensorflow CPU",
     "title": "Building the Docker Image",
     "category": "section",
     "text": "With the .whl for tensorflow build, we can build a new Docker container with this  installed. For this step, move tensorflow-...-.whl into the tf-compiled-base/  directory. Then, run the shell script:./build.sh tensorflow-1.10.1-cp35-cm35m-linux_x86_64.whlFinally, if necessary, push the image to the darchr docker hub viadocker push darchr/tf-compiled-base"
 },
 
 {
-    "location": "tensorflow.html#Details-1",
-    "page": "Tensorflow",
+    "location": "docker/tensorflow/#Details-1",
+    "page": "Tensorflow CPU",
     "title": "Details",
     "category": "section",
     "text": "Annoyingly, the .whl created in the previous step only works with Python 3.5. I tried  hacking it by changing the name (cp35-cp35m -> cp36-cp36m), but installation with pip  failed. This means that we need a working copy of Python 3.5 in order to run this.  Fortunately, the Python foundation supplies Debian (I think ... or Ubuntu) based containers for past Python versions. We can use this as a starting point for our Dockerfile.Permissions with the docker containers was becoming a bit of a nightmare. I finally found a solution that works by installing gosu:https://github.com/tianon/gosu\nhttps://denibertovic.com/posts/handling-permissions-with-docker-volumes/Essentially, a dummy account user is created that does not have root privileges, but we can still create directories within the docker containers."
 },
 
 {
-    "location": "tensorflow.html#Building-tf-keras-1",
-    "page": "Tensorflow",
-    "title": "Building tf-keras",
+    "location": "docker/tensorflow/#darchr/tf-keras-1",
+    "page": "Tensorflow CPU",
+    "title": "darchr/tf-keras",
     "category": "section",
-    "text": "Just run the build script with:./build.sh"
+    "text": "Container built from darchr/tf-compiled-base with the keras package installed.Just run the build script with:./build.sh"
 },
 
 {
-    "location": "ubuntu.html#",
+    "location": "docker/tensorflow/#darchr/tf-official-models-1",
+    "page": "Tensorflow CPU",
+    "title": "darchr/tf-official-models",
+    "category": "section",
+    "text": "Container build from darchr/tf-compiled-base. Installs the dependencies required to run the official models for Tensorflow.Building is simple, just run./build.sh"
+},
+
+{
+    "location": "datasets/imagenet/#",
+    "page": "Imagenet",
+    "title": "Imagenet",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "datasets/imagenet/#Imagenet-1",
+    "page": "Imagenet",
+    "title": "Imagenet",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "datasets/imagenet/#Getting-the-Datasets-1",
+    "page": "Imagenet",
+    "title": "Getting the Datasets",
+    "category": "section",
+    "text": "Theoretically, you can download the original 2012 Imagenet images from  http://image-net.org/download-images by first registering. However, when I tried that, I never received an email confirming my registration and thus allowing me to download. I had to resort to ... other means.In the process of searching for where to download, I came across some comments that the  Imagenet2012 database had moved to a new home. However, when writing up this documentation, I couldn\'t find that reference nor the new home.In conclusion, it seems that getting the dataset is significantly less straightforward than it should be. However, it is possible to find the dataset eventually."
+},
+
+{
+    "location": "datasets/imagenet/#Using-Imagenet-in-Tensorflow-1",
+    "page": "Imagenet",
+    "title": "Using Imagenet in Tensorflow",
+    "category": "section",
+    "text": "The training and validation .tar files need to be converted into something called a  TFRecord format (something used by Tensorflow I guess). This flow assumes that you have the datasets downloaded and stored in a path /path-to-datasets/. Some helpful links are provided:Documentation on how to get the official ResNet tensorflow models working on the   Image net data: https://github.com/tensorflow/models/tree/master/official/resnet\nDocumentation and script for converting the Imagenet .tar files into the form desired   by Tensorflow: https://github.com/tensorflow/tpu/tree/master/tools/datasets#imagenet_to_gcspy\nThe Python script that does the conversion: https://github.com/tensorflow/tpu/blob/master/tools/datasets/imagenet_to_gcs.pyThis info should all be incorporated into the build script build.sh. To run it, just  execute./build.sh /path-to-tar-filesThis will create the folders/path-to-tar-files/train\n/path-to-tar-files/validationand unpack the tar files into these respective folders. The original tar files will be left alone, so make sure you have around 300G of extra free space when you do this, otherwise  you\'re gonna have a bad day.After unpacking, the build script will execute the imagenet_to_gcs.py script to do the actual conversion.Be aware that dataset conversion can take a long time. You probably want to run the build script in a tmux shell or something so you can go have a coffee.Note that the build script will launch an docker instance of darchr/tf-compiled-base  because the Python script needs Tensorflow to run. Once the script finishes, you should be good to go."
+},
+
+{
+    "location": "datasets/imagenet/#Changes-made-to-imagenet_to_gcs.py-1",
+    "page": "Imagenet",
+    "title": "Changes made to imagenet_to_gcs.py",
+    "category": "section",
+    "text": "I had to make several changes for Python 2 to Python 3 compatibility. (Seriously folks,  can\'t we all just agree to use Python 3??)Line 58: Commented out the import google.cloud ... line because we\'re not uploading    anything to the google cloud and I don\'t want to install that package.\nLines 177, 179: Suffixed string literals with \'\'.encode() to tell python that these    should by byte collections.\nLines 187, 189: Add .encode to several strings to _bytes_feature doesn\'t complain.\nLine 282: Change the \'r\' option in reading to \'rb\'. Avoid trying to reinterpret image   data as utf-8, which will definitely not work.\nLine 370: A Python range object is used and then shuffled. However, in Python3, ranges   have become lazy and thus cannot be shuffled. I changed this by explicitly converting   the range to a list, forcing materialization of the whole range."
+},
+
+{
+    "location": "workloads/ubuntu/#",
     "page": "Ubuntu Workloads",
     "title": "Ubuntu Workloads",
     "category": "page",
@@ -169,7 +217,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "ubuntu.html#Ubuntu-Workloads-1",
+    "location": "workloads/ubuntu/#Ubuntu-Workloads-1",
     "page": "Ubuntu Workloads",
     "title": "Ubuntu Workloads",
     "category": "section",
@@ -177,7 +225,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "ubuntu.html#Launcher.TestWorkload",
+    "location": "workloads/ubuntu/#Launcher.TestWorkload",
     "page": "Ubuntu Workloads",
     "title": "Launcher.TestWorkload",
     "category": "type",
@@ -185,7 +233,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "ubuntu.html#Test-1",
+    "location": "workloads/ubuntu/#Test-1",
     "page": "Ubuntu Workloads",
     "title": "Test",
     "category": "section",
@@ -193,7 +241,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "keras.html#",
+    "location": "workloads/keras/#",
     "page": "Keras Models",
     "title": "Keras Models",
     "category": "page",
@@ -201,7 +249,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "keras.html#Keras-Models-1",
+    "location": "workloads/keras/#Keras-Models-1",
     "page": "Keras Models",
     "title": "Keras Models",
     "category": "section",
@@ -209,7 +257,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "keras.html#Launcher.CifarCnn",
+    "location": "workloads/keras/#Launcher.CifarCnn",
     "page": "Keras Models",
     "title": "Launcher.CifarCnn",
     "category": "type",
@@ -217,7 +265,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "keras.html#Cifar-Cnn-1",
+    "location": "workloads/keras/#Cifar-Cnn-1",
     "page": "Keras Models",
     "title": "Cifar Cnn",
     "category": "section",
@@ -225,7 +273,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "keras.html#Resnet-Cnn-1",
+    "location": "workloads/keras/#Resnet-Cnn-1",
     "page": "Keras Models",
     "title": "Resnet Cnn",
     "category": "section",
@@ -233,7 +281,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#",
+    "location": "launcher/#",
     "page": "Launcher",
     "title": "Launcher",
     "category": "page",
@@ -241,7 +289,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Launcher-1",
+    "location": "launcher/#Launcher-1",
     "page": "Launcher",
     "title": "Launcher",
     "category": "section",
@@ -249,7 +297,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Base.run",
+    "location": "launcher/#Base.run",
     "page": "Launcher",
     "title": "Base.run",
     "category": "function",
@@ -257,7 +305,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Launcher.AbstractWorkload",
+    "location": "launcher/#Launcher.AbstractWorkload",
     "page": "Launcher",
     "title": "Launcher.AbstractWorkload",
     "category": "type",
@@ -265,7 +313,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Launcher.startfile",
+    "location": "launcher/#Launcher.startfile",
     "page": "Launcher",
     "title": "Launcher.startfile",
     "category": "function",
@@ -273,7 +321,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Launcher.runcommand",
+    "location": "launcher/#Launcher.runcommand",
     "page": "Launcher",
     "title": "Launcher.runcommand",
     "category": "function",
@@ -281,7 +329,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Launcher.create",
+    "location": "launcher/#Launcher.create",
     "page": "Launcher",
     "title": "Launcher.create",
     "category": "function",
@@ -289,7 +337,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher.html#Temporary-Documentation-1",
+    "location": "launcher/#Temporary-Documentation-1",
     "page": "Launcher",
     "title": "Temporary Documentation",
     "category": "section",
