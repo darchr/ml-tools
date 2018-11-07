@@ -2,7 +2,7 @@
 # RESNET
 ############################################################################################
 """
-Struct representing parameters for launching Resnet on the Cifar training set.
+Struct representing parameters for launching ResnetKeras on the Cifar training set.
 Construct type using a key-word constructor
 
 Fields
@@ -22,18 +22,18 @@ Fields
 * `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
     Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
-@with_kw struct Resnet <: AbstractWorkload
+@with_kw struct ResnetKeras <: AbstractWorkload
     args :: NamedTuple              = NamedTuple()
     interactive :: Bool             = false
 end
 
 # Setup parameters
 const resnetfile = "cifar10_resnet.py"
-image(::Resnet) = "darchr/tf-keras:latest"
+image(::ResnetKeras) = "darchr/tf-keras:latest"
 
-startfile(::Resnet, ::Type{OnHost}) = joinpath(WORKLOADS, "keras", resnetfile)
-startfile(::Resnet, ::Type{OnContainer}) = joinpath("/home", "startup", resnetfile)
-function runcommand(resnet::Resnet)
+startfile(::ResnetKeras, ::Type{OnHost}) = joinpath(WORKLOADS, "keras", resnetfile)
+startfile(::ResnetKeras, ::Type{OnContainer}) = joinpath("/home", "startup", resnetfile)
+function runcommand(resnet::ResnetKeras)
     if resnet.interactive
         `/bin/bash`
     else
@@ -42,7 +42,7 @@ function runcommand(resnet::Resnet)
 end
 
 
-function create(resnet::Resnet; memory = nothing, cpuSets = "")
+function create(resnet::ResnetKeras; memory = nothing, cpuSets = "")
     # Attach the cifar dataset at /data1 to the keras cache
     # Need to put the dataset into the cache expected by Keras in order to avoid Keras
     # automatically downloading the dataset. That's why the path

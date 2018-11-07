@@ -1,3 +1,5 @@
+bind(a, b) = join((a, b), ":")
+
 size_mb(x) = 4 * x / 1024
 make_cdf(x::MemSnoop.DistanceTracker) = MemSnoop.cdf(MemSnoop.transform(x.distances))
 memory_vec(x) = size_mb(1:length(x))

@@ -72,3 +72,17 @@ can't we all just agree to use Python 3??)
 * Line 370: A Python `range` object is used and then shuffled. However, in Python3, ranges
     have become lazy and thus cannot be shuffled. I changed this by explicitly converting
     the `range` to a `list`, forcing materialization of the whole range.
+
+* Line 402: Made the following change:
+    ```python
+    os.path.join(FLAGS.local_scatch_dir, TRAINING_DIRECTORY) -> FLAGS.local_scratch_dir
+    ```
+    because the official tensorflow Resnet is not looking for a slightly different directory
+    structure. That is, all the training and validation files are in a flat directory
+    rather than their own `train` and `validation` directories.
+
+* Line 409: Made the collowing change:
+    ```python
+    os.path.join(FLAGS.local_scatch_dir, VALIDATION_DIRECTORY) -> FLAGS.local_scratch_dir
+    ```
+    for the same reason as above.

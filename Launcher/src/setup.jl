@@ -1,6 +1,6 @@
 setupexists() = ispath(SETUP_PATH)
 
-const DATASETS = ("cifar", "imagenet")
+const DATASETS = ("cifar", "imagenet_dir")
 
 function setup()
     if !setupexists()

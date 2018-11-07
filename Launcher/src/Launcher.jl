@@ -78,9 +78,9 @@ end
 
 
 dash(x) = "--$x"
-argify(a, b::Nothing) = (dash(a),)
-argify(a, b) = (dash(a), b)
-makeargs(@nospecialize nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
+argify(a, b::Nothing, args...) = dash(a)
+argify(a, b, delim) = join((dash(a), b), delim)
+makeargs(@nospecialize(nt::NamedTuple), delim = " ") = [argify(a,b,delim) for (a,b) in pairs(nt)]
 
 ############################################################################################
 # Basic run command
@@ -92,13 +92,15 @@ Base.run(workload::AbstractWorkload; kw...) = run(DockerX.attach, workload; kw..
 Create and launch a container from `work` with
 
 ```julia
-container = create(work; kw...)
+container = create(work; showlog = false, kw...)
 ```
 
 Start the container and then call `f(container)`. If `f` is not given, then attach to the
 container's `stdout`.
 
 This function ensures that containers are stopped and cleaned up in case something goes wrong.
+
+If `showlog = true`, send the container's log to `stdout` when the container stops.
 
 Examples
 --------
@@ -110,7 +112,7 @@ tracker = run(TestWorkload()) do container
 end
 ```
 """
-function Base.run(f::Function, work::AbstractWorkload; kw...)
+function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
     container = create(work; kw...)
     @info "Created: $container"
 
@@ -120,6 +122,8 @@ function Base.run(f::Function, work::AbstractWorkload; kw...)
     try 
         f(container)
     finally
+        showlog && println(DockerX.log(container))
+
         DockerX.remove(container, force = true)
 
         @info "Container stopped and removed"
