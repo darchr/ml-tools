@@ -62,7 +62,7 @@ In particular, I explore filtering out Virtual Memory Areas (VMAs) that are
 **Conclusion** - It's probably okay to do this. However, I need to try this on non single
 threaded models just in case.
 
-## [Sample Time](https://github.com/darchr/ml-notebooks/blob/master/wss_time/wss_estimate_sensitivity.ipynb)
+## [Sample Time](https://github.com/darchr/ml-notebooks/blob/master/sampletime/sampletime.ipynb)
 
 Experiment to investigate how sensitive our estimates of WSS and Reuse Distance are to
 the sample time. Parameters of the experiment:
