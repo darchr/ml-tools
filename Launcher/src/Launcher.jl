@@ -49,9 +49,13 @@ include("workloads/workloads.jl")
 
 # Forward function from MemSnoop
 const trace = MemSnoop.trace
-
-@deprecate trackstack track_distance
 const track_distance = MemSnoop.track_distance
+
+standard_filter(x, size = 4) =  !(MemSnoop.executable(x)) &&
+                                (MemSnoop.readable(x) || MemSnoop.writable(x)) &&
+                                MemSnoop.longerthan(x, size)
+
+standard_filter(size::Integer) = x -> standard_filter(x, size) 
 
 # Helper functions
 isnothing(x) = false
@@ -78,9 +82,14 @@ end
 
 
 dash(x) = "--$x"
-argify(a, b::Nothing, args...) = dash(a)
+argify(a, b::Nothing, delim) = dash(a)
 argify(a, b, delim) = join((dash(a), b), delim)
-makeargs(@nospecialize(nt::NamedTuple), delim = " ") = [argify(a,b,delim) for (a,b) in pairs(nt)]
+
+argify(a, b::Nothing) = (dash(a),)
+argify(a, b) = (dash(a), b)
+
+makeargs(nt::NamedTuple, delim) = [argify(a,b,delim) for (a,b) in pairs(nt)]
+makeargs(nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
 
 ############################################################################################
 # Basic run command

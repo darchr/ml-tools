@@ -66,5 +66,3 @@ active_anon(x)      = x[k"memory_stats/stats/total_active_anon"]
 pgpgin(x)           = x[k"memory_stats/stats/total_pgpgin"]
 pgpgout(x)          = x[k"memory_stats/stats/total_pgpgout"]
 inactive_anon(x)    = x[k"memory_stats/stats/total_inactive_anon"]
-
-
