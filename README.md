@@ -1,5 +1,7 @@
 # ML-Tools
 
+[![Build Status](https://travis-ci.org/darchr/ml-tools.svg?branch=master)](https://travis-ci.org/darchr/ml-tools)
+
 Collection of tools for analyzing machine learning workloads.
 
 ## Docker API Interface
