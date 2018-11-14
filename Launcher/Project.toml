@@ -16,6 +16,3 @@ SnoopAnalyzer = "32b60cf2-a00d-5417-a989-3e2d22c77199"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]
