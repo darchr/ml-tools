@@ -14,7 +14,7 @@ export  k_str, create_setup,
         # Trace functions
         trace, track_distance, 
         # Util Functions
-        size_mb, make_cdf, memory_vec
+        size_mb, memory_vec, subsample
 
 
 
@@ -49,7 +49,6 @@ include("workloads/workloads.jl")
 
 # Forward function from MemSnoop
 const trace = MemSnoop.trace
-const track_distance = MemSnoop.track_distance
 
 standard_filter(x, size = 4) =  !(MemSnoop.executable(x)) &&
                                 (MemSnoop.readable(x) || MemSnoop.writable(x)) &&
