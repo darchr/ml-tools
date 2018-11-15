@@ -41,6 +41,14 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "notebooks/#[ResNet50-in-ImageNet](https://github.com/darchr/ml-notebooks/blob/master/resnet_imagenet/Resnet.ipynb)-1",
+    "page": "Notebooks",
+    "title": "ResNet50 in ImageNet",
+    "category": "section",
+    "text": "Initial look at the memory usage of a large model on ImageNet. This sample data was trained on ResNet50 using a single CPU (yes, very slow). Sampling window was 0.1 seconds.The highlight of this is that we can see the forward and backward passes in memory."
+},
+
+{
     "location": "notebooks/#[CPU-Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)-1",
     "page": "Notebooks",
     "title": "CPU Analysis",
@@ -273,14 +281,6 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "workloads/keras/#Resnet-Cnn-1",
-    "page": "Keras Models",
-    "title": "Resnet Cnn",
-    "category": "section",
-    "text": "TODO"
-},
-
-{
     "location": "launcher/#",
     "page": "Launcher",
     "title": "Launcher",
@@ -301,7 +301,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Launcher",
     "title": "Base.run",
     "category": "function",
-    "text": "run([f::Function], work::AbstractWorkload; kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; showlog = false, kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nIf showlog = true, send the container\'s log to stdout when the container stops.\n\nExamples\n\nUsing Julia\'s do syntax to perform a stack based analysis\n\ntracker = run(TestWorkload()) do container\n    trackstack(getpid(container))\nend\n\n\n\n\n\n"
+    "text": "run([f::Function], work::AbstractWorkload; showlog = false, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nIf showlog = true, send the container\'s log to stdout when the container stops.\n\nExamples\n\nUsing Julia\'s do syntax to perform a stack based analysis\n\ntracker = run(TestWorkload()) do container\n    trackstack(getpid(container))\nend\n\n\n\n\n\n"
 },
 
 {
