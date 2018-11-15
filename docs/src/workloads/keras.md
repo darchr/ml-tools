@@ -22,6 +22,3 @@ epochs of training takes a reasonably short amount of time, even when snooping m
 ```@docs
 Launcher.CifarCnn
 ```
-
-## Resnet Cnn
-TODO

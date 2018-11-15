@@ -96,12 +96,12 @@ makeargs(nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
 Base.run(workload::AbstractWorkload; kw...) = run(DockerX.attach, workload; kw...)
 
 """
-    run([f::Function], work::AbstractWorkload; kw...)
+    run([f::Function], work::AbstractWorkload; showlog = false, kw...)
 
 Create and launch a container from `work` with
 
 ```julia
-container = create(work; showlog = false, kw...)
+container = create(work; kw...)
 ```
 
 Start the container and then call `f(container)`. If `f` is not given, then attach to the

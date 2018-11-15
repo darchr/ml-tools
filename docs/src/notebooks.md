@@ -28,6 +28,13 @@ Plots included in this section:
 4. Heatmap plots visualizing the memory access patterns to the Python heap and for the whole
     application during 1 epoch of training.
 
+## [ResNet50 in ImageNet](https://github.com/darchr/ml-notebooks/blob/master/resnet_imagenet/Resnet.ipynb)
+
+Initial look at the memory usage of a large model on ImageNet. This sample data was trained
+on ResNet50 using a single CPU (yes, very slow). Sampling window was 0.1 seconds.
+
+The highlight of this is that we can see the forward and backward passes in memory.
+
 
 ## [CPU Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)
 

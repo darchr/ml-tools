@@ -51,5 +51,4 @@ create(work::AbstractWorkload; kw...)
 ## Concrete model
 include("ubuntu/test.jl")
 include("keras/cifar_cnn.jl")
-include("keras/cifar_resnet.jl")
 include("tensorflow/resnet.jl")
