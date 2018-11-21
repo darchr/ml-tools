@@ -213,7 +213,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Imagenet",
     "title": "Changes made to imagenet_to_gcs.py",
     "category": "section",
-    "text": "I had to make several changes for Python 2 to Python 3 compatibility. (Seriously folks,  can\'t we all just agree to use Python 3??)Line 58: Commented out the import google.cloud ... line because we\'re not uploading    anything to the google cloud and I don\'t want to install that package.\nLines 177, 179: Suffixed string literals with \'\'.encode() to tell python that these    should by byte collections.\nLines 187, 189: Add .encode to several strings to _bytes_feature doesn\'t complain.\nLine 282: Change the \'r\' option in reading to \'rb\'. Avoid trying to reinterpret image   data as utf-8, which will definitely not work.\nLine 370: A Python range object is used and then shuffled. However, in Python3, ranges   have become lazy and thus cannot be shuffled. I changed this by explicitly converting   the range to a list, forcing materialization of the whole range.\nLine 402: Made the following change:   python   os.path.join(FLAGS.local_scatch_dir, TRAINING_DIRECTORY) -> FLAGS.local_scratch_dir   because the official tensorflow Resnet is not looking for a slightly different directory   structure. That is, all the training and validation files are in a flat directory   rather than their own train and validation directories.\nLine 409: Made the collowing change:   python   os.path.join(FLAGS.local_scatch_dir, VALIDATION_DIRECTORY) -> FLAGS.local_scratch_dir   for the same reason as above."
+    "text": "I had to make several changes for Python 2 to Python 3 compatibility. (Seriously folks,  can\'t we all just agree to use Python 3??)Line 58: Commented out the import google.cloud ... line because we\'re not uploading    anything to the google cloud and I don\'t want to install that package.\nLines 177, 179: Suffixed string literals with \'\'.encode() to tell python that these    should by byte collections.\nLines 187, 189: Add .encode to several strings to _bytes_feature doesn\'t complain.\nLine 282: Change the \'r\' option in reading to \'rb\'. Avoid trying to reinterpret image   data as utf-8, which will definitely not work.\nLine 370: A Python range object is used and then shuffled. However, in Python3, ranges   have become lazy and thus cannot be shuffled. I changed this by explicitly converting   the range to a list, forcing materialization of the whole range."
 },
 
 {
@@ -246,6 +246,46 @@ var documenterSearchIndex = {"docs": [
     "title": "Test",
     "category": "section",
     "text": "A simple shell script that prints a message, sleeps for a few seconds, prints another message and exits. The point of this workload is to provide a simple and quick to run test to decrease debugging time.File name: /workloads/ubuntu/sleep.sh\nContainer entry point: /home/startup/sleep.shLauncher DocsLauncher.TestWorkload"
+},
+
+{
+    "location": "workloads/tensorflow/#",
+    "page": "Tensorflow Models",
+    "title": "Tensorflow Models",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "workloads/tensorflow/#Tensorflow-Models-1",
+    "page": "Tensorflow Models",
+    "title": "Tensorflow Models",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "workloads/tensorflow/#Launcher.ResnetTF",
+    "page": "Tensorflow Models",
+    "title": "Launcher.ResnetTF",
+    "category": "type",
+    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the  Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and    trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.    Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
+},
+
+{
+    "location": "workloads/tensorflow/#Resnet-1",
+    "page": "Tensorflow Models",
+    "title": "Resnet",
+    "category": "section",
+    "text": "A model for ResNet that can be trained on either Cifar or ImageNet, though as of now only ImageNet is supported.File: /workloads/tensorflow/official/resnet/imagenet_main.py\nContainer entry point: /models/official/resnet/imagenet_main.py\nDataset: \nVolume Binds:\nScript Arguments\n--batch_size=size : Configure batch size. Default: 32\n--resnet_size=size : Define the version of ResNet to use. Choices:    18, 34, 50, 101, 152, 200. Default: 50\n--train_epochs=N : Number of epochs to train for. Default: 90\n--data_dir=path : Path (inside the container) to the data directory. Default    provided by Launcher.  NOTE: If this is set to something besides /imagenet -    things will probably break horribly.Launcher DocsLauncher.ResnetTF"
+},
+
+{
+    "location": "workloads/tensorflow/#Changes-Made-to-imagenet_main.py-1",
+    "page": "Tensorflow Models",
+    "title": "Changes Made to imagenet_main.py",
+    "category": "section",
+    "text": "Lines 42-47: Made script expect training and validation files to be in train and    validation directories respectively whereas the original expected both to be in   the same directory.\nAditionally, made the _NUM_TRAIN_FILES and _NUM_VALIDATION_FILES be assigned to   the number of files in these directories.\nThis allows us to operate on a subset of the ImageNet data by just pointing to another   folder.\nAlso hardcoded _DATA_DIR to /imagenet to allow this to take place. This limits the   migratability of this project outside of docker, but we\'ll deal with that when we need   to."
 },
 
 {
