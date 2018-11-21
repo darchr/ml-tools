@@ -19,6 +19,7 @@ makedocs(
         ],
         "Workloads" => [
             "workloads/ubuntu.md",
+            "workloads/tensorflow.md",
             "workloads/keras.md",
         ],
         "Launcher" => [

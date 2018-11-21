@@ -39,7 +39,15 @@ _NUM_IMAGES = {
     'validation': 50000,
 }
 
-_NUM_TRAIN_FILES = 1024
+# Added by MH
+_DATA_DIR = "/imagenet"
+_TRAIN_DIR = os.path.join(_DATA_DIR, 'train')
+_VALIDATION_DIR = os.path.join(_DATA_DIR, 'validation')
+
+_NUM_TRAIN_FILES = len(os.listdir(_TRAIN_DIR))
+_NUM_VALIDATION_FILES = len(os.listdir(_VALIDATION_DIR))
+
+
 _SHUFFLE_BUFFER = 10000
 
 DATASET_NAME = 'ImageNet'
@@ -51,12 +59,12 @@ def get_filenames(is_training, data_dir):
   """Return filenames for dataset."""
   if is_training:
     return [
-        os.path.join(data_dir, 'train-%05d-of-01024' % i)
+        os.path.join(_TRAIN_DIR, 'train-%05d-of-01024' % i)
         for i in range(_NUM_TRAIN_FILES)]
   else:
     return [
-        os.path.join(data_dir, 'validation-%05d-of-00128' % i)
-        for i in range(128)]
+        os.path.join(_VALIDATION_DIR, 'validation-%05d-of-00128' % i)
+        for i in range(_NUM_VALIDATION_FILES)]
 
 
 def _parse_example_proto(example_serialized):
