@@ -1,3 +1,4 @@
+
 """
 Struct representing parameters for launching the Tensorflow Official Resnet Model on the 
 Imagenet training set. Construct type using a key-word constructor
@@ -19,32 +20,32 @@ Fields
 * `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
     Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
-@with_kw struct ResnetTF <: AbstractWorkload
+@with_kw struct Slim <: AbstractWorkload
     args :: NamedTuple = NamedTuple()
     interactive :: Bool = false
 end
 
-image(::ResnetTF) = "darchr/tf-official-models"
+image(::Slim) = "darchr/tf-official-models"
 
-official_models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "official")
-official_models(::Type{OnContainer}) = joinpath("/models", "official")
+slim_models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "slim")
+slim_models(::Type{OnContainer}) = joinpath("/models", "slim")
 
-startfile(::ResnetTF, ::Type{OnHost}) = joinpath(
-    official_models(OnHost), "resnet", "imagenet_main.py"
+startfile(::Slim, ::Type{OnHost}) = joinpath(
+    slim_models(OnHost), "train_image_classifier.py"
 )
 
-startfile(::ResnetTF, ::Type{OnContainer}) = joinpath(
-    official_models(OnContainer), "resnet", "imagenet_main.py"
+startfile(::Slim, ::Type{OnContainer}) = joinpath(
+    slim_models(OnContainer), "train_image_classifier.py"
 )
 
-function runcommand(resnet::ResnetTF) 
+function runcommand(resnet::Slim) 
     # Extract the arguments from the stuct
     kw = resnet.args 
 
     # Check if the "data_dir" arg is present. If not, add it to the default location.
-    if !haskey(kw, :data_dir) 
-        data_dir = (data_dir = "/imagenet",)
-        kw = merge(kw, data_dir)
+    if !haskey(kw, :dataset_dir) 
+        dataset_dir = (dataset_dir = "/imagenet",)
+        kw = merge(kw, dataset_dir)
     end
 
     # Construct the launch comand
@@ -56,12 +57,12 @@ function runcommand(resnet::ResnetTF)
 end
 
 
-function create(resnet::ResnetTF; kw...)
+function create(resnet::Slim; kw...)
     # Bind the Imagenet dataset into the top level of the container
     bind_dataset = bind(DATASET_PATHS["imagenet_dir"], "/imagenet")
 
     # Attach the whole model directory.
-    bind_code = bind(official_models(OnHost), official_models(OnContainer))
+    bind_code = bind(slim_models(OnHost), slim_models(OnContainer))
 
     @show bind_dataset
     @show bind_code

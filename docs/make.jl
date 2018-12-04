@@ -6,9 +6,10 @@ makedocs(
     sitename = "ML-Tools",
     # Make local build look good.
     html_prettyurls = get(ENV, "CI", nothing) == "true",
-    linkcheck = true,
+    #linkcheck = true,
     pages = Any[
-        "Home" => "index.md", 
+        "Home" => "index.md",
+        "Manifest" => "manifest.md",
         "Notebooks" => "notebooks.md",
         "Docker" => [
             "docker/docker.md",
@@ -16,14 +17,22 @@ makedocs(
         ],
         "Datasets" => [
             "datasets/imagenet.md",
+            "datasets/slim.md",
         ],
         "Workloads" => [
             "workloads/ubuntu.md",
             "workloads/tensorflow.md",
+            "workloads/slim.md",
             "workloads/keras.md",
         ],
         "Launcher" => [
             "launcher.md"
+        ],
+        "NVM" => [
+            "nvm/swap.md",
+        ],
+        "Misc" => [
+            "extra/perf.md"
         ],
     ]
 )
