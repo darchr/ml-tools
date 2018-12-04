@@ -2,7 +2,7 @@
 
 | **Documentation** | **Build Status** |
 |:---:|:---:|
-[![]docs-latest-img]][docs-latest-url] | [![][travis-img]][travis-url] |
+[![][docs-latest-img]][docs-latest-url] | [![][travis-img]][travis-url] |
 
 Collection of tools for analyzing machine learning workloads.
 
