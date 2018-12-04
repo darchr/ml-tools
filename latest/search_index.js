@@ -17,6 +17,126 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "manifest/#",
+    "page": "Manifest",
+    "title": "Manifest",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "manifest/#Manifest-1",
+    "page": "Manifest",
+    "title": "Manifest",
+    "category": "section",
+    "text": "Below is summary of projects supporting this repo as well as resources provisioned on shared machines for bookkeeping purposes.Pages = [\"manifest.md\"]\nDepth = 3"
+},
+
+{
+    "location": "manifest/#Supporting-Projects-1",
+    "page": "Manifest",
+    "title": "Supporting Projects",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "manifest/#[DockerX](https://github.com/hildebrandmw/DockerX.jl)-1",
+    "page": "Manifest",
+    "title": "DockerX",
+    "category": "section",
+    "text": "Julia interface to the Docker API for managing containers and gathering metrics. This  package is based on the original Docker package, but updated to serve our own needs. I\'ve also added CI to the build process."
+},
+
+{
+    "location": "manifest/#TODO-List-(Low-Priority)-1",
+    "page": "Manifest",
+    "title": "TODO List (Low Priority)",
+    "category": "section",
+    "text": "Add documentation of features in README. No need for auto docs.\nEventually, I would like to get this merged with the original Docker package, which would   likely involve:\nForking the original Docker repo.\nMigrating the code in DockerX to the forked Docker repo.\nIssue a string of pull requests to get the functionality migrated.\nThe Docker daemon by default listens on a Unix socket. In order to get the    HTTP to talk to a Unix socket, I had to extend   some of the methods in HTTP. Contributing this code to HTTP would be a good    contribution I think."
+},
+
+{
+    "location": "manifest/#[PAPI](https://github.com/hildebrandmw/PAPI.jl)-1",
+    "page": "Manifest",
+    "title": "PAPI",
+    "category": "section",
+    "text": "Updated bindings to the PAPI Library, forked from the original PAPI.jl which has not been updated in 4 years. This package includes the PAPI executable for reproducibility, courtesy of  PAPIBuilder2, which is auto built with BinaryBuilder.In essence, this gives access to a processor\'s hardware event counters through perf."
+},
+
+{
+    "location": "manifest/#TODO-List-(Low-Priority)-2",
+    "page": "Manifest",
+    "title": "TODO List (Low Priority)",
+    "category": "section",
+    "text": "Get CI working for this package. I don\'t think the hardware performance counters are   available in Travis Docker containers, so the current test suite fails due to a PAPI    error.\nFinish implementing the rest of the Low Level Library\nImplement the high level library, taking inspiration from the original PAPI implementation   and the python bindings.\nAdd fuller documentation\nDocument the Julia-side API that I use to interact with it. This side is mainly    responsible for automatically handling library initialization and cleanup."
+},
+
+{
+    "location": "manifest/#[PAPIBuilder2](https://github.com/hildebrandmw/PAPIBuilder2)-1",
+    "page": "Manifest",
+    "title": "PAPIBuilder2",
+    "category": "section",
+    "text": "Builder for the PAPI library. Releases fetched when installing can be found here:  https://github.com/hildebrandmw/PAPIBuilder2/releases"
+},
+
+{
+    "location": "manifest/#[MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl)-1",
+    "page": "Manifest",
+    "title": "MemSnoop",
+    "category": "section",
+    "text": "Snooping routines to gather metrics on running programs. Includes the following analyses:Idle page tracking\nHardware performance counter tracking through PAPI.One of the big goals of this package is to reduce the number of third party dependencies as much as possible since Idle Page Tracking requires Julia to be run as root."
+},
+
+{
+    "location": "manifest/#TODO-List-(Med-Priority)-1",
+    "page": "Manifest",
+    "title": "TODO List (Med Priority)",
+    "category": "section",
+    "text": "Add support for monitoring multiple processes.\nMove suitable code from SnoopAnalyzer    into MemSnoop.\nHave other people use this package to find bugs and improve documentation."
+},
+
+{
+    "location": "manifest/#[SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl)-1",
+    "page": "Manifest",
+    "title": "SnoopAnalyzer",
+    "category": "section",
+    "text": "Analysis routines for MemSnoop that require external dependencies. This will probably  eventually just be for plotting plus some other misc stuff."
+},
+
+{
+    "location": "manifest/#TODO-List-(Low-Priority)-3",
+    "page": "Manifest",
+    "title": "TODO List (Low Priority)",
+    "category": "section",
+    "text": "Documentation\nSee when migration to Makie is suitable.    Theoretically, the plotting recipe system for Makie might not rely on a macro, so    plotting recipes for MemSnoop might be able to be implemented straight in MemSnoop    without adding any dependencies."
+},
+
+{
+    "location": "manifest/#[ml-notebooks-(private)](https://github.com/darchr/ml-notebooks)-1",
+    "page": "Manifest",
+    "title": "ml-notebooks (private)",
+    "category": "section",
+    "text": "Jupyter notebooks and scripts for research."
+},
+
+{
+    "location": "manifest/#Resources-on-Shared-Machines-1",
+    "page": "Manifest",
+    "title": "Resources on Shared Machines",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "manifest/#Drives-on-amarillo-1",
+    "page": "Manifest",
+    "title": "Drives on amarillo",
+    "category": "section",
+    "text": "The drive/data1/ml-dataseton amarillo is the home of the datasets used."
+},
+
+{
     "location": "notebooks/#",
     "page": "Notebooks",
     "title": "Notebooks",
@@ -217,6 +337,46 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "datasets/slim/#",
+    "page": "Tensorflow Slim",
+    "title": "Tensorflow Slim",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "datasets/slim/#Tensorflow-Slim-1",
+    "page": "Tensorflow Slim",
+    "title": "Tensorflow Slim",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "datasets/slim/#Preparation-steps-(don\'t-need-to-repeat)-1",
+    "page": "Tensorflow Slim",
+    "title": "Preparation steps (don\'t need to repeat)",
+    "category": "section",
+    "text": "The code in this repo is taken from the build process that comes in the slim project. However, I\'ve modified it so it works without having to go through Bazel (I don\'t really know why that was used in the first place) and also updated it so it works with Python3."
+},
+
+{
+    "location": "datasets/slim/#Changes-made-to-build-1",
+    "page": "Tensorflow Slim",
+    "title": "Changes made to build",
+    "category": "section",
+    "text": "download_and_convert_imagenet.sh\nRemoved some build comments that are no longer relevant.\nLine 59: Change path for WORK_DIR since we\'re no longer doing the Bazel style   build.\nLine 104: Change path to build_iamgenet_data.py.\nLine 108: Put python3 in front of script invocation. Get around executable   permission errors.\ndatasets/build_imagenet_data.py\nLines 213, 216, 217, and 224: Suffix .encode() on string arguments to pass them   as bytes to _bytes_feature.\nLines 527: Wrap range(len(filenames)) in list() to materialize the lazy range   type.\ndatasets/download_imagenet.sh\nLines 72 and 81: Comment out wget commands, avoid downloading imagenet training   and validation data.\ndatasets/preprocess_imagenet_validation_data.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instances of xrange to range. The range type in python3 behaves   just like the xrange type.\ndatasets/process_bounding_boxes.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instance of xrange to range."
+},
+
+{
+    "location": "datasets/slim/#Steps-for-building-slim-1",
+    "page": "Tensorflow Slim",
+    "title": "Steps for building slim",
+    "category": "section",
+    "text": "Put ILSVRC2012_img_train.tar and ILSVRC2012_img_val.tar in a known spot (<path/to/imagenet>) with 500GB+ of available memory.Navigate in this repository to: /datasets/imagenet/slim. Launch a Tensorflow docker container withdocker run -it --rm \\\n    -v <path/to/imagnet>:/imagenet \\\n    -v $PWD:/slim-builder \\\n    -e LOCAL_USER_ID=$UID \\\n    darchr/tf-compiled-base /bin/bashinside the docker container, run:cd slim-builder\n$PWD/download_and_convert_imagenet.sh /imagenetWhen prompted to enter in your credentials, just hit enter. The script won\'t download imagenet anyways so it doesn\'t matter what you put in.  Hopefully, everything works  as expected. If not, you can always edit the download_and_convert_imagenet.sh file,  commenting out the script/python invokations that have already completed."
+},
+
+{
     "location": "workloads/ubuntu/#",
     "page": "Ubuntu Workloads",
     "title": "Ubuntu Workloads",
@@ -286,6 +446,22 @@ var documenterSearchIndex = {"docs": [
     "title": "Changes Made to imagenet_main.py",
     "category": "section",
     "text": "Lines 42-47: Made script expect training and validation files to be in train and    validation directories respectively whereas the original expected both to be in   the same directory.\nAditionally, made the _NUM_TRAIN_FILES and _NUM_VALIDATION_FILES be assigned to   the number of files in these directories.\nThis allows us to operate on a subset of the ImageNet data by just pointing to another   folder.\nAlso hardcoded _DATA_DIR to /imagenet to allow this to take place. This limits the   migratability of this project outside of docker, but we\'ll deal with that when we need   to."
+},
+
+{
+    "location": "workloads/slim/#",
+    "page": "Slim",
+    "title": "Slim",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "workloads/slim/#Slim-1",
+    "page": "Slim",
+    "title": "Slim",
+    "category": "section",
+    "text": "More information coming.For now, arguments that have to be passed to Launcher.Slim:args = (dataset_name=\"imagenet\", clone_on_cpu=true)"
 },
 
 {
@@ -382,6 +558,70 @@ var documenterSearchIndex = {"docs": [
     "title": "Temporary Documentation",
     "category": "section",
     "text": "Launcher.run\nLauncher.AbstractWorkload\nLauncher.startfile\nLauncher.runcommand\nLauncher.create"
+},
+
+{
+    "location": "nvm/swap/#",
+    "page": "Swap",
+    "title": "Swap",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "nvm/swap/#Swap-1",
+    "page": "Swap",
+    "title": "Swap",
+    "category": "section",
+    "text": "For some timing experiments, we reduce the amount of DRAM available to the docker container, and instead allow it to use swap on an Optane drive. This is initially for exploration of how decreasing memory affects performace of CPU training. Below is outlined the process of setting up and removing swap partitions."
+},
+
+{
+    "location": "nvm/swap/#Partitioning-the-Drive-1",
+    "page": "Swap",
+    "title": "Partitioning the Drive",
+    "category": "section",
+    "text": "First, I created a partition on the NVM drive withsudo fdisk /dev/nvme0n1Then proceeded with the options: n (new partition) \np (primary partiton)\n1 (partition number)\nDefault sectors\nw (write this information to disk)The output of fdisk looked like belowWelcome to fdisk (util-linux 2.31.1).\nChanges will remain in memory only, until you decide to write them.\nBe careful before using the write command.\n\nDevice does not contain a recognized partition table.\nCreated a new DOS disklabel with disk identifier 0xe142f7ae.\n\nCommand (m for help): n\nPartition type\n   p   primary (0 primary, 0 extended, 4 free)\n   e   extended (container for logical partitions)\nSelect (default p): p\nPartition number (1-4, default 1): 1\nFirst sector (2048-1875385007, default 2048):\nLast sector, +sectors or +size{K,M,G,T,P} (2048-1875385007, default 1875385007):\n\nCreated a new partition 1 of type \'Linux\' and of size 894.3 GiB.\n\nCommand (m for help): w\nThe partition table has been altered.\nCalling ioctl() to re-read partition table.\nSyncing disks.Running lsblk revealed the following now for the NVM drivenvme0n1     259:0    0 894.3G  0 disk\n└─nvme0n1p1 259:2    0 894.3G  0 part"
+},
+
+{
+    "location": "nvm/swap/#Creating-a-file-system-and-mounting-1",
+    "page": "Swap",
+    "title": "Creating a file system and mounting",
+    "category": "section",
+    "text": "Then, I created a file system on the drive withsudo mkfs -t ext4 /dev/nvme0n1p1I created a directory and mounted the drive:sudo mkdir /mnt/nvme\nsudo mount /dev/nvme0n1p1 /mnt/nvme"
+},
+
+{
+    "location": "nvm/swap/#Configuring-Swap-1",
+    "page": "Swap",
+    "title": "Configuring Swap",
+    "category": "section",
+    "text": "sudo fallocate -l 32g /mnt/nvme/32gb.swap\nsudo chmod 0600 /mnt/nvme/32gb.swap\nsudo mkswap /mnt/nvme/32gb.swap\nsudo swapon -p 0 /mnt/nvme/32gb.swapVerify that the file is being used as swap usingswapon -s"
+},
+
+{
+    "location": "nvm/swap/#Removing-Swap-1",
+    "page": "Swap",
+    "title": "Removing Swap",
+    "category": "section",
+    "text": "To remove the swapfile from system swap, just usesudo swapoff /mnt/nvme/32gb.swap"
+},
+
+{
+    "location": "extra/perf/#",
+    "page": "What the Perf??",
+    "title": "What the Perf??",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "extra/perf/#What-the-Perf??-1",
+    "page": "What the Perf??",
+    "title": "What the Perf??",
+    "category": "section",
+    "text": "A VERY helpful resource for finding event codes and such:  http://www.bnikolic.co.uk/blog/hpc-prof-events.html."
 },
 
 ]}
