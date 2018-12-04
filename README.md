@@ -1,30 +1,36 @@
 # ML-Tools
 
-[![Build Status](https://travis-ci.org/darchr/ml-tools.svg?branch=master)](https://travis-ci.org/darchr/ml-tools)
+| **Documentation** | **Build Status** |
+|:---:|:---:|
+[![]docs-latest-img]][docs-latest-url] | [![][travis-img]][travis-url] |
 
 Collection of tools for analyzing machine learning workloads.
 
-## Docker API Interface
-Right now, I think the running of experiments and workloads will take place in Docker 
-containers for reproducibility and sandboxing. This approach will be revisited in the future
-if it turns out not to work super well for some reason.
+## Subpackages
 
-Docker has a nice `http` based interface for launching, controlling, and cleaning containers.
-I wrote a Julia tool: <https://github.com/hildebrandmw/DockerX.jl> (still a WIP, will be 
-extended as needed) to interface with this API. Hopefully, this will help with 
-programatically running experiments.
+| **Package** | **Build Status** | **Documentation** |
+|:-----------:|:----------------:|:-----------------:|
+| [DockerX](https://github.com/hildebrandmw/DockerX.jl)   | [![][dockerx-travis-img]][dockerx-travis-url]   |                                           |
+| [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl) | [![][memsnoop-travis-img]][memsnoop-travis-url] | [![][docs-latest-url]][memsnoop-docs-url] |
+| [PAPI](https://github.com/hildebrandmw/PAPI.jl)         | [![][papi-travis-img]][papi-travis-url]         |                                           |
+| [PAPIBuilder2](https://github.com/hildebrandmw/PAPIBuilder2) | [![][papibuilder-travis-img]][papibuilder-travis-url] |                                |
 
-## wss
 
-Tool written by Brendan Gregg for estimating the working set size of an application.
-The idea here is to get an idea of the working set size of ML workloads.
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: http://arch.cs.ucdavis.edu/ml-tools/latest/
 
-<http://www.brendangregg.com/wss.html>
-<https://github.com/brendangregg/wss>
+[travis-img]: https://travis-ci.org/darchr/ml-tools.svg?branch=master
+[travis-url]: https://travis-ci.org/darchr/ml-tools
 
-## Directories created on `amarillo`
+[dockerx-travis-img]: https://travis-ci.org/hildebrandmw/DockerX.jl.svg?branch=master
+[dockerx-travis-url]: https://travis-ci.org/hildebrandmw/DockerX.jl 
 
-Below is (hopefully) a comprehensive list of directories created on `amarillo` during
-this project. The goal of this list is to aid in cleaning up after maintainance.
+[memsnoop-travis-img]: https://travis-ci.org/hildebrandmw/MemSnoop.jl.svg?branch=master
+[memsnoop-travis-url]: https://travis-ci.org/hildebrandmw/MemSnoop.jl 
+[memsnoop-docs-url]: https://hildebrandmw.github.io/MemSnoop.jl/latest
 
-* `/data1/ml-datasets` - Datasets for machine learning algorithms.
+[papi-travis-img]: https://travis-ci.org/hildebrandmw/PAPI.jl.svg?branch=master
+[papi-travis-url]: https://travis-ci.org/hildebrandmw/PAPI.jl 
+
+[papibuilder-travis-img]: https://travis-ci.org/hildebrandmw/PAPIBuilder2.jl.svg?branch=master
+[papibuilder-travis-url]: https://travis-ci.org/hildebrandmw/PAPIBuilder2.jl 
