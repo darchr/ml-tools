@@ -11,7 +11,7 @@ Collection of tools for analyzing machine learning workloads.
 | **Package** | **Build Status** | **Documentation** |
 |:-----------:|:----------------:|:-----------------:|
 | [DockerX](https://github.com/hildebrandmw/DockerX.jl)   | [![][dockerx-travis-img]][dockerx-travis-url]   |                                           |
-| [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl) | [![][memsnoop-travis-img]][memsnoop-travis-url] | [![][docs-latest-url]][memsnoop-docs-url] |
+| [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl) | [![][memsnoop-travis-img]][memsnoop-travis-url] | [![][docs-latest-img]][memsnoop-docs-url] |
 | [PAPI](https://github.com/hildebrandmw/PAPI.jl)         | [![][papi-travis-img]][papi-travis-url]         |                                           |
 | [PAPIBuilder2](https://github.com/hildebrandmw/PAPIBuilder2) | [![][papibuilder-travis-img]][papibuilder-travis-url] |                                |
 
@@ -32,5 +32,5 @@ Collection of tools for analyzing machine learning workloads.
 [papi-travis-img]: https://travis-ci.org/hildebrandmw/PAPI.jl.svg?branch=master
 [papi-travis-url]: https://travis-ci.org/hildebrandmw/PAPI.jl 
 
-[papibuilder-travis-img]: https://travis-ci.org/hildebrandmw/PAPIBuilder2.jl.svg?branch=master
-[papibuilder-travis-url]: https://travis-ci.org/hildebrandmw/PAPIBuilder2.jl 
+[papibuilder-travis-img]: https://travis-ci.org/hildebrandmw/PAPIBuilder2.svg?branch=master
+[papibuilder-travis-url]: https://travis-ci.org/hildebrandmw/PAPIBuilder2 
