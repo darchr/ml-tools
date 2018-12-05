@@ -517,7 +517,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Launcher",
     "title": "Base.run",
     "category": "function",
-    "text": "run([f::Function], work::AbstractWorkload; showlog = false, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nIf showlog = true, send the container\'s log to stdout when the container stops.\n\nExamples\n\nUsing Julia\'s do syntax to perform a stack based analysis\n\ntracker = run(TestWorkload()) do container\n    trackstack(getpid(container))\nend\n\n\n\n\n\n"
+    "text": "run([f::Function], work::AbstractWorkload; showlog = false, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nIf showlog = true, send the container\'s log to stdout when the container stops.\n\n\n\n\n\n"
 },
 
 {
