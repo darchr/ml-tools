@@ -24,7 +24,6 @@ Fields
     interactive :: Bool   = false
 end
 
-
 const cifarfile = "cifar10_cnn.py"
 
 image(::CifarCnn) = "darchr/tf-keras:latest"
@@ -39,7 +38,6 @@ function runcommand(cifar::CifarCnn)
     end
 end
 
-
 function create(cifar::CifarCnn; cpuSets = "", kw...)
     bind_dataset = join([
         DATASET_PATHS["cifar"]
@@ -51,13 +49,13 @@ function create(cifar::CifarCnn; cpuSets = "", kw...)
         dirname(startfile(cifar, OnContainer)),
     ], ":")
 
-    @show cpuSets 
     # Create the container
     container = DockerX.create_container( 
         image(cifar);
         attachStdin = true,
         binds = [bind_dataset, bind_start],
         cmd = runcommand(cifar),
+        env = ["LOCAL_USER_ID=$(uid())"],
         cpuSets = cpuSets
     )
 

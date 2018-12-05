@@ -68,14 +68,6 @@ git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.6"
 
-[[MemSnoop]]
-deps = ["Dates", "PAPI", "Serialization"]
-git-tree-sha1 = "bc514609ec0427e13ff5f0552b52b2947d9d7c7c"
-repo-rev = "master"
-repo-url = "https://github.com/hildebrandmw/MemSnoop.jl"
-uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
-version = "0.1.0"
-
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
@@ -84,12 +76,6 @@ deps = ["Random", "Serialization", "Test"]
 git-tree-sha1 = "85619a3f3e17bb4761fe1b1fd47f0e979f964d5b"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.0.2"
-
-[[PAPI]]
-deps = ["BinaryProvider", "Libdl"]
-path = "../../PAPI"
-uuid = "25707955-362c-5858-b477-b2b4559b2019"
-version = "0.1.0"
 
 [[Parameters]]
 deps = ["Markdown", "OrderedCollections", "REPL", "Test"]

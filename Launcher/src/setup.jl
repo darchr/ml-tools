@@ -7,35 +7,34 @@ const DATASETS = (
     "imagenet_tf_slim",
 )
 
+_writedataset() = open(io -> JSON.print(io, DATASET_PATHS, 4), SETUP_PATH, "w")
+
 function setup()
     if !setupexists()
-        @error """
-        File "setup.json" describing the paths to datasets does not exist. Run 
-        "create_setup()" to make this file.
+        @warn """
+        File "setup.json" describing the paths to datasets does not exist in directory 
+        "Launcher". Creating a skeleton file. Edit this file with the paths to the relevant
+        datasets.
+
+        This file can be edited by calling:
+
+        ```
+        Launcher.edit_setup()
+        ```
         """
-        return nothing
+        _writedataset()
     end
 
     json = JSON.parsefile(SETUP_PATH)
 
     empty!(DATASET_PATHS)
     for dataset in DATASETS
-        DATASET_PATHS[dataset] = json[dataset]
+        DATASET_PATHS[dataset] = get(json, dataset, "")
     end
+    # If things change, writing the dataset here will reflect those changes.
+    _writedataset()
     return nothing
 end
 
-function create_setup()
-    empty!(DATASET_PATHS)
-    for dataset in DATASETS
-        print(stdout, "Enter path for dataset \"$dataset\": ")
 
-        # Read back the response and set it up
-        path = readline(stdin)
-        DATASET_PATHS[dataset] = expanduser(path)
-    end
-
-    # Save result so it will be available to load next time.
-    open(io -> JSON.print(io, DATASET_PATHS, 4), SETUP_PATH, "w")
-    return nothing
-end
+edit_setup() = (InteractiveUtils.edit(SETUP_PATH); setup())

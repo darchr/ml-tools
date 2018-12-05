@@ -11,8 +11,6 @@ export  k_str, create_setup,
         # Models
         Resnet, 
         CifarCnn, 
-        # Trace functions
-        trace, track_distance, 
         # Util Functions
         size_mb, memory_vec, subsample
 
@@ -31,64 +29,20 @@ const DATASET_PATHS = Dict{String,String}()
 
 ## STDLIBs
 using Dates
-using Serialization
-
+using InteractiveUtils
 
 # Add DockerX to talk to the Docker daemon.
-using MemSnoop
 using DockerX
 using HTTP
 using ProgressMeter
 using JSON
 using Parameters
 
+include("stats.jl")
 include("utils.jl")
 include("setup.jl")
-include("stats.jl")
 include("workloads/workloads.jl")
 
-# Forward function from MemSnoop
-const trace = MemSnoop.trace
-
-standard_filter(x, size = 4) =  !(MemSnoop.executable(x)) &&
-                                (MemSnoop.readable(x) || MemSnoop.writable(x)) &&
-                                MemSnoop.longerthan(x, size)
-
-standard_filter(size::Integer) = x -> standard_filter(x, size) 
-
-# Helper functions
-isnothing(x) = false
-isnothing(::Nothing) = true
-
-"""
-    isrunning(container::Container) -> Bool
-
-Return `true` if `container` is running.
-"""
-function isrunning(container::Container)
-    # List the containers, filter on ID. Should only get one result.
-    filters = Dict("id" => [DockerX.getid(container)])
-    list = DockerX.list_containers(all = true, filters = filters)
-    @assert length(list) == 1
-
-    return first(list).params["State"] == "running"
-end
-
-function Base.getpid(container::Container)
-    data = DockerX.inspect(container)
-    return data[k"State/Pid"]
-end 
-
-
-dash(x) = "--$x"
-argify(a, b::Nothing, delim) = dash(a)
-argify(a, b, delim) = join((dash(a), b), delim)
-
-argify(a, b::Nothing) = (dash(a),)
-argify(a, b) = (dash(a), b)
-
-makeargs(nt::NamedTuple, delim) = [argify(a,b,delim) for (a,b) in pairs(nt)]
-makeargs(nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
 
 ############################################################################################
 # Basic run command
