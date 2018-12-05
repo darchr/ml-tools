@@ -74,6 +74,7 @@ function create(resnet::Slim; kw...)
         attachStdin = true,
         binds = [bind_dataset, bind_code],
         cmd = runcommand(resnet),
+        env = ["LOCAL_USER_ID=$(uid())"],
         kw...
     )
 

@@ -1,6 +1,11 @@
 setupexists() = ispath(SETUP_PATH)
 
-const DATASETS = ("cifar", "imagenet_dir")
+const DATASETS = (
+    "cifar", 
+    "imagenet_tf_official", 
+    "imagenet_tf_official_small",
+    "imagenet_tf_slim",
+)
 
 function setup()
     if !setupexists()

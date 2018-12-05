@@ -26,15 +26,11 @@ end
 
 image(::ResnetTF) = "darchr/tf-official-models"
 
-official_models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "official")
-official_models(::Type{OnContainer}) = joinpath("/models", "official")
-
-startfile(::ResnetTF, ::Type{OnHost}) = joinpath(
-    official_models(OnHost), "resnet", "imagenet_main.py"
-)
+_models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "official")
+_models(::Type{OnContainer}) = joinpath("/models", "official")
 
 startfile(::ResnetTF, ::Type{OnContainer}) = joinpath(
-    official_models(OnContainer), "resnet", "imagenet_main.py"
+    _models(OnContainer), "resnet", "imagenet_main.py"
 )
 
 function runcommand(resnet::ResnetTF) 
@@ -55,19 +51,14 @@ function runcommand(resnet::ResnetTF)
     end
 end
 
-
 function create(resnet::ResnetTF; kw...)
     # Bind the Imagenet dataset into the top level of the container
-    bind_dataset = bind(DATASET_PATHS["imagenet_dir"], "/imagenet")
+    bind_dataset = bind(DATASET_PATHS["imagenet_tf_official_small"], "/imagenet")
 
     # Attach the whole model directory.
-    bind_code = bind(official_models(OnHost), official_models(OnContainer))
+    bind_code = bind(_models(OnHost), _models(OnContainer))
 
-    @show bind_dataset
-    @show bind_code
-
-    @show runcommand(resnet)
-
+    # Create the container
     container = DockerX.create_container(
         image(resnet);
         attachStdin = true,

@@ -109,16 +109,6 @@ container's `stdout`.
 This function ensures that containers are stopped and cleaned up in case something goes wrong.
 
 If `showlog = true`, send the container's log to `stdout` when the container stops.
-
-Examples
---------
-Using Julia's `do` syntax to perform a stack based analysis
-
-```julia
-tracker = run(TestWorkload()) do container
-    trackstack(getpid(container))
-end
-```
 """
 function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
     container = create(work; kw...)
