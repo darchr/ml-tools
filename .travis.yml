@@ -22,7 +22,7 @@ services:
 # Run test script in Launcher
 script:
     - julia --color=yes --project=Launcher -e "using Pkg; Pkg.build()"
-    - julia --color=yes --check-bounds=yes -e "using Pkg; Pkg.test()"
+    - julia --color=yes --check-bounds=yes --project=Launcher -e "using Pkg; Pkg.test()"
 
 ## deploy documentation
 jobs:
