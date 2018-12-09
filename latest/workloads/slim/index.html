@@ -1,2 +1,131 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Slim · ML-Tools</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link href="../../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>ML-Tools</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../../">Home</a></li><li><a class="toctext" href="../../manifest/">Manifest</a></li><li><a class="toctext" href="../../notebooks/">Notebooks</a></li><li><span class="toctext">Docker</span><ul><li><a class="toctext" href="../../docker/docker/">Docker</a></li><li><a class="toctext" href="../../docker/tensorflow/">Tensorflow CPU</a></li></ul></li><li><span class="toctext">Datasets</span><ul><li><a class="toctext" href="../../datasets/imagenet/">Imagenet</a></li><li><a class="toctext" href="../../datasets/slim/">Tensorflow Slim</a></li></ul></li><li><span class="toctext">Workloads</span><ul><li><a class="toctext" href="../ubuntu/">Ubuntu Workloads</a></li><li><a class="toctext" href="../tensorflow/">Tensorflow Models</a></li><li class="current"><a class="toctext" href>Slim</a><ul class="internal"></ul></li><li><a class="toctext" href="../keras/">Keras Models</a></li></ul></li><li><span class="toctext">Launcher</span><ul><li><a class="toctext" href="../../launcher/">Launcher</a></li></ul></li><li><span class="toctext">NVM</span><ul><li><a class="toctext" href="../../nvm/swap/">Swap</a></li></ul></li><li><span class="toctext">Misc</span><ul><li><a class="toctext" href="../../extra/perf/">PAPI Notes</a></li></ul></li></ul></nav><article id="docs"><header><nav><ul><li>Workloads</li><li><a href>Slim</a></li></ul><a class="edit-page" href="https://github.com/darchr/ml-tools/blob/master/docs/src/workloads/slim.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Slim</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Slim-1" href="#Slim-1">Slim</a></h1><p>More information coming.</p><p>For now, arguments that have to be passed to <code>Launcher.Slim</code>:</p><pre><code class="language-julia">args = (dataset_name=&quot;imagenet&quot;, clone_on_cpu=true)</code></pre><footer><hr/><a class="previous" href="../tensorflow/"><span class="direction">Previous</span><span class="title">Tensorflow Models</span></a><a class="next" href="../keras/"><span class="direction">Next</span><span class="title">Keras Models</span></a></footer></article></body></html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Slim · ML-Tools</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link href="../../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>ML-Tools</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../../">Home</a></li><li><a class="toctext" href="../../manifest/">Manifest</a></li><li><a class="toctext" href="../../notebooks/">Notebooks</a></li><li><span class="toctext">Docker</span><ul><li><a class="toctext" href="../../docker/docker/">Docker</a></li><li><a class="toctext" href="../../docker/tensorflow/">Tensorflow CPU</a></li></ul></li><li><span class="toctext">Datasets</span><ul><li><a class="toctext" href="../../datasets/imagenet/">Imagenet</a></li><li><a class="toctext" href="../../datasets/slim/">Tensorflow Slim</a></li></ul></li><li><span class="toctext">Workloads</span><ul><li><a class="toctext" href="../ubuntu/">Ubuntu Workloads</a></li><li><a class="toctext" href="../tensorflow/">Tensorflow Models</a></li><li class="current"><a class="toctext" href>Slim</a><ul class="internal"><li><a class="toctext" href="#Script-Arguments:-1">Script Arguments:</a></li></ul></li><li><a class="toctext" href="../keras/">Keras Models</a></li></ul></li><li><span class="toctext">Launcher</span><ul><li><a class="toctext" href="../../launcher/">Launcher</a></li></ul></li><li><span class="toctext">NVM</span><ul><li><a class="toctext" href="../../nvm/swap/">Swap</a></li></ul></li><li><span class="toctext">Misc</span><ul><li><a class="toctext" href="../../extra/perf/">PAPI Notes</a></li></ul></li></ul></nav><article id="docs"><header><nav><ul><li>Workloads</li><li><a href>Slim</a></li></ul><a class="edit-page" href="https://github.com/darchr/ml-tools/blob/master/docs/src/workloads/slim.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Slim</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Slim-1" href="#Slim-1">Slim</a></h1><p>More information coming.</p><p>For now, arguments that have to be passed to <code>Launcher.Slim</code>:</p><pre><code class="language-julia">args = (dataset_name=&quot;imagenet&quot;, clone_on_cpu=true)</code></pre><h2><a class="nav-anchor" id="Script-Arguments:-1" href="#Script-Arguments:-1">Script Arguments:</a></h2><pre><code class="language-none">Generic training script that trains a model using a given dataset.
+flags:
+
+/models/slim/train_image_classifier.py:
+  --adadelta_rho: The decay rate for adadelta.
+    (default: &#39;0.95&#39;)
+    (a number)
+  --adagrad_initial_accumulator_value: Starting value for the AdaGrad accumulators.
+    (default: &#39;0.1&#39;)
+    (a number)
+  --adam_beta1: The exponential decay rate for the 1st moment estimates.
+    (default: &#39;0.9&#39;)
+    (a number)
+  --adam_beta2: The exponential decay rate for the 2nd moment estimates.
+    (default: &#39;0.999&#39;)
+    (a number)
+  --batch_size: The number of samples in each batch.
+    (default: &#39;32&#39;)
+    (an integer)
+  --checkpoint_exclude_scopes: Comma-separated list of scopes of variables to exclude when restoring from a checkpoint.
+  --checkpoint_path: The path to a checkpoint from which to fine-tune.
+  --[no]clone_on_cpu: Use CPUs to deploy clones.
+    (default: &#39;false&#39;)
+  --dataset_dir: The directory where the dataset files are stored.
+  --dataset_name: The name of the dataset to load.
+    (default: &#39;imagenet&#39;)
+  --dataset_split_name: The name of the train/test split.
+    (default: &#39;train&#39;)
+  --end_learning_rate: The minimal end learning rate used by a polynomial decay learning rate.
+    (default: &#39;0.0001&#39;)
+    (a number)
+  --ftrl_initial_accumulator_value: Starting value for the FTRL accumulators.
+    (default: &#39;0.1&#39;)
+    (a number)
+  --ftrl_l1: The FTRL l1 regularization strength.
+    (default: &#39;0.0&#39;)
+    (a number)
+  --ftrl_l2: The FTRL l2 regularization strength.
+    (default: &#39;0.0&#39;)
+    (a number)
+  --ftrl_learning_rate_power: The learning rate power.
+    (default: &#39;-0.5&#39;)
+    (a number)
+  --[no]ignore_missing_vars: When restoring a checkpoint would ignore missing variables.
+    (default: &#39;false&#39;)
+  --label_smoothing: The amount of label smoothing.
+    (default: &#39;0.0&#39;)
+    (a number)
+  --labels_offset: An offset for the labels in the dataset. This flag is primarily used to evaluate the VGG and ResNet architectures which do not use a background class for the ImageNet
+    dataset.
+    (default: &#39;0&#39;)
+    (an integer)
+  --learning_rate: Initial learning rate.
+    (default: &#39;0.01&#39;)
+    (a number)
+  --learning_rate_decay_factor: Learning rate decay factor.
+    (default: &#39;0.94&#39;)
+    (a number)
+  --learning_rate_decay_type: Specifies how the learning rate is decayed. One of &quot;fixed&quot;, &quot;exponential&quot;, or &quot;polynomial&quot;
+    (default: &#39;exponential&#39;)
+  --log_every_n_steps: The frequency with which logs are print.
+    (default: &#39;10&#39;)
+    (an integer)
+  --master: The address of the TensorFlow master to use.
+    (default: &#39;&#39;)
+  --max_number_of_steps: The maximum number of training steps.
+    (an integer)
+  --model_name: The name of the architecture to train.
+    (default: &#39;inception_v3&#39;)
+  --momentum: The momentum for the MomentumOptimizer and RMSPropOptimizer.
+    (default: &#39;0.9&#39;)
+    (a number)
+  --moving_average_decay: The decay to use for the moving average.If left as None, then moving averages are not used.
+    (a number)
+  --num_clones: Number of model clones to deploy. Note For historical reasons loss from all clones averaged out and learning rate decay happen per clone epochs
+    (default: &#39;1&#39;)
+    (an integer)
+  --num_epochs_per_decay: Number of epochs after which learning rate decays. Note: this flag counts epochs per clone but aggregates per sync replicas. So 1.0 means that each clone will go
+    over full epoch individually, but replicas will go once across all replicas.
+    (default: &#39;2.0&#39;)
+    (a number)
+  --num_preprocessing_threads: The number of threads used to create the batches.
+    (default: &#39;4&#39;)
+    (an integer)
+  --num_ps_tasks: The number of parameter servers. If the value is 0, then the parameters are handled locally by the worker.
+    (default: &#39;0&#39;)
+    (an integer)
+  --num_readers: The number of parallel readers that read data from the dataset.
+    (default: &#39;4&#39;)
+    (an integer)
+  --opt_epsilon: Epsilon term for the optimizer.
+    (default: &#39;1.0&#39;)
+    (a number)
+  --optimizer: The name of the optimizer, one of &quot;adadelta&quot;, &quot;adagrad&quot;, &quot;adam&quot;,&quot;ftrl&quot;, &quot;momentum&quot;, &quot;sgd&quot; or &quot;rmsprop&quot;.
+    (default: &#39;rmsprop&#39;)
+  --preprocessing_name: The name of the preprocessing to use. If left as `None`, then the model_name flag is used.
+  --quantize_delay: Number of steps to start quantized training. Set to -1 would disable quantized training.
+    (default: &#39;-1&#39;)
+    (an integer)
+  --replicas_to_aggregate: The Number of gradients to collect before updating params.
+    (default: &#39;1&#39;)
+    (an integer)
+  --rmsprop_decay: Decay term for RMSProp.
+    (default: &#39;0.9&#39;)
+    (a number)
+  --rmsprop_momentum: Momentum.
+    (default: &#39;0.9&#39;)
+    (a number)
+  --save_interval_secs: The frequency with which the model is saved, in seconds.
+    (default: &#39;600&#39;)
+    (an integer)
+  --save_summaries_secs: The frequency with which summaries are saved, in seconds.
+    (default: &#39;600&#39;)
+    (an integer)
+  --[no]sync_replicas: Whether or not to synchronize the replicas during training.
+    (default: &#39;false&#39;)
+  --task: Task id of the replica running the training.
+    (default: &#39;0&#39;)
+    (an integer)
+  --train_dir: Directory where checkpoints and event logs are written to.
+    (default: &#39;/tmp/tfmodel/&#39;)
+  --train_image_size: Train image size
+    (an integer)
+  --trainable_scopes: Comma-separated list of scopes to filter the set of variables to train.By default, None would train all the variables.
+  --weight_decay: The weight decay on the model weights.
+    (default: &#39;4e-05&#39;)
+    (a number)
+  --worker_replicas: Number of worker replicas.
+    (default: &#39;1&#39;)
+    (an integer)</code></pre><footer><hr/><a class="previous" href="../tensorflow/"><span class="direction">Previous</span><span class="title">Tensorflow Models</span></a><a class="next" href="../keras/"><span class="direction">Next</span><span class="title">Keras Models</span></a></footer></article></body></html>
