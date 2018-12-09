@@ -2,8 +2,7 @@
 
 We will use [Tensorflow](https://www.tensorflow.org/) as one of the ML frameworks for 
 testing. Since the standard distribution for Tensorflow is not compiled with AVX2 
-instructions, I compiled Tensorflow from source on `amarillo`. The directory `tf-compile/`
-has the relevant files for how this is done.
+instructions, I compiled Tensorflow from source on `amarillo`. 
 
 The Docker Hub where the most current version of this container lives is
 here: <https://hub.docker.com/r/darchr/tf-compiled-base/>. This repo will be kept 
@@ -11,10 +10,9 @@ up-to-date as I make needed changes to the container.
 
 I'm using the official tensorflow docker approach to compile and build the pip package for
 tensor flow.
-```
-https://www.tensorflow.org/install/source
-https://www.tensorflow.org/install/docker
-```
+
+* <https://www.tensorflow.org/install/source>
+* <https://www.tensorflow.org/install/docker>
 
 Helpful post talking about docker permissions <https://denibertovic.com/posts/handling-permissions-with-docker-volumes/>
 
@@ -38,12 +36,12 @@ install the compiled tensorflow wheel.
 
 Pull the docker container with the source code:
 ```sh
-docker pull tensorflow/tensorflow:1.10.0-devel-py3
+docker pull tensorflow/tensorflow:1.12.0-devel-py3
 ```
 
 Launch the container with
 ```sh
-docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS="$(id -u):$(id -g)" tensorflow/tensorflow:1.10.0-devel-py3 bash
+docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS="$(id -u):$(id -g)" tensorflow/tensorflow:1.12.0-devel-py3 bash
 ```
 
 This does the following:
@@ -65,16 +63,10 @@ to pull the latest copy of the tensorflow source. Then configure the build with
 Settings used:
 * Python Location: default
 * Python Library Path: default
-* jemalloc support: Y
-* Google cloud platform support: n
-* Hadoop file system support: n
-* Amazon AWS platform support: n
-* Apache Kafka Platform support: n
-* XLA Jis support: N
-* GDR support: N
-* VERBs support: N
-* nGraph support: N
+* Apache Ignite Support: Y
+* XLA Jit support: Y
 * OpenCL SYCL support: N
+* ROCm support: N
 * CUDA support: N
 * Fresh clang release: N
 * MPI support: N
@@ -86,7 +78,7 @@ Steps to build:
 ```
 bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
-chown $HOST_PERMS /mnt/tensorflow-1.10.1-cp35-cp35m-linux_x86_64.whl
+chown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl
 ```
 Note, compilation takes quite a while, so be patient. If running on amarillo, enjoy the
 96 thread awesomeness.
@@ -101,7 +93,7 @@ git pull
 ./configure # Look at options above
 bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
-chown $HOST_PERMS /mnt/tensorflow-1.10.1-cp35-cp35m-linux_x86_64.whl
+chown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl
 ```
 
 ### Building the Docker Image
@@ -110,14 +102,14 @@ With the `.whl` for tensorflow build, we can build a new Docker container with t
 installed. For this step, move `tensorflow-...-.whl` into the `tf-compiled-base/` 
 directory. Then, run the shell script:
 ```sh
-./build.sh tensorflow-1.10.1-cp35-cm35m-linux_x86_64.whl
+./build.sh tensorflow-1.12.1-cp35-cm35m-linux_x86_64.whl
 ```
 Finally, if necessary, push the image to the `darchr` docker hub via
 ```sh
 docker push darchr/tf-compiled-base
 ```
 
-### Details
+### Some Notes
 
 Annoyingly, the `.whl` created in the previous step only works with Python 3.5. I tried 
 hacking it by changing the name (cp35-cp35m -> cp36-cp36m), but installation with `pip` 

@@ -12,7 +12,9 @@ Imagenet2012 database had moved to a new home. However, when writing up this doc
 I couldn't find that reference nor the new home.
 
 In conclusion, it seems that getting the dataset is significantly less straightforward than
-it should be. However, it is possible to find the dataset eventually.
+it should be. However, it is possible to find the dataset eventually. I think the dataset
+has officially been mirrored on Kaggle: 
+<https://www.kaggle.com/c/imagenet-object-localization-challenge/data>
 
 ## Using Imagenet in Tensorflow
 
