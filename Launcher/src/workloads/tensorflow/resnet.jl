@@ -1,10 +1,10 @@
 """
-Struct representing parameters for launching the Tensorflow Official Resnet Model on the 
+Struct representing parameters for launching the Tensorflow Official Resnet Model on the
 Imagenet training set. Construct type using a key-word constructor
 
 Fields
 ------
-* `args::NamedTuple` - Arguments passed to the Keras Python script that creates and 
+* `args::NamedTuple` - Arguments passed to the Keras Python script that creates and
     trains Resnet.
 
 * `interactive::Bool` - Set to `true` to create a container that does not automatically run
@@ -16,7 +16,7 @@ Fields
     this value is `nothing`, the container will have access to all system memory.
     Default: `nothing`.
 
-* `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
+* `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors.
     Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
 @with_kw struct ResnetTF <: AbstractWorkload
@@ -33,19 +33,19 @@ startfile(::ResnetTF, ::Type{OnContainer}) = joinpath(
     _models(OnContainer), "resnet", "imagenet_main.py"
 )
 
-function runcommand(resnet::ResnetTF) 
+function runcommand(resnet::ResnetTF)
     # Extract the arguments from the stuct
-    kw = resnet.args 
+    kw = resnet.args
 
     # Check if the "data_dir" arg is present. If not, add it to the default location.
-    if !haskey(kw, :data_dir) 
+    if !haskey(kw, :data_dir)
         data_dir = (data_dir = "/imagenet",)
         kw = merge(kw, data_dir)
     end
 
     # Construct the launch comand
-    if resnet.interactive 
-        return `/bin/bash` 
+    if resnet.interactive
+        return `/bin/bash`
     else
         return `python3 $(startfile(resnet, OnContainer)) $(makeargs(kw, "="))`
     end
@@ -67,5 +67,55 @@ function create(resnet::ResnetTF; kw...)
         kw...
     )
 
-    return container
+    return (container,)
 end
+
+#####
+##### ResnetCluster
+#####
+
+struct ResnetCluster{N} <: AbstractWorkload
+    workers::NTuple{N, Tuple{ResnetTF, NamedTuple}}
+end
+
+function clusterspec(n; baseport = 5000)
+    portmaps = ["127.0.0.1:$port" for port in _ports(n; base = baseport)]
+    return Dict("worker" => portmaps)
+end
+
+_ports(n ;base = 5000) = base:(base + n - 1)
+
+function create(cluster::ResnetCluster{N}) where {N}
+    # Create the ClusterSpec environmental variable for each instance
+    spec = clusterspec(N)
+    ports = _ports(N)
+
+    containers = map(1:N) do index
+        # Create the TF_CONFIG environmental variable
+        task = Dict(
+            "type" => "worker",
+            "index" => index - 1,
+        )
+        tf_config = Dict(
+            "cluster" => spec, 
+            "task" => task
+        )
+
+        json_string = JSON.json(tf_config)
+        env = ["TF_CONFIG=$json_string"]
+        port = ports[index]
+
+        # Unpack cluster
+        resnet, kw = cluster.workers[index]
+        container = create(resnet;
+            env = env,
+            #ports = [port],
+            #portBindings = [port, port],
+            kw...
+        )
+        return first(container)
+    end
+
+    return containers
+end
+

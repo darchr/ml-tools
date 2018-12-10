@@ -46,7 +46,7 @@ include("workloads/workloads.jl")
 
 ############################################################################################
 # Basic run command
-Base.run(workload::AbstractWorkload; kw...) = run(DockerX.attach, workload; kw...)
+Base.run(workload::AbstractWorkload; kw...) = run(x -> DockerX.attach(first(x)), workload; kw...)
 
 """
     run([f::Function], work::AbstractWorkload; showlog = false, kw...)
@@ -65,20 +65,25 @@ This function ensures that containers are stopped and cleaned up in case somethi
 If `showlog = true`, send the container's log to `stdout` when the container stops.
 """
 function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
-    container = create(work; kw...)
-    @info "Created: $container"
+    containers = create(work; kw...)
+    @info "Created: $containers"
 
     # Wrap a try-finally for graceful cleanup in case something goes wrong, or someone gets
     # bored and hits ctrl+c
-    DockerX.start(container)
+    DockerX.start.(containers)
     try 
-        f(container)
+        f(containers)
     finally
-        showlog && println(DockerX.log(container))
+        if showlog
+            for container in containers
+                @info "Showing Log for Container $container"
+                println(DockerX.log(container))
+            end
+        end
 
-        DockerX.remove(container, force = true)
+        DockerX.remove.(containers, force = true)
 
-        @info "Container stopped and removed"
+        @info "Containers stopped and removed"
     end
 end
 
