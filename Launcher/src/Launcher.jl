@@ -9,11 +9,10 @@ import Base.Iterators: flatten, drop
 
 export  k_str, create_setup,
         # Models
-        Resnet, 
-        CifarCnn, 
+        Resnet,
+        CifarCnn,
         # Util Functions
         size_mb, memory_vec, subsample
-
 
 
 const SRCDIR = @__DIR__
@@ -65,26 +64,30 @@ This function ensures that containers are stopped and cleaned up in case somethi
 If `showlog = true`, send the container's log to `stdout` when the container stops.
 """
 function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
+    # If "create" only returns a single container, wrap it in a tuple so the broadcasted
+    # methods below work seamlessly
     containers = create(work; kw...)
     @info "Created: $containers"
 
     # Wrap a try-finally for graceful cleanup in case something goes wrong, or someone gets
     # bored and hits ctrl+c
-    DockerX.start.(containers)
-    try 
+    DockerX.start.(_wrap(containers))
+    try
         f(containers)
     finally
         if showlog
-            for container in containers
+            for container in _wrap(containers)
                 @info "Showing Log for Container $container"
                 println(DockerX.log(container))
             end
         end
 
-        DockerX.remove.(containers, force = true)
+        DockerX.remove.(_wrap(containers), force = true)
 
         @info "Containers stopped and removed"
     end
 end
+_wrap(x::DockerX.Container) = (x,)
+_wrap(x) = x
 
 end # module
