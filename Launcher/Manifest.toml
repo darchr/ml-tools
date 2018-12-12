@@ -17,7 +17,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[DockerX]]
 deps = ["HTTP", "JSON", "Sockets"]
-path = "../../DockerX"
+git-tree-sha1 = "1e1cd8a1c153451986d686bc380822983abe3c6b"
+repo-rev = "master"
+repo-url = "https://github.com/hildebrandmw/DockerX.jl"
 uuid = "d141d394-c665-11e8-14fa-718cafd270b3"
 version = "0.1.0"
 
