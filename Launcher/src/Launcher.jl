@@ -42,10 +42,11 @@ include("utils.jl")
 include("setup.jl")
 include("workloads/workloads.jl")
 
-
 ############################################################################################
 # Basic run command
-Base.run(workload::AbstractWorkload; kw...) = run(x -> DockerX.attach(first(x)), workload; kw...)
+_attach(x::DockerX.Container) = DockerX.attach(x)
+_attach(x) = DockerX.attach(first(x))
+Base.run(workload::AbstractWorkload; kw...) = run(_attach, workload; kw...)
 
 """
     run([f::Function], work::AbstractWorkload; showlog = false, kw...)
