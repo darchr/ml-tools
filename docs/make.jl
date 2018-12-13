@@ -6,7 +6,7 @@ makedocs(
     sitename = "ML-Tools",
     # Make local build look good.
     html_prettyurls = get(ENV, "CI", nothing) == "true",
-    #linkcheck = true,
+    linkcheck = get(ENV, "CI", nothing) == "true",
     pages = Any[
         "Home" => "index.md",
         "Manifest" => "manifest.md",
@@ -17,7 +17,7 @@ makedocs(
         ],
         "Datasets" => [
             "datasets/imagenet.md",
-            "datasets/slim.md",
+            "datasets/fsns.md",
         ],
         "Workloads" => [
             "workloads/ubuntu.md",
