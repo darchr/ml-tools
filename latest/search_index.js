@@ -153,51 +153,19 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "notebooks/#[Basic-Analysis](https://github.com/darchr/ml-notebooks/blob/master/basic_analysis/basic_analysis.ipynb)-1",
+    "location": "notebooks/#[Performance-Counter-Check](https://github.com/darchr/ml-notebooks/blob/master/toolchecking/performance_counters/performance_counters.ipynb)-1",
+    "page": "Notebooks",
+    "title": "Performance Counter Check",
+    "category": "section",
+    "text": "Validation that our hooks into hardware performance counters return sensible results."
+},
+
+{
+    "location": "notebooks/#[Basic-Analysis](https://github.com/darchr/ml-notebooks/blob/master/toolchecking/basic_analysis/basic_analysis.ipynb)-1",
     "page": "Notebooks",
     "title": "Basic Analysis",
     "category": "section",
     "text": "Basic analysis of the memory usage during the training of a simple CNN on a single CPU. The sampling window was 0.2 seconds. That is, the sampling procedure went something like this:Mark all the applications pages as idle.\nRun application for 0.2 seconds\nPause application\nDetermine which pages are active and update data structures.\nRepeatPlots included in this section:WSS estimation for a single threaded process.\nReuse distance analysis.\nVerification that Docker and Python are not interfering with the measurements.\nHeatmap plots visualizing the memory access patterns to the Python heap and for the whole  application during 1 epoch of training."
-},
-
-{
-    "location": "notebooks/#[ResNet50-in-ImageNet](https://github.com/darchr/ml-notebooks/blob/master/resnet_imagenet/Resnet.ipynb)-1",
-    "page": "Notebooks",
-    "title": "ResNet50 in ImageNet",
-    "category": "section",
-    "text": "Initial look at the memory usage of a large model on ImageNet. This sample data was trained on ResNet50 using a single CPU (yes, very slow). Sampling window was 0.1 seconds.The highlight of this is that we can see the forward and backward passes in memory."
-},
-
-{
-    "location": "notebooks/#[CPU-Analysis](https://github.com/darchr/ml-notebooks/blob/master/cpu_analysis/cpu_analysis.ipynb)-1",
-    "page": "Notebooks",
-    "title": "CPU Analysis",
-    "category": "section",
-    "text": "Plots and some analysis of how the memory requirements and training speed for 2 epochs of  training scale as the number of available processors is increased."
-},
-
-{
-    "location": "notebooks/#[Batchsize](https://github.com/darchr/ml-notebooks/blob/master/batchsize/batchsizes.ipynb)-1",
-    "page": "Notebooks",
-    "title": "Batchsize",
-    "category": "section",
-    "text": "Data on how WSS and Reuse Distance vary with training batch size. Parameters of experiment:* Small CNN on Cifar10 dataset\n* Single thread\n* Unlimited memory\n* 0.5 second sampletime\n* 1 epoch of training\n* Batchsizes: 16, 32, 64, 128, 256, 512, 1024I\'m not entirely sure what that data means yet ..."
-},
-
-{
-    "location": "notebooks/#[Filters](https://github.com/darchr/ml-notebooks/blob/master/filters/filters.ipynb)-1",
-    "page": "Notebooks",
-    "title": "Filters",
-    "category": "section",
-    "text": "The goal of this experiment is to see if we can filter out some types of memory during the trace without significantly affecting the results. Filtering out some regions of memory can speed up the idle page tracking process and reduce the memory footprint of the snooper.In particular, I explore filtering out Virtual Memory Areas (VMAs) that are* Executable\n* Neither readable nor writable\n* Smaller than 4 pagesConclusion - It\'s probably okay to do this. However, I need to try this on non single threaded models just in case."
-},
-
-{
-    "location": "notebooks/#[Sample-Time](https://github.com/darchr/ml-notebooks/blob/master/sampletime/sampletime.ipynb)-1",
-    "page": "Notebooks",
-    "title": "Sample Time",
-    "category": "section",
-    "text": "Experiment to investigate how sensitive our estimates of WSS and Reuse Distance are to the sample time. Parameters of the experiment:* Small CNN on Cifar dataset\n* Both single threaded and with 12 threads\n* Sample times of 0.2, 0.5, 1, 2, 4, and 8 seconds\n* Batch size of 128\n* Training for 1 epoch"
 },
 
 {
@@ -321,9 +289,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "datasets/imagenet/#Using-Imagenet-in-Tensorflow-1",
+    "location": "datasets/imagenet/#Imagenet-for-Tensorflow-Official-Models-1",
     "page": "Imagenet",
-    "title": "Using Imagenet in Tensorflow",
+    "title": "Imagenet for Tensorflow Official Models",
     "category": "section",
     "text": "The training and validation .tar files need to be converted into something called a  TFRecord format (something used by Tensorflow I guess). This flow assumes that you have the datasets downloaded and stored in a path /path-to-datasets/. Some helpful links are provided:Documentation on how to get the official ResNet tensorflow models working on the   Image net data: https://github.com/tensorflow/models/tree/master/official/resnet\nDocumentation and script for converting the Imagenet .tar files into the form desired   by Tensorflow: https://github.com/tensorflow/tpu/tree/master/tools/datasets#imagenet_to_gcspy\nThe Python script that does the conversion: https://github.com/tensorflow/tpu/blob/master/tools/datasets/imagenet_to_gcs.pyThis info should all be incorporated into the build script build.sh. To run it, just  execute./build.sh /path-to-tar-filesThis will create the folders/path-to-tar-files/train\n/path-to-tar-files/validationand unpack the tar files into these respective folders. The original tar files will be left alone, so make sure you have around 300G of extra free space when you do this, otherwise  you\'re gonna have a bad day.After unpacking, the build script will execute the imagenet_to_gcs.py script to do the actual conversion.Be aware that dataset conversion can take a long time. You probably want to run the build script in a tmux shell or something so you can go have a coffee.Note that the build script will launch an docker instance of darchr/tf-compiled-base  because the Python script needs Tensorflow to run. Once the script finishes, you should be good to go."
 },
@@ -337,43 +305,51 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "datasets/slim/#",
-    "page": "Tensorflow Slim",
-    "title": "Tensorflow Slim",
+    "location": "datasets/imagenet/#Tensorflow-for-Slim-Models-1",
+    "page": "Imagenet",
+    "title": "Tensorflow for Slim Models",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "datasets/imagenet/#Preparation-steps-(don\'t-need-to-repeat)-1",
+    "page": "Imagenet",
+    "title": "Preparation steps (don\'t need to repeat)",
+    "category": "section",
+    "text": "The code in this repo is taken from the build process that comes in the slim project. However, I\'ve modified it so it works without having to go through Bazel (I don\'t really know why that was used in the first place) and also updated it so it works with Python3.Changes made to builddownload_and_convert_imagenet.sh\nRemoved some build comments that are no longer relevant.\nLine 59: Change path for WORK_DIR since we\'re no longer doing the Bazel style   build.\nLine 104: Change path to build_iamgenet_data.py.\nLine 108: Put python3 in front of script invocation. Get around executable   permission errors.\ndatasets/build_imagenet_data.py\nLines 213, 216, 217, and 224: Suffix .encode() on string arguments to pass them   as bytes to _bytes_feature.\nLines 527: Wrap range(len(filenames)) in list() to materialize the lazy range   type.\ndatasets/download_imagenet.sh\nLines 72 and 81: Comment out wget commands, avoid downloading imagenet training   and validation data.\ndatasets/preprocess_imagenet_validation_data.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instances of xrange to range. The range type in python3 behaves   just like the xrange type.\ndatasets/process_bounding_boxes.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instance of xrange to range."
+},
+
+{
+    "location": "datasets/imagenet/#Steps-for-building-slim-1",
+    "page": "Imagenet",
+    "title": "Steps for building slim",
+    "category": "section",
+    "text": "Put ILSVRC2012_img_train.tar and ILSVRC2012_img_val.tar in a known spot (<path/to/imagenet>) with 500GB+ of available memory.Navigate in this repository to: /datasets/imagenet/slim. Launch a Tensorflow docker container withdocker run -it --rm \\\n    -v <path/to/imagnet>:/imagenet \\\n    -v $PWD:/slim-builder \\\n    -e LOCAL_USER_ID=$UID \\\n    darchr/tf-compiled-base /bin/bashinside the docker container, run:cd slim-builder\n$PWD/download_and_convert_imagenet.sh /imagenetWhen prompted to enter in your credentials, just hit enter. The script won\'t download imagenet anyways so it doesn\'t matter what you put in.  Hopefully, everything works  as expected. If not, you can always edit the download_and_convert_imagenet.sh file,  commenting out the script/python invokations that have already completed."
+},
+
+{
+    "location": "datasets/fsns/#",
+    "page": "French Street Name Signs (FSNS)",
+    "title": "French Street Name Signs (FSNS)",
     "category": "page",
     "text": ""
 },
 
 {
-    "location": "datasets/slim/#Tensorflow-Slim-1",
-    "page": "Tensorflow Slim",
-    "title": "Tensorflow Slim",
+    "location": "datasets/fsns/#French-Street-Name-Signs-(FSNS)-1",
+    "page": "French Street Name Signs (FSNS)",
+    "title": "French Street Name Signs (FSNS)",
     "category": "section",
-    "text": ""
+    "text": "https://github.com/tensorflow/models/tree/master/research/street\nhttp://rrc.cvc.uab.es/?ch=6"
 },
 
 {
-    "location": "datasets/slim/#Preparation-steps-(don\'t-need-to-repeat)-1",
-    "page": "Tensorflow Slim",
-    "title": "Preparation steps (don\'t need to repeat)",
+    "location": "datasets/fsns/#Downloading-and-Installing-1",
+    "page": "French Street Name Signs (FSNS)",
+    "title": "Downloading and Installing",
     "category": "section",
-    "text": "The code in this repo is taken from the build process that comes in the slim project. However, I\'ve modified it so it works without having to go through Bazel (I don\'t really know why that was used in the first place) and also updated it so it works with Python3."
-},
-
-{
-    "location": "datasets/slim/#Changes-made-to-build-1",
-    "page": "Tensorflow Slim",
-    "title": "Changes made to build",
-    "category": "section",
-    "text": "download_and_convert_imagenet.sh\nRemoved some build comments that are no longer relevant.\nLine 59: Change path for WORK_DIR since we\'re no longer doing the Bazel style   build.\nLine 104: Change path to build_iamgenet_data.py.\nLine 108: Put python3 in front of script invocation. Get around executable   permission errors.\ndatasets/build_imagenet_data.py\nLines 213, 216, 217, and 224: Suffix .encode() on string arguments to pass them   as bytes to _bytes_feature.\nLines 527: Wrap range(len(filenames)) in list() to materialize the lazy range   type.\ndatasets/download_imagenet.sh\nLines 72 and 81: Comment out wget commands, avoid downloading imagenet training   and validation data.\ndatasets/preprocess_imagenet_validation_data.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instances of xrange to range. The range type in python3 behaves   just like the xrange type.\ndatasets/process_bounding_boxes.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instance of xrange to range."
-},
-
-{
-    "location": "datasets/slim/#Steps-for-building-slim-1",
-    "page": "Tensorflow Slim",
-    "title": "Steps for building slim",
-    "category": "section",
-    "text": "Put ILSVRC2012_img_train.tar and ILSVRC2012_img_val.tar in a known spot (<path/to/imagenet>) with 500GB+ of available memory.Navigate in this repository to: /datasets/imagenet/slim. Launch a Tensorflow docker container withdocker run -it --rm \\\n    -v <path/to/imagnet>:/imagenet \\\n    -v $PWD:/slim-builder \\\n    -e LOCAL_USER_ID=$UID \\\n    darchr/tf-compiled-base /bin/bashinside the docker container, run:cd slim-builder\n$PWD/download_and_convert_imagenet.sh /imagenetWhen prompted to enter in your credentials, just hit enter. The script won\'t download imagenet anyways so it doesn\'t matter what you put in.  Hopefully, everything works  as expected. If not, you can always edit the download_and_convert_imagenet.sh file,  commenting out the script/python invokations that have already completed."
+    "text": "Navigate to where you want to download the dataset. Run the following commands:# Start Julia with 10 workers. Can change number of workers if desired\njulia -p10julia> using Pkg\n\njulia> Pkg.develop(\"<path-to-ml-tools>/datasets/fsns/Downloader\")\n\njulia> using Downloader\n\njulia> Downloader.downloadall()"
 },
 
 {
@@ -429,7 +405,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Tensorflow Models",
     "title": "Launcher.ResnetTF",
     "category": "type",
-    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the  Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and    trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.    Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
+    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and   trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.   Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
 },
 
 {
