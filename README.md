@@ -6,6 +6,18 @@
 
 Collection of tools for analyzing machine learning workloads.
 
+## Installation
+
+Clone the repo with
+```sh
+git clone https://github.com/darchr/ml-tools
+```
+Fetch dependencies with
+```sh
+cd ml-tools/env
+./init.sh
+```
+
 ## Subpackages
 
 | **Package** | **Build Status** | **Documentation** |
