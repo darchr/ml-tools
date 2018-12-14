@@ -9,4 +9,4 @@
 
 docs/build
 .ipynb_checkpoints
-env
+deps
