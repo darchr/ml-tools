@@ -14,7 +14,7 @@ git clone https://github.com/darchr/ml-tools
 ```
 Fetch dependencies with
 ```sh
-cd ml-tools/env
+cd ml-tools/deps
 ./init.sh
 ```
 
