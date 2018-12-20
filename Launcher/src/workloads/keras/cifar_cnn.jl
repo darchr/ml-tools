@@ -26,7 +26,7 @@ end
 
 const cifarfile = "cifar10_cnn.py"
 
-image(::CifarCnn) = "darchr/tf-keras:latest"
+image(::CifarCnn) = "darchr/tf-compiled-base"
 startfile(::CifarCnn, ::Type{OnHost}) = joinpath(WORKLOADS, "keras", cifarfile)
 startfile(::CifarCnn, ::Type{OnContainer}) = joinpath("/home", "startup", cifarfile)
 

@@ -25,7 +25,7 @@ Fields
     interactive :: Bool = false
 end
 
-image(::Slim) = "darchr/tf-official-models"
+image(::Slim) = "darchr/tf-compiled-base"
 
 slim_models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "slim")
 slim_models(::Type{OnContainer}) = joinpath("/models", "slim")
@@ -59,7 +59,7 @@ end
 
 function create(resnet::Slim; kw...)
     # Bind the Imagenet dataset into the top level of the container
-    bind_dataset = bind(DATASET_PATHS["imagenet_dir"], "/imagenet")
+    bind_dataset = bind(DATASET_PATHS["imagenet_tf_slim"], "/imagenet")
 
     # Attach the whole model directory.
     bind_code = bind(slim_models(OnHost), slim_models(OnContainer))

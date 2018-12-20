@@ -24,6 +24,7 @@ makedocs(
             "workloads/tensorflow.md",
             "workloads/slim.md",
             "workloads/keras.md",
+            "workloads/fsns.md",
         ],
         "Launcher" => [
             "launcher.md"

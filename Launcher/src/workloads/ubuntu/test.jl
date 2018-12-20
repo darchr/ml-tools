@@ -14,7 +14,7 @@ Fields
 """
 struct TestWorkload <: AbstractWorkload end
 
-image(::TestWorkload) = "darchr/tf-keras:latest"
+image(::TestWorkload) = "darchr/tf-compiled-base"
 startfile(::TestWorkload, ::Type{OnHost}) = joinpath(WORKLOADS, "ubuntu", "sleep.sh" )
 startfile(::TestWorkload, ::Type{OnContainer}) = joinpath("/home", "startup", "sleep.sh")
 

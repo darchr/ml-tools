@@ -49,7 +49,7 @@ _attach(x) = DockerX.attach(first(x))
 Base.run(workload::AbstractWorkload; kw...) = run(_attach, workload; kw...)
 
 """
-    run([f::Function], work::AbstractWorkload; showlog = false, kw...)
+    run([f::Function], work::AbstractWorkload; log::IO = devnull, kw...)
 
 Create and launch a container from `work` with
 
@@ -62,9 +62,9 @@ container's `stdout`.
 
 This function ensures that containers are stopped and cleaned up in case something goes wrong.
 
-If `showlog = true`, send the container's log to `stdout` when the container stops.
+After the container is stopped, write the log to IO
 """
-function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
+function Base.run(f::Function, work::AbstractWorkload; log = devnull, kw...)
     # If "create" only returns a single container, wrap it in a tuple so the broadcasted
     # methods below work seamlessly
     containers = create(work; kw...)
@@ -76,13 +76,9 @@ function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
     try
         f(containers)
     finally
-        if showlog
-            for container in _wrap(containers)
-                @info "Showing Log for Container $container"
-                println(DockerX.log(container))
-            end
+        for container in _wrap(containers)
+            _writelog(log, container)
         end
-
         DockerX.remove.(_wrap(containers), force = true)
 
         @info "Containers stopped and removed"
@@ -90,5 +86,12 @@ function Base.run(f::Function, work::AbstractWorkload; showlog = false, kw...)
 end
 _wrap(x::DockerX.Container) = (x,)
 _wrap(x) = x
+
+function _writelog(io::IO, container) 
+    print(io, "Showing log for $container\n")
+    print(io, DockerX.log(container))
+end
+_writelog(file::String, container) = open(io -> _writelog(io, container), file, append=true)
+
 
 end # module

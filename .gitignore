@@ -5,8 +5,10 @@
 *.log
 *.jls
 *.png
+*.so
 .DS_Store
 
 docs/build
 .ipynb_checkpoints
 deps
+__pycache__

@@ -12,6 +12,10 @@ Fields
 
 [`create`](@ref) keywords
 -------------------------
+* `small_dataset::Bool` - If `true`, use `imagenet_tf_official_small` as the training
+    dataset, which is essentially just a subset of the full Imagenet. Otherwise, use
+    `imagenet_tf_official`. Default: `false`.
+
 * `memory::Union{Nothing, Int}` - The amount of memory to assign to this container. If
     this value is `nothing`, the container will have access to all system memory.
     Default: `nothing`.
@@ -24,7 +28,7 @@ Fields
     interactive :: Bool = false
 end
 
-image(::ResnetTF) = "darchr/tf-official-models"
+image(::ResnetTF) = "darchr/tf-compiled-base"
 
 _models(::Type{OnHost}) = joinpath(WORKLOADS, "tensorflow", "official")
 _models(::Type{OnContainer}) = joinpath("/models", "official")
@@ -51,9 +55,15 @@ function runcommand(resnet::ResnetTF)
     end
 end
 
-function create(resnet::ResnetTF; kw...)
+function create(resnet::ResnetTF; small_dataset = false, kw...)
+
     # Bind the Imagenet dataset into the top level of the container
-    bind_dataset = bind(DATASET_PATHS["imagenet_tf_official_small"], "/imagenet")
+    if small_dataset === true
+        datasetpath = DATASET_PATHS["imagenet_tf_official_small"]
+    else
+        datasetpath = DATASET_PATHS["imagenet_tf_official"]
+    end
+    bind_dataset = bind(datasetpath, "/imagenet")
 
     # Attach the whole model directory.
     bind_code = bind(_models(OnHost), _models(OnContainer))
@@ -67,7 +77,7 @@ function create(resnet::ResnetTF; kw...)
         kw...
     )
 
-    return (container,)
+    return container
 end
 
 #####
@@ -102,7 +112,10 @@ function create(cluster::ResnetCluster{N}) where {N}
         )
 
         json_string = JSON.json(tf_config)
-        env = ["TF_CONFIG=$json_string"]
+        env = [
+            "TF_CONFIG=$json_string",
+            "LOCAL_USER_ID=$(uid())",
+        ]
         port = ports[index]
 
         # Unpack cluster

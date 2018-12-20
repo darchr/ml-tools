@@ -5,6 +5,7 @@ const DATASETS = (
     "imagenet_tf_official", 
     "imagenet_tf_official_small",
     "imagenet_tf_slim",
+    "fsns",
 )
 
 _writedataset() = open(io -> JSON.print(io, DATASET_PATHS, 4), SETUP_PATH, "w")
