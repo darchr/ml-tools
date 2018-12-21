@@ -249,19 +249,11 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "docker/tensorflow/#darchr/tf-keras-1",
+    "location": "docker/tensorflow/#Tensorflow-0.12.1-1",
     "page": "Tensorflow CPU",
-    "title": "darchr/tf-keras",
+    "title": "Tensorflow 0.12.1",
     "category": "section",
-    "text": "Container built from darchr/tf-compiled-base with the keras package installed.Just run the build script with:./build.sh"
-},
-
-{
-    "location": "docker/tensorflow/#darchr/tf-official-models-1",
-    "page": "Tensorflow CPU",
-    "title": "darchr/tf-official-models",
-    "category": "section",
-    "text": "Container build from darchr/tf-compiled-base. Installs the dependencies required to run the official models for Tensorflow.Building is simple, just run./build.sh"
+    "text": "The French Street signs model requires an older version of tensorflow.docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:0.12.1-devel bashThen rungit pull\npython2 -m pip install --upgrade requests\npython2 -c \"import requests; print(requests.get(\'https://www.howsmyssl.com/a/check\', verify=False).json()[\'tls_version\'])\"\napt-get update && apt-get install vim\nvim tensorflow/workspace.bzlThe python2 commands come from https://pyfound.blogspot.com/2017/01/time-to-upgrade-your-python-tls-v12.htmlInside the workspace, comment out the sha256 lines for everything from GitHub. Apprently GitHub changed something about their stored tarballs that ./configure``` The commands I used werePython path: Default (/usr/bin/python)\nGoogle cloud platform support: N\nHadoop file system: N\nPython library: Default (/usr/local/lib/python2.7/dist-packages)\nOpenCL: N\nGPU Support: N"
 },
 
 {
@@ -329,30 +321,6 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "datasets/fsns/#",
-    "page": "French Street Name Signs (FSNS)",
-    "title": "French Street Name Signs (FSNS)",
-    "category": "page",
-    "text": ""
-},
-
-{
-    "location": "datasets/fsns/#French-Street-Name-Signs-(FSNS)-1",
-    "page": "French Street Name Signs (FSNS)",
-    "title": "French Street Name Signs (FSNS)",
-    "category": "section",
-    "text": "https://github.com/tensorflow/models/tree/master/research/street\nhttp://rrc.cvc.uab.es/?ch=6"
-},
-
-{
-    "location": "datasets/fsns/#Downloading-and-Installing-1",
-    "page": "French Street Name Signs (FSNS)",
-    "title": "Downloading and Installing",
-    "category": "section",
-    "text": "Navigate to where you want to download the dataset. Run the following commands:# Start Julia with 10 workers. Can change number of workers if desired\njulia -p10julia> using Pkg\n\njulia> Pkg.develop(\"<path-to-ml-tools>/datasets/fsns/Downloader\")\n\njulia> using Downloader\n\njulia> Downloader.downloadall()"
-},
-
-{
     "location": "workloads/ubuntu/#",
     "page": "Ubuntu Workloads",
     "title": "Ubuntu Workloads",
@@ -405,7 +373,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Tensorflow Models",
     "title": "Launcher.ResnetTF",
     "category": "type",
-    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and   trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.   Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
+    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and   trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nsmall_dataset::Bool - If true, use imagenet_tf_official_small as the training   dataset, which is essentially just a subset of the full Imagenet. Otherwise, use   imagenet_tf_official. Default: false.\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.   Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
 },
 
 {
@@ -497,46 +465,6 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "launcher/#Base.run",
-    "page": "Launcher",
-    "title": "Base.run",
-    "category": "function",
-    "text": "run([f::Function], work::AbstractWorkload; showlog = false, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nIf showlog = true, send the container\'s log to stdout when the container stops.\n\n\n\n\n\n"
-},
-
-{
-    "location": "launcher/#Launcher.AbstractWorkload",
-    "page": "Launcher",
-    "title": "Launcher.AbstractWorkload",
-    "category": "type",
-    "text": "Abstract supertype for workloads. Concrete subtypes should be implemented for each workload desired for analysis.\n\n\n\n\n\n"
-},
-
-{
-    "location": "launcher/#Launcher.startfile",
-    "page": "Launcher",
-    "title": "Launcher.startfile",
-    "category": "function",
-    "text": "startfile(work::AbstractWorkload, ::Type{OnHost}) -> String\n\nReturn the path of the entrypoint file of work on the host machine.\n\nstartfile(work::AbstractWorkload, ::Type{OnContainer}) -> String\n\nReturn the path of the entrypoint file of work on the Docker Container.\n\n\n\n\n\n"
-},
-
-{
-    "location": "launcher/#Launcher.runcommand",
-    "page": "Launcher",
-    "title": "Launcher.runcommand",
-    "category": "function",
-    "text": "runcommand(work::AbstractWorkload) -> Cmd\n\nReturn the Docker Container entry command for work.\n\n\n\n\n\n"
-},
-
-{
-    "location": "launcher/#Launcher.create",
-    "page": "Launcher",
-    "title": "Launcher.create",
-    "category": "function",
-    "text": "create(work::AbstractWorkload; kw...) -> Container\n\nCreate a Docker Container for work, with optional keyword arguments. Concrete subtypes of AbstractWorkload must define this method and perform all the necessary steps to creating the Container. Note that the container should just be created by a call to DockerX.create_container, and not actually started.\n\nKeyword arguments supported by work should be included in that types documentation.\n\n\n\n\n\n"
-},
-
-{
     "location": "launcher/#Temporary-Documentation-1",
     "page": "Launcher",
     "title": "Temporary Documentation",
@@ -614,6 +542,30 @@ var documenterSearchIndex = {"docs": [
     "title": "Finding Perf Codes",
     "category": "section",
     "text": "A VERY helpful resource for finding event codes and such:  http://www.bnikolic.co.uk/blog/hpc-prof-events.html."
+},
+
+{
+    "location": "deprecated/#",
+    "page": "Deprecated Workloads",
+    "title": "Deprecated Workloads",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "deprecated/#Deprecated-Workloads-1",
+    "page": "Deprecated Workloads",
+    "title": "Deprecated Workloads",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "deprecated/#Street-(FSNS)-1",
+    "page": "Deprecated Workloads",
+    "title": "Street (FSNS)",
+    "category": "section",
+    "text": "Recurrent neural network for classifying French Street signs. This model required a lot of modification to get working in Tensorflow 1.12, and the initial data from snooping did not look very good (i.e. wrong). Thus, this workload is classified as deprecated."
 },
 
 ]}
