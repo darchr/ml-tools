@@ -39,7 +39,7 @@
         remove_validation = false
     end
 
-    Launcher.DATASET_PATHS["imagenet_tf_official_small"] = pwd()
+    Launcher.DATASET_PATHS["imagenet_tf_official"] = pwd()
     cnn = Launcher.ResnetTF(args = (help = nothing,))
     run(cnn)
 
