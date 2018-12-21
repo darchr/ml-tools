@@ -32,12 +32,11 @@ using InteractiveUtils
 
 # Add DockerX to talk to the Docker daemon.
 using DockerX
-using HTTP
+using MemSnoop
 using ProgressMeter
 using JSON
 using Parameters
 
-include("stats.jl")
 include("utils.jl")
 include("setup.jl")
 include("workloads/workloads.jl")

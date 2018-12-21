@@ -6,22 +6,22 @@
     # Just call uid, makesure nothing bad happens
     Launcher.uid()
 
-    @test Launcher.dash("hello") == "--hello"
-    @test Launcher.dash(:hello) == "--hello"
+    @test Launcher._prefix("hello", "--") == "--hello"
+    @test Launcher._prefix(:hello, "--") == "--hello"
 
     #####
     ##### Argument formatting
     #####
 
-    @test Launcher.argify(:with_coffee, nothing, "=") == "--with_coffee"
-    @test Launcher.argify(:batchsize, 192, "=") == "--batchsize=192"
+    @test Launcher.argify(:with_coffee, nothing, "=", "--") == ("--with_coffee",)
+    @test Launcher.argify(:batchsize, 192, "=", "--") == ("--batchsize=192",)
 
-    @test Launcher.argify(:with_coffee, nothing) == ("--with_coffee",)
-    @test Launcher.argify(:batchsize, 192) == ("--batchsize", 192)
+    @test Launcher.argify(:with_coffee, nothing, nothing, "--") == ("--with_coffee",)
+    @test Launcher.argify(:batchsize, 192, nothing, "--") == ("--batchsize", 192)
 
     args = (dataset_dir = "/imagenet", batchsize = 192, with_coffee = nothing)
 
-    @test Launcher.makeargs(args, "=") == [
+    @test Launcher.makeargs(args; delim = "=") == [
         "--dataset_dir=/imagenet",
         "--batchsize=192",
         "--with_coffee"

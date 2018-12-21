@@ -17,14 +17,12 @@ makedocs(
         ],
         "Datasets" => [
             "datasets/imagenet.md",
-            "datasets/fsns.md",
         ],
         "Workloads" => [
             "workloads/ubuntu.md",
             "workloads/tensorflow.md",
             "workloads/slim.md",
             "workloads/keras.md",
-            "workloads/fsns.md",
         ],
         "Launcher" => [
             "launcher.md"
@@ -33,8 +31,9 @@ makedocs(
             "nvm/swap.md",
         ],
         "Misc" => [
-            "extra/perf.md"
+            "extra/perf.md",
         ],
+        "deprecated.md",
     ]
 )
 

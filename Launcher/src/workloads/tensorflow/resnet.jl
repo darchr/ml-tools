@@ -51,7 +51,7 @@ function runcommand(resnet::ResnetTF)
     if resnet.interactive
         return `/bin/bash`
     else
-        return `python3 $(startfile(resnet, OnContainer)) $(makeargs(kw, "="))`
+        return `python3 $(startfile(resnet, OnContainer)) $(makeargs(kw; delim = "="))`
     end
 end
 

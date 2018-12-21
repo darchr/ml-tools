@@ -13,8 +13,9 @@ Fields
 * none
 """
 struct TestWorkload <: AbstractWorkload end
+getargs(::TestWorkload) = NamedTuple()
 
-image(::TestWorkload) = "darchr/tf-compiled-base"
+image(::TestWorkload) = "ubuntu:latest"
 startfile(::TestWorkload, ::Type{OnHost}) = joinpath(WORKLOADS, "ubuntu", "sleep.sh" )
 startfile(::TestWorkload, ::Type{OnContainer}) = joinpath("/home", "startup", "sleep.sh")
 

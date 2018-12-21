@@ -29,7 +29,7 @@ Return the `PID` of `container`.
 """
 function Base.getpid(container::Container)
     data = DockerX.inspect(container)
-    return data[k"State/Pid"]
+    return data["State"]["Pid"]
 end 
 
 """
@@ -46,12 +46,38 @@ Return the user ID of the current user.
 """
 uid() = chomp(read(`id -u`, String))
 
-dash(x) = "--$x"
-argify(a, b::Nothing, delim) = dash(a)
-argify(a, b, delim) = join((dash(a), b), delim)
+_prefix(x, prefix) = "$(prefix)$(x)"
+argify(a, b::Nothing, delim, prefix) = (_prefix(a, prefix),)
+argify(a, b, delim, prefix) = (join((_prefix(a, prefix), b), delim),)
 
-argify(a, b::Nothing) = (dash(a),)
-argify(a, b) = (dash(a), b)
+argify(a, b::Nothing, delim::Nothing, prefix) = (_prefix(a, prefix),)
+argify(a, b, delim::Nothing, prefix) = (_prefix(a, prefix), b)
 
-makeargs(nt::NamedTuple, delim) = [argify(a,b,delim) for (a,b) in pairs(nt)]
-makeargs(nt::NamedTuple) = collect(flatten(argify(a,b) for (a,b) in pairs(nt)))
+makeargs(nt::NamedTuple; delim = nothing, prefix = "--") = collect(flatten(argify(a, b, delim, prefix) for (a,b) in pairs(nt)))
+
+#####
+##### Common callbacks
+#####
+
+"""
+PeriodicSave(filename::String, increment::TimePeriod)
+
+Callback for [`run`] that saves trace data to `filename` every `increment`.
+"""
+mutable struct PeriodicSave
+    increment::TimePeriod
+    nextsave::DateTime
+    filename::String
+end
+
+PeriodicSave(filename::String, increment::TimePeriod) = 
+    PeriodicSave(increment, now() + increment, filename)
+
+function (S::PeriodicSave)(process, trace, measurements)
+    time = now()
+    if time > S.nextsave
+        @info "[$time] Saving Data"
+        MemSnoop.save(S.filename, trace)
+        S.nextsave = time + S.increment
+    end
+end

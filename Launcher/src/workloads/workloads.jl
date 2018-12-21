@@ -9,32 +9,16 @@ struct OnContainer <: Location end
 """
 Abstract supertype for workloads. Concrete subtypes should be implemented for each workload
 desired for analysis.
+
+Required Methods
+----------------
+* [`create`](@ref)
+* [`getargs`](@ref)
 """
 abstract type AbstractWorkload end
 
-
+# Path to the `workloads` directory in `ml-tools`
 const WORKLOADS = joinpath(MLTOOLS, "workloads")
-
-"""
-    startfile(work::AbstractWorkload, ::Type{OnHost}) -> String
-
-Return the path of the entrypoint file of `work` on the host machine.
-
-    startfile(work::AbstractWorkload, ::Type{OnContainer}) -> String
-
-Return the path of the entrypoint file of `work` on the Docker Container.
-"""
-startfile(::T, ::Type{L}) where {T <: AbstractWorkload, L <: Location} = error("""
-    Startfile not defined for workload type $T on location $L
-    """)
-
-
-"""
-    runcommand(work::AbstractWorkload) -> Cmd
-
-Return the Docker Container entry command for `work`.
-"""
-runcommand(::T) where {T <:AbstractWorkload} = `$(startfile(T, OnContainer))`
 
 """
     create(work::AbstractWorkload; kw...) -> Container
@@ -48,9 +32,29 @@ Keyword arguments supported by `work` should be included in that types documenta
 """
 create(work::AbstractWorkload; kw...)
 
+"""
+    getargs(work::AbstractWorkloads)
+
+Return the commandline arguments for `work`. Falls back to `work.args`. Extend this method
+for a workload if the fallback is not appropriate.
+"""
+getargs(work::AbstractWorkload) = work.args
+
+"""
+    filename(work::AbstractWorkload)
+
+Create a filename for `work` based on the data type of `work` and the arguments.
+"""
+function filename(work::T, ext = "dat") where {T <: AbstractWorkload}
+    args = getargs(work)
+    argstring = join(makeargs(args; delim = "=", prefix = ""), "-")
+    typename = last(split("$T", "."))
+    return join((typename, argstring, ext), "-", ".")
+end
+
+
 ## Concrete model
 include("ubuntu/test.jl")
 include("keras/cifar_cnn.jl")
 include("tensorflow/resnet.jl")
 include("tensorflow/slim.jl")
-include("tensorflow/street.jl")
