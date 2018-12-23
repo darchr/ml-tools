@@ -29,7 +29,7 @@ function create(test::TestWorkload; kw...)
 
     @show runcommand(test)
     # Create the container
-    container = DockerX.create_container( 
+    container = Docker.create_container( 
         image(test);
         attachStdin = true,
         binds = [bind_start],

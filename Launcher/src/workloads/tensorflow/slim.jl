@@ -69,7 +69,7 @@ function create(resnet::Slim; kw...)
 
     @show runcommand(resnet)
 
-    container = DockerX.create_container(
+    container = Docker.create_container(
         image(resnet);
         attachStdin = true,
         binds = [bind_dataset, bind_code],

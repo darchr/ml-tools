@@ -55,9 +55,9 @@ version = "0.7.4"
 deps = ["LinearAlgebra", "Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
-[[DockerX]]
+[[Docker]]
 deps = ["HTTP", "JSON", "Sockets"]
-path = "DockerX"
+path = "Docker"
 uuid = "d141d394-c665-11e8-14fa-718cafd270b3"
 version = "0.1.0"
 
@@ -90,7 +90,7 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
 [[Launcher]]
-deps = ["Dates", "DockerX", "HTTP", "InteractiveUtils", "JSON", "Parameters", "ProgressMeter", "Serialization"]
+deps = ["Dates", "Docker", "HTTP", "InteractiveUtils", "JSON", "Parameters", "ProgressMeter", "Serialization"]
 path = "../Launcher"
 uuid = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
 version = "0.1.0"

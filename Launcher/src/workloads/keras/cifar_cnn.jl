@@ -50,7 +50,7 @@ function create(cifar::CifarCnn; cpuSets = "", kw...)
     ], ":")
 
     # Create the container
-    container = DockerX.create_container( 
+    container = Docker.create_container( 
         image(cifar);
         attachStdin = true,
         binds = [bind_dataset, bind_start],

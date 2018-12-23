@@ -12,7 +12,7 @@ Depth = 3
 
 
 
-### [DockerX](https://github.com/hildebrandmw/DockerX.jl)
+### [Docker](https://github.com/hildebrandmw/Docker.jl)
 
 Julia interface to the Docker API for managing containers and gathering metrics. This 
 package is based on the original [Docker](https://github.com/Keno/Docker.jl) package, but
@@ -26,7 +26,7 @@ updated to serve our own needs. I've also added CI to the build process.
     likely involve:
     
     1. Forking the original Docker repo.
-    2. Migrating the code in DockerX to the forked Docker repo.
+    2. Migrating the code in Docker to the forked Docker repo.
     3. Issue a string of pull requests to get the functionality migrated.
 
 - The Docker daemon by default listens on a Unix socket. In order to get the 

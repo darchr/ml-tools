@@ -15,9 +15,9 @@ uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 deps = ["LinearAlgebra", "Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
-[[DockerX]]
+[[Docker]]
 deps = ["HTTP", "JSON", "Sockets"]
-path = "../deps/DockerX"
+path = "../deps/Docker"
 uuid = "d141d394-c665-11e8-14fa-718cafd270b3"
 version = "0.1.0"
 

@@ -69,7 +69,7 @@ function create(resnet::ResnetTF; small_dataset = false, kw...)
     bind_code = bind(_models(OnHost), _models(OnContainer))
 
     # Create the container
-    container = DockerX.create_container(
+    container = Docker.create_container(
         image(resnet);
         attachStdin = true,
         binds = [bind_dataset, bind_code],

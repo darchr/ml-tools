@@ -26,7 +26,7 @@ const WORKLOADS = joinpath(MLTOOLS, "workloads")
 Create a Docker Container for `work`, with optional keyword arguments. Concrete subtypes
 of `AbstractWorkload` must define this method and perform all the necessary steps
 to creating the Container. Note that the container should just be created by a call
-to `DockerX.create_container`, and not actually started.
+to `Docker.create_container`, and not actually started.
 
 Keyword arguments supported by `work` should be included in that types documentation.
 """

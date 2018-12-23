@@ -30,8 +30,8 @@ const DATASET_PATHS = Dict{String,String}()
 using Dates
 using InteractiveUtils
 
-# Add DockerX to talk to the Docker daemon.
-using DockerX
+# Add Docker to talk to the Docker daemon.
+using Docker
 using MemSnoop
 using ProgressMeter
 using JSON
@@ -43,8 +43,8 @@ include("workloads/workloads.jl")
 
 ############################################################################################
 # Basic run command
-_attach(x::DockerX.Container) = DockerX.attach(x)
-_attach(x) = DockerX.attach(first(x))
+_attach(x::Docker.Container) = Docker.attach(x)
+_attach(x) = Docker.attach(first(x))
 Base.run(workload::AbstractWorkload; kw...) = run(_attach, workload; kw...)
 
 """
@@ -71,24 +71,24 @@ function Base.run(f::Function, work::AbstractWorkload; log = devnull, kw...)
 
     # Wrap a try-finally for graceful cleanup in case something goes wrong, or someone gets
     # bored and hits ctrl+c
-    DockerX.start.(_wrap(containers))
+    Docker.start.(_wrap(containers))
     try
         f(containers)
     finally
         for container in _wrap(containers)
             _writelog(log, container)
         end
-        DockerX.remove.(_wrap(containers), force = true)
+        Docker.remove.(_wrap(containers), force = true)
 
         @info "Containers stopped and removed"
     end
 end
-_wrap(x::DockerX.Container) = (x,)
+_wrap(x::Docker.Container) = (x,)
 _wrap(x) = x
 
 function _writelog(io::IO, container) 
     print(io, "Showing log for $container\n")
-    print(io, DockerX.log(container))
+    print(io, Docker.log(container))
 end
 _writelog(file::String, container) = open(io -> _writelog(io, container), file, append=true)
 
