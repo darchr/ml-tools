@@ -41,9 +41,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "manifest/#[DockerX](https://github.com/hildebrandmw/DockerX.jl)-1",
+    "location": "manifest/#[Docker](https://github.com/hildebrandmw/Docker.jl)-1",
     "page": "Manifest",
-    "title": "DockerX",
+    "title": "Docker",
     "category": "section",
     "text": "Julia interface to the Docker API for managing containers and gathering metrics. This  package is based on the original Docker package, but updated to serve our own needs. I\'ve also added CI to the build process."
 },
@@ -53,7 +53,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Manifest",
     "title": "TODO List (Low Priority)",
     "category": "section",
-    "text": "Add documentation of features in README. No need for auto docs.\nEventually, I would like to get this merged with the original Docker package, which would   likely involve:\nForking the original Docker repo.\nMigrating the code in DockerX to the forked Docker repo.\nIssue a string of pull requests to get the functionality migrated.\nThe Docker daemon by default listens on a Unix socket. In order to get the    HTTP to talk to a Unix socket, I had to extend   some of the methods in HTTP. Contributing this code to HTTP would be a good    contribution I think."
+    "text": "Add documentation of features in README. No need for auto docs.\nEventually, I would like to get this merged with the original Docker package, which would   likely involve:\nForking the original Docker repo.\nMigrating the code in Docker to the forked Docker repo.\nIssue a string of pull requests to get the functionality migrated.\nThe Docker daemon by default listens on a Unix socket. In order to get the    HTTP to talk to a Unix socket, I had to extend   some of the methods in HTTP. Contributing this code to HTTP would be a good    contribution I think."
 },
 
 {
@@ -321,6 +321,14 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "datasets/imagenet/#Imagenet-for-Metalhead-1",
+    "page": "Imagenet",
+    "title": "Imagenet for Metalhead",
+    "category": "section",
+    "text": "Navigate to the directory where the dataset will live. We are going to use an  unofficial Kaggle CLI that supports resuming  downloads to download the dataset.Sign up for Kaggle and register for the imagenet challenge at https://www.kaggle.com/c/imagenet-object-localization-challenge/dataLaunch a docker container withdocker run -v $PWD:/data -it --rm python:3.6 /bin/bashInside the container:pip3 install kaggle-cli\ncd data\nkg download -c imagenet-object-localization-challenge -u <username> -p <password>"
+},
+
+{
     "location": "workloads/ubuntu/#",
     "page": "Ubuntu Workloads",
     "title": "Ubuntu Workloads",
@@ -461,7 +469,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Launcher",
     "title": "Launcher",
     "category": "section",
-    "text": "Launcher is the Julia package (sorry, I really, really like writing Julia code) for handling the launching of containers, aggregation of results, binding containers with relevant datasets, and generally making sure everything is working correctly. Documentation for this package can be found in this section.The functionality provided by this model is very straightforward and can probably be ported to another language if needed.Note that Launcher is built on top of two other packages:DockerX - Package for interacting with   the Docker API.\nMemSnoop - Package for tracking the memory   usage patterns of applications on the Linux operating system.These two packages are still works in progress and documentation on them is forthcoming. However, I plan on registering at least DockerX and probably MemSnoop as well as soon as I take the time to get them production ready."
+    "text": "Launcher is the Julia package (sorry, I really, really like writing Julia code) for handling the launching of containers, aggregation of results, binding containers with relevant datasets, and generally making sure everything is working correctly. Documentation for this package can be found in this section.The functionality provided by this model is very straightforward and can probably be ported to another language if needed.Note that Launcher is built on top of two other packages:Docker - Package for interacting with   the Docker API.\nMemSnoop - Package for tracking the memory   usage patterns of applications on the Linux operating system.These two packages are still works in progress and documentation on them is forthcoming. However, I plan on registering at least Docker and probably MemSnoop as well as soon as I take the time to get them production ready."
 },
 
 {
