@@ -53,7 +53,7 @@ argify(a, b, delim, prefix) = (join((_prefix(a, prefix), b), delim),)
 argify(a, b::Nothing, delim::Nothing, prefix) = (_prefix(a, prefix),)
 argify(a, b, delim::Nothing, prefix) = (_prefix(a, prefix), b)
 
-makeargs(nt::NamedTuple; delim = nothing, prefix = "--") = collect(flatten(argify(a, b, delim, prefix) for (a,b) in pairs(nt)))
+makeargs(@nospecialize(nt::NamedTuple); delim = nothing, prefix = "--") = collect(flatten(argify(a, b, delim, prefix) for (a,b) in pairs(nt)))
 
 #####
 ##### Common callbacks

@@ -48,6 +48,14 @@ function runcommand(resnet::Slim)
         kw = merge(kw, dataset_dir)
     end
 
+    if !haskey(kw, :dataset_name)
+        kw = merge(kw, (dataset_name = "imagenet",))
+    end
+
+    if !haskey(kw, :clone_on_cpu)
+        kw = merge(kw, (clone_on_cpu = true,))
+    end
+
     # Construct the launch comand
     if resnet.interactive 
         return `/bin/bash` 
