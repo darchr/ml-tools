@@ -142,3 +142,9 @@ flags:
     (default: '1')
     (an integer)
 ```
+
+## File Changes
+
+**`train_image_classifier.py`**
+
+* Line 62: Change default value of `log_every_n_steps` from 10 to 5.

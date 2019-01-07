@@ -72,7 +72,7 @@ def get_train_hooks(name_list, use_tpu=False, **kwargs):
   return train_hooks
 
 
-def get_logging_tensor_hook(every_n_iter=100, tensors_to_log=None, **kwargs):  # pylint: disable=unused-argument
+def get_logging_tensor_hook(every_n_iter=5, tensors_to_log=None, **kwargs):  # pylint: disable=unused-argument
   """Function to get LoggingTensorHook.
 
   Args:

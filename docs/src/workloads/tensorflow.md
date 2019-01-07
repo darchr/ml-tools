@@ -237,8 +237,7 @@ absl.flags:
 Launcher.ResnetTF
 ```
 
-## Changes Made to `imagenet_main.py`
-
+**`imagenet_main.py`**
 * Lines 42-47: Made script expect training and validation files to be in `train` and 
     `validation` directories respectively whereas the original expected both to be in
     the same directory.
@@ -252,3 +251,8 @@ Launcher.ResnetTF
     Also hardcoded `_DATA_DIR` to `/imagenet` to allow this to take place. This limits the
     migratability of this project outside of docker, but we'll deal with that when we need
     to.
+
+**`utils/logs/hooks.py`
+
+* Line 75: Change default value for `every_n_iter` from 100 to 5, allowing for finer 
+    resolution benchmarking.
