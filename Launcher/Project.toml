@@ -17,3 +17,6 @@ SystemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
