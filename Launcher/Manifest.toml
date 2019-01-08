@@ -66,9 +66,9 @@ git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.6"
 
-[[MemSnoop]]
+[[SystemSnoop]]
 deps = ["Dates", "PAPI", "Serialization"]
-path = "../deps/MemSnoop"
+path = "../deps/SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 

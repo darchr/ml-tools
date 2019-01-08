@@ -68,7 +68,7 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
 [[Launcher]]
-deps = ["Dates", "Docker", "HTTP", "InteractiveUtils", "JSON", "MemSnoop", "PAPI", "Parameters", "ProgressMeter", "Serialization"]
+deps = ["Dates", "Docker", "HTTP", "InteractiveUtils", "JSON", "SystemSnoop", "PAPI", "Parameters", "ProgressMeter", "Serialization"]
 path = "../Launcher"
 uuid = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
 version = "0.1.0"
@@ -96,11 +96,11 @@ git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.6"
 
-[[MemSnoop]]
+[[SystemSnoop]]
 deps = ["Dates", "PAPI", "Serialization"]
 git-tree-sha1 = "a3f756b013ad8793b429899b36e9bd14cafbc51e"
 repo-rev = "master"
-repo-url = "https://github.com/hildebrandmw/MemSnoop.jl"
+repo-url = "https://github.com/hildebrandmw/SystemSnoop.jl"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 

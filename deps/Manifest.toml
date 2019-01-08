@@ -118,9 +118,9 @@ git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.6"
 
-[[MemSnoop]]
+[[SystemSnoop]]
 deps = ["Dates", "PAPI", "Serialization"]
-path = "MemSnoop"
+path = "SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 
@@ -202,7 +202,7 @@ deps = ["Distributed", "Mmap", "Random", "Serialization"]
 uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
 [[SnoopAnalyzer]]
-deps = ["Clustering", "FFTW", "LinearAlgebra", "MemSnoop", "PAPI", "ProgressMeter", "RecipesBase", "Serialization", "SparseArrays", "Statistics"]
+deps = ["Clustering", "FFTW", "LinearAlgebra", "SystemSnoop", "PAPI", "ProgressMeter", "RecipesBase", "Serialization", "SparseArrays", "Statistics"]
 path = "SnoopAnalyzer"
 uuid = "32b60cf2-a00d-5417-a989-3e2d22c77199"
 version = "0.1.0"

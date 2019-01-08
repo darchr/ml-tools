@@ -71,12 +71,12 @@ Builder for the PAPI library. Releases fetched when installing can be found here
 
 
 
-### [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl)
+### [SystemSnoop](https://github.com/hildebrandmw/SystemSnoop.jl)
 
 Snooping routines to gather metrics on running programs. Includes the following analyses:
 
 - Idle page tracking
-- Hardware performance counter tracking through [PAPI](https://github.com/hildebrandmw/MemSnoop.jl).
+- Hardware performance counter tracking through [PAPI](https://github.com/hildebrandmw/SystemSnoop.jl).
 
 One of the big goals of this package is to reduce the number of third party dependencies
 as much as possible since Idle Page Tracking requires Julia to be run as root.
@@ -86,7 +86,7 @@ as much as possible since Idle Page Tracking requires Julia to be run as root.
 - Add support for monitoring multiple processes.
 
 - Move suitable code from [SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl) 
-    into MemSnoop.
+    into SystemSnoop.
 
 - Have other people use this package to find bugs and improve documentation.
 
@@ -94,7 +94,7 @@ as much as possible since Idle Page Tracking requires Julia to be run as root.
 
 ### [SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl)
 
-Analysis routines for MemSnoop that require external dependencies. This will probably 
+Analysis routines for SystemSnoop that require external dependencies. This will probably 
 eventually just be for plotting plus some other misc stuff.
 
 #### TODO List (Low Priority)
@@ -103,7 +103,7 @@ eventually just be for plotting plus some other misc stuff.
 
 - See when migration to [Makie](https://github.com/JuliaPlots/Makie.jl) is suitable. 
     Theoretically, the plotting recipe system for Makie might not rely on a macro, so 
-    plotting recipes for MemSnoop might be able to be implemented straight in MemSnoop 
+    plotting recipes for SystemSnoop might be able to be implemented straight in SystemSnoop 
     without adding any dependencies.
 
 

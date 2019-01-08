@@ -32,7 +32,7 @@ using InteractiveUtils
 
 # Add Docker to talk to the Docker daemon.
 using Docker
-using MemSnoop
+using SystemSnoop
 using ProgressMeter
 using JSON
 using Parameters

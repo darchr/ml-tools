@@ -23,7 +23,7 @@ cd ml-tools/deps
 | **Package** | **Build Status** | **Documentation** |
 |:-----------:|:----------------:|:-----------------:|
 | [Docker](https://github.com/hildebrandmw/Docker.jl)   | [![][dockerx-travis-img]][dockerx-travis-url]   |                                           |
-| [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl) | [![][memsnoop-travis-img]][memsnoop-travis-url] | [![][docs-latest-img]][memsnoop-docs-url] |
+| [SystemSnoop](https://github.com/hildebrandmw/SystemSnoop.jl) | [![][memsnoop-travis-img]][memsnoop-travis-url] | [![][docs-latest-img]][memsnoop-docs-url] |
 | [PAPI](https://github.com/hildebrandmw/PAPI.jl)         | [![][papi-travis-img]][papi-travis-url]         |                                           |
 | [PAPIBuilder2](https://github.com/hildebrandmw/PAPIBuilder2) | [![][papibuilder-travis-img]][papibuilder-travis-url] |                                |
 
@@ -37,9 +37,9 @@ cd ml-tools/deps
 [dockerx-travis-img]: https://travis-ci.org/hildebrandmw/Docker.jl.svg?branch=master
 [dockerx-travis-url]: https://travis-ci.org/hildebrandmw/Docker.jl 
 
-[memsnoop-travis-img]: https://travis-ci.org/hildebrandmw/MemSnoop.jl.svg?branch=master
-[memsnoop-travis-url]: https://travis-ci.org/hildebrandmw/MemSnoop.jl 
-[memsnoop-docs-url]: https://hildebrandmw.github.io/MemSnoop.jl/latest
+[memsnoop-travis-img]: https://travis-ci.org/hildebrandmw/SystemSnoop.jl.svg?branch=master
+[memsnoop-travis-url]: https://travis-ci.org/hildebrandmw/SystemSnoop.jl 
+[memsnoop-docs-url]: https://hildebrandmw.github.io/SystemSnoop.jl/latest
 
 [papi-travis-img]: https://travis-ci.org/hildebrandmw/PAPI.jl.svg?branch=master
 [papi-travis-url]: https://travis-ci.org/hildebrandmw/PAPI.jl 

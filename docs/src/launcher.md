@@ -12,11 +12,11 @@ Note that `Launcher` is built on top of two other packages:
 
 * [Docker](https://github.com/hildebrandmw/Docker.jl) - Package for interacting with
     the Docker API.
-* [MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl) - Package for tracking the memory
+* [SystemSnoop](https://github.com/hildebrandmw/SystemSnoop.jl) - Package for tracking the memory
     usage patterns of applications on the Linux operating system.
 
 These two packages are still works in progress and documentation on them is forthcoming.
-However, I plan on registering at least Docker and probably MemSnoop as well as soon as I
+However, I plan on registering at least Docker and probably SystemSnoop as well as soon as I
 take the time to get them production ready.
 
 ## Temporary Documentation

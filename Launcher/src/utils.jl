@@ -1,6 +1,6 @@
-standard_filter(x, size = 4) =  !(MemSnoop.executable(x)) &&
-                                (MemSnoop.readable(x) || MemSnoop.writable(x)) &&
-                                MemSnoop.longerthan(x, size)
+standard_filter(x, size = 4) =  !(SystemSnoop.executable(x)) &&
+                                (SystemSnoop.readable(x) || SystemSnoop.writable(x)) &&
+                                SystemSnoop.longerthan(x, size)
 
 standard_filter(size::Integer) = x -> standard_filter(x, size) 
 
@@ -78,7 +78,7 @@ function (S::PeriodicSave)(process, trace, measurements)
     time = now()
     if time > S.nextsave
         @info "[$time] Saving Data"
-        MemSnoop.save(S.filename, trace)
+        SystemSnoop.save(S.filename, trace)
         S.nextsave = time + S.increment
     end
 end

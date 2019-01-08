@@ -1,6 +1,6 @@
 [deps]
 Docker = "d141d394-c665-11e8-14fa-718cafd270b3"
 Launcher = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
-MemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
+SystemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 PAPI = "25707955-362c-5858-b477-b2b4559b2019"
 SnoopAnalyzer = "32b60cf2-a00d-5417-a989-3e2d22c77199"

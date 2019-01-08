@@ -64,6 +64,7 @@ function create(resnet::ResnetTF; small_dataset = false, kw...)
         datasetpath = DATASET_PATHS["imagenet_tf_official"]
     end
     bind_dataset = bind(datasetpath, "/imagenet")
+    bind_logging = bind(pwd(), "/log")
 
     # Attach the whole model directory.
     bind_code = bind(_models(OnHost), _models(OnContainer))
@@ -72,7 +73,7 @@ function create(resnet::ResnetTF; small_dataset = false, kw...)
     container = Docker.create_container(
         image(resnet);
         attachStdin = true,
-        binds = [bind_dataset, bind_code],
+        binds = [bind_dataset, bind_code, bind_logging],
         cmd = runcommand(resnet),
         kw...
     )

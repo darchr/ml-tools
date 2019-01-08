@@ -5,7 +5,7 @@ plots. The contents of the notebooks are summarized here and contain links to th
 notebooks are included.
 
 In general, each directory contains a notebook and a collection of scripts. Since
-`sudo` access is needed to run `MemSnoop`, these scripts are stand-alone. 
+`sudo` access is needed to run `SystemSnoop`, these scripts are stand-alone. 
 
 Note that these scripts should be run before the notebooks if trying to recreate the plots.
 
