@@ -81,9 +81,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "manifest/#[MemSnoop](https://github.com/hildebrandmw/MemSnoop.jl)-1",
+    "location": "manifest/#[SystemSnoop](https://github.com/hildebrandmw/SystemSnoop.jl)-1",
     "page": "Manifest",
-    "title": "MemSnoop",
+    "title": "SystemSnoop",
     "category": "section",
     "text": "Snooping routines to gather metrics on running programs. Includes the following analyses:Idle page tracking\nHardware performance counter tracking through PAPI.One of the big goals of this package is to reduce the number of third party dependencies as much as possible since Idle Page Tracking requires Julia to be run as root."
 },
@@ -93,7 +93,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Manifest",
     "title": "TODO List (Med Priority)",
     "category": "section",
-    "text": "Add support for monitoring multiple processes.\nMove suitable code from SnoopAnalyzer    into MemSnoop.\nHave other people use this package to find bugs and improve documentation."
+    "text": "Add support for monitoring multiple processes.\nMove suitable code from SnoopAnalyzer    into SystemSnoop.\nHave other people use this package to find bugs and improve documentation."
 },
 
 {
@@ -101,7 +101,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Manifest",
     "title": "SnoopAnalyzer",
     "category": "section",
-    "text": "Analysis routines for MemSnoop that require external dependencies. This will probably  eventually just be for plotting plus some other misc stuff."
+    "text": "Analysis routines for SystemSnoop that require external dependencies. This will probably  eventually just be for plotting plus some other misc stuff."
 },
 
 {
@@ -109,7 +109,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Manifest",
     "title": "TODO List (Low Priority)",
     "category": "section",
-    "text": "Documentation\nSee when migration to Makie is suitable.    Theoretically, the plotting recipe system for Makie might not rely on a macro, so    plotting recipes for MemSnoop might be able to be implemented straight in MemSnoop    without adding any dependencies."
+    "text": "Documentation\nSee when migration to Makie is suitable.    Theoretically, the plotting recipe system for Makie might not rely on a macro, so    plotting recipes for SystemSnoop might be able to be implemented straight in SystemSnoop    without adding any dependencies."
 },
 
 {
@@ -149,7 +149,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Notebooks",
     "title": "Notebooks",
     "category": "section",
-    "text": "The notebooks in this repo contain plots and run scripts to generate the data for those  plots. The contents of the notebooks are summarized here and contain links to the rendered notebooks are included.In general, each directory contains a notebook and a collection of scripts. Since sudo access is needed to run MemSnoop, these scripts are stand-alone. Note that these scripts should be run before the notebooks if trying to recreate the plots."
+    "text": "The notebooks in this repo contain plots and run scripts to generate the data for those  plots. The contents of the notebooks are summarized here and contain links to the rendered notebooks are included.In general, each directory contains a notebook and a collection of scripts. Since sudo access is needed to run SystemSnoop, these scripts are stand-alone. Note that these scripts should be run before the notebooks if trying to recreate the plots."
 },
 
 {
@@ -469,7 +469,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Launcher",
     "title": "Launcher",
     "category": "section",
-    "text": "Launcher is the Julia package (sorry, I really, really like writing Julia code) for handling the launching of containers, aggregation of results, binding containers with relevant datasets, and generally making sure everything is working correctly. Documentation for this package can be found in this section.The functionality provided by this model is very straightforward and can probably be ported to another language if needed.Note that Launcher is built on top of two other packages:Docker - Package for interacting with   the Docker API.\nMemSnoop - Package for tracking the memory   usage patterns of applications on the Linux operating system.These two packages are still works in progress and documentation on them is forthcoming. However, I plan on registering at least Docker and probably MemSnoop as well as soon as I take the time to get them production ready."
+    "text": "Launcher is the Julia package (sorry, I really, really like writing Julia code) for handling the launching of containers, aggregation of results, binding containers with relevant datasets, and generally making sure everything is working correctly. Documentation for this package can be found in this section.The functionality provided by this model is very straightforward and can probably be ported to another language if needed.Note that Launcher is built on top of two other packages:Docker - Package for interacting with   the Docker API.\nSystemSnoop - Package for tracking the memory   usage patterns of applications on the Linux operating system.These two packages are still works in progress and documentation on them is forthcoming. However, I plan on registering at least Docker and probably SystemSnoop as well as soon as I take the time to get them production ready."
 },
 
 {
