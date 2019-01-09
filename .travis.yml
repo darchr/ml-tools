@@ -32,6 +32,7 @@ jobs:
       julia: 1.0
       os: linux
       script:
+        - (cd deps; ./init.sh)
         - julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.develop(PackageSpec(path=joinpath(pwd(), "Launcher")))'
         - julia --project=docs --color=yes docs/make.jl
       after_success: skip
