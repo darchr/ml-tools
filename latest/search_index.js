@@ -249,14 +249,6 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "docker/tensorflow/#Tensorflow-0.12.1-1",
-    "page": "Tensorflow CPU",
-    "title": "Tensorflow 0.12.1",
-    "category": "section",
-    "text": "The French Street signs model requires an older version of tensorflow.docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:0.12.1-devel bashThen rungit pull\npython2 -m pip install --upgrade requests\npython2 -c \"import requests; print(requests.get(\'https://www.howsmyssl.com/a/check\', verify=False).json()[\'tls_version\'])\"\napt-get update && apt-get install vim\nvim tensorflow/workspace.bzlThe python2 commands come from https://pyfound.blogspot.com/2017/01/time-to-upgrade-your-python-tls-v12.htmlInside the workspace, comment out the sha256 lines for everything from GitHub. Apprently GitHub changed something about their stored tarballs that ./configure``` The commands I used werePython path: Default (/usr/bin/python)\nGoogle cloud platform support: N\nHadoop file system: N\nPython library: Default (/usr/local/lib/python2.7/dist-packages)\nOpenCL: N\nGPU Support: N"
-},
-
-{
     "location": "datasets/imagenet/#",
     "page": "Imagenet",
     "title": "Imagenet",
@@ -321,9 +313,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "datasets/imagenet/#Imagenet-for-Metalhead-1",
+    "location": "datasets/imagenet/#Imagenet-for-Metalhead-(Julia-experimental)-1",
     "page": "Imagenet",
-    "title": "Imagenet for Metalhead",
+    "title": "Imagenet for Metalhead (Julia - experimental)",
     "category": "section",
     "text": "Navigate to the directory where the dataset will live. We are going to use an  unofficial Kaggle CLI that supports resuming  downloads to download the dataset.Sign up for Kaggle and register for the imagenet challenge at https://www.kaggle.com/c/imagenet-object-localization-challenge/dataLaunch a docker container withdocker run -v $PWD:/data -it --rm python:3.6 /bin/bashInside the container:pip3 install kaggle-cli\ncd data\nkg download -c imagenet-object-localization-challenge -u <username> -p <password>"
 },
@@ -374,14 +366,6 @@ var documenterSearchIndex = {"docs": [
     "title": "Tensorflow Models",
     "category": "section",
     "text": ""
-},
-
-{
-    "location": "workloads/tensorflow/#Launcher.ResnetTF",
-    "page": "Tensorflow Models",
-    "title": "Launcher.ResnetTF",
-    "category": "type",
-    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the Imagenet training set. Construct type using a key-word constructor\n\nFields\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and   trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nsmall_dataset::Bool - If true, use imagenet_tf_official_small as the training   dataset, which is essentially just a subset of the full Imagenet. Otherwise, use   imagenet_tf_official. Default: false.\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.   Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
 },
 
 {
