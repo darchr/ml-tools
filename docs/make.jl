@@ -11,16 +11,9 @@ makedocs(
         "Home" => "index.md",
         "Manifest" => "manifest.md",
         "Notebooks" => "notebooks.md",
-        "Docker" => [
-            "docker/docker.md",
-            "docker/tensorflow.md",
-        ],
-        "Datasets" => [
-            "datasets/imagenet.md",
-        ],
         "Workloads" => [
+            "workloads/primary.md",
             "workloads/ubuntu.md",
-            "workloads/tensorflow.md",
             "workloads/slim.md",
             "workloads/keras.md",
         ],
@@ -33,7 +26,6 @@ makedocs(
         "Misc" => [
             "extra/perf.md",
         ],
-        "deprecated.md",
     ]
 )
 

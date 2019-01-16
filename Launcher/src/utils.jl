@@ -48,14 +48,16 @@ uid() = chomp(read(`id -u`, String))
 username() = ENV["USER"]
 
 
-_prefix(x, prefix) = "$(prefix)$(x)"
-argify(a, b::Nothing, delim, prefix) = (_prefix(a, prefix),)
-argify(a, b, delim, prefix) = (join((_prefix(a, prefix), b), delim),)
+hyphenate(x) = replace(String(x), "___" => "-")
+prefix(x, pre) = "$(pre)$(hyphenate(x))"
 
-argify(a, b::Nothing, delim::Nothing, prefix) = (_prefix(a, prefix),)
-argify(a, b, delim::Nothing, prefix) = (_prefix(a, prefix), b)
+argify(a, b::Nothing, delim, pre) = (prefix(a, pre),)
+argify(a, b, delim, pre) = (join((prefix(a, pre), b), delim),)
 
-makeargs(@nospecialize(nt::NamedTuple); delim = nothing, prefix = "--") = collect(flatten(argify(a, b, delim, prefix) for (a,b) in pairs(nt)))
+argify(a, b::Nothing, delim::Nothing, pre) = (prefix(a, pre),)
+argify(a, b, delim::Nothing, pre) = (prefix(a, pre), b)
+
+makeargs(@nospecialize(nt::NamedTuple); delim = nothing, pre = "--") = collect(flatten(argify(a, b, delim, pre) for (a,b) in pairs(nt)))
 
 
 #####

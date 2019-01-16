@@ -3,6 +3,7 @@ setupexists() = ispath(SETUP_PATH)
 const DATASETS = (
     "cifar", 
     "imagenet_tf_slim",
+    "rnn_translator",
 )
 
 _writedataset() = open(io -> JSON.print(io, DATASET_PATHS, 4), SETUP_PATH, "w")

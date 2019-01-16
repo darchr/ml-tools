@@ -56,3 +56,4 @@ end
 include("test/test.jl")
 include("cifar_cnn/cifar_cnn.jl")
 include("slim/slim.jl")
+include("rnn_translator/translator.jl")
