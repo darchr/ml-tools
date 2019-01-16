@@ -52,9 +52,7 @@ function filename(work::T, ext = "dat") where {T <: AbstractWorkload}
     return join((typename, argstring, ext), "-", ".")
 end
 
-
 ## Concrete model
-include("ubuntu/test.jl")
-include("keras/cifar_cnn.jl")
-include("tensorflow/resnet.jl")
-include("tensorflow/slim.jl")
+include("test/test.jl")
+include("cifar_cnn/cifar_cnn.jl")
+include("slim/slim.jl")

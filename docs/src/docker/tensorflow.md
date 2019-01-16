@@ -125,38 +125,3 @@ found a solution that works by installing `gosu`:
 
 Essentially, a dummy account `user` is created that does not have root privileges, but we
 can still create directories within the docker containers.
-
-## Tensorflow 0.12.1
-
-The French Street signs model requires an older version of tensorflow.
-
-```sh
-docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS="$(id -u):$(id -g)" tensorflow/tensorflow:0.12.1-devel bash
-```
-Then run
-```sh
-git pull
-python2 -m pip install --upgrade requests
-python2 -c "import requests; print(requests.get('https://www.howsmyssl.com/a/check', verify=False).json()['tls_version'])"
-apt-get update && apt-get install vim
-vim tensorflow/workspace.bzl
-```
-The `python2` commands come from <https://pyfound.blogspot.com/2017/01/time-to-upgrade-your-python-tls-v12.html>
-
-Inside the workspace, comment out the sha256 lines for everything from GitHub. Apprently
-GitHub changed something about their stored tarballs that 
-
-
-./configure
-
-
-```
-The commands I used were
-
-* Python path: Default (`/usr/bin/python`)
-* Google cloud platform support: N
-* Hadoop file system: N
-* Python library: Default (`/usr/local/lib/python2.7/dist-packages`)
-* OpenCL: N
-* GPU Support: N
-

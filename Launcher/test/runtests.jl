@@ -3,7 +3,7 @@ using Test
 using Docker
 
 const ROOT = joinpath(@__DIR__, "..", "..")
-const DOCKER = joinpath(ROOT, "docker")
+const WORKLOADS = joinpath(ROOT, "workloads")
 
 # Pull the needed images
 @info "Pulling Needed Docker Images"

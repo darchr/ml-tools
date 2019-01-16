@@ -149,7 +149,7 @@ imagenet anyways so it doesn't matter what you put in.  Hopefully, everything wo
 as expected. If not, you can always edit the `download_and_convert_imagenet.sh` file, 
 commenting out the script/python invokations that have already completed.
 
-## Imagenet for Metalhead
+## Imagenet for Metalhead (Julia - experimental)
 
 Navigate to the directory where the dataset will live. We are going to use an 
 [unofficial Kaggle CLI](https://github.com/floydwch/kaggle-cli) that supports resuming 

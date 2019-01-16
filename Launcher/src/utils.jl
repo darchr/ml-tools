@@ -45,6 +45,8 @@ bind(a, b) = join((a, b), ":")
 Return the user ID of the current user.
 """
 uid() = chomp(read(`id -u`, String))
+username() = ENV["USER"]
+
 
 _prefix(x, prefix) = "$(prefix)$(x)"
 argify(a, b::Nothing, delim, prefix) = (_prefix(a, prefix),)

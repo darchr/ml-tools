@@ -39,8 +39,8 @@
         remove_validation = false
     end
 
-    Launcher.DATASET_PATHS["imagenet_tf_official"] = pwd()
-    cnn = Launcher.ResnetTF(args = (help = nothing,))
+    Launcher.DATASET_PATHS["imagenet_tf_slim"] = pwd()
+    cnn = Launcher.Slim(args = (help = nothing,))
     run(cnn)
 
     remove_train && rm("train")
