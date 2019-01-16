@@ -48,7 +48,9 @@ uid() = chomp(read(`id -u`, String))
 username() = ENV["USER"]
 
 
-hyphenate(x) = replace(String(x), "___" => "-")
+hyphenate(x::Symbol) = replace(String(x), "___" => "-")
+hyphenate(x) = x
+
 prefix(x, pre) = "$(pre)$(hyphenate(x))"
 
 argify(a, b::Nothing, delim, pre) = (prefix(a, pre),)

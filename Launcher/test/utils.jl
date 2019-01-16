@@ -6,8 +6,11 @@
     # Just call uid, makesure nothing bad happens
     Launcher.uid()
 
-    @test Launcher._prefix("hello", "--") == "--hello"
-    @test Launcher._prefix(:hello, "--") == "--hello"
+    @test Launcher.hyphenate(:a___b___c) == "a-b-c"
+    @test Launcher.hyphenate("a___b___c") == "a___b___c"
+    @test Launcher.prefix("hello", "--") == "--hello"
+    @test Launcher.prefix(:hello, "--") == "--hello"
+    @test Launcher.prefix(:no___cuda, "--") == "--no-cuda"
 
     #####
     ##### Argument formatting
