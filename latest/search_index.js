@@ -169,155 +169,27 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "docker/docker/#",
-    "page": "Docker",
-    "title": "Docker",
+    "location": "workloads/primary/#",
+    "page": "Primary Workloads",
+    "title": "Primary Workloads",
     "category": "page",
     "text": ""
 },
 
 {
-    "location": "docker/docker/#Docker-1",
-    "page": "Docker",
-    "title": "Docker",
+    "location": "workloads/primary/#Primary-Workloads-1",
+    "page": "Primary Workloads",
+    "title": "Primary Workloads",
     "category": "section",
-    "text": "Docker images are used to create reproducible environments and to more easily enable tricks like CPU and memory limiting."
+    "text": "These are the workloads that we will primarily use for benchmarking. These are large  benchmarks with large memory requirements so will be good stress tests."
 },
 
 {
-    "location": "docker/tensorflow/#",
-    "page": "Tensorflow CPU",
-    "title": "Tensorflow CPU",
-    "category": "page",
-    "text": ""
-},
-
-{
-    "location": "docker/tensorflow/#Tensorflow-CPU-1",
-    "page": "Tensorflow CPU",
-    "title": "Tensorflow CPU",
+    "location": "workloads/primary/#Vgg416-1",
+    "page": "Primary Workloads",
+    "title": "Vgg416",
     "category": "section",
-    "text": "We will use Tensorflow as one of the ML frameworks for  testing. Since the standard distribution for Tensorflow is not compiled with AVX2  instructions, I compiled Tensorflow from source on amarillo. The Docker Hub where the most current version of this container lives is here: https://hub.docker.com/r/darchr/tf-compiled-base/. This repo will be kept  up-to-date as I make needed changes to the container.I\'m using the official tensorflow docker approach to compile and build the pip package for tensor flow.https://www.tensorflow.org/install/source\nhttps://www.tensorflow.org/install/dockerHelpful post talking about docker permissions https://denibertovic.com/posts/handling-permissions-with-docker-volumes/"
-},
-
-{
-    "location": "docker/tensorflow/#Compilation-Overview-1",
-    "page": "Tensorflow CPU",
-    "title": "Compilation Overview",
-    "category": "section",
-    "text": "Containers will be build incrementally, starting with darchr/tf-compiled-base, which is the base image containing Tensorflow that has been compiled on amarillo. Compiling Tensorflow is important because the default Tensorflow binary is not compiled to use AVX2 instructions. Using the very scientific \"eyeballing\" approach, this compiled version of Tensorflow runs ~60% faster.Other containers that use Tensorflow can be build from darchr/tf-compiled/base."
-},
-
-{
-    "location": "docker/tensorflow/#darchr/tf-compiled-base-1",
-    "page": "Tensorflow CPU",
-    "title": "darchr/tf-compiled-base",
-    "category": "section",
-    "text": "As a high level overview, we use an official Tensorflow docker containers to build a  Python 3.5 \"wheel\" (package). We then use a Python 3.5.6 docker container as a base to  install the compiled tensorflow wheel."
-},
-
-{
-    "location": "docker/tensorflow/#Compiling-Tensorflow-1",
-    "page": "Tensorflow CPU",
-    "title": "Compiling Tensorflow",
-    "category": "section",
-    "text": "Pull the docker container with the source code:docker pull tensorflow/tensorflow:1.12.0-devel-py3Launch the container withdocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:1.12.0-devel-py3 bashThis does the following:Opens the container in the /tensorflow directory, which contains the tensorflow source   code\nMounts the current directory into the /mnt directory in the container. This allows the   .whl build to be dropped in the PWD after compilation.Inside the container, rungit pullto pull the latest copy of the tensorflow source. Then configure the build with./configureSettings used:Python Location: default\nPython Library Path: default\nApache Ignite Support: Y\nXLA Jit support: Y\nOpenCL SYCL support: N\nROCm support: N\nCUDA support: N\nFresh clang release: N\nMPI support: N\nOptimization flags: default\nInteractively configure ./WORKSPACE: NSteps to build:bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whlNote, compilation takes quite a while, so be patient. If running on amarillo, enjoy the 96 thread awesomeness."
-},
-
-{
-    "location": "docker/tensorflow/#Summary-1",
-    "page": "Tensorflow CPU",
-    "title": "Summary",
-    "category": "section",
-    "text": "docker pull tensorflow/tensorflow:nightly-devel-py3\ndocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:nightly-devel-py3 bash\n# inside container\ngit pull\n./configure # Look at options above\nbazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl"
-},
-
-{
-    "location": "docker/tensorflow/#Building-the-Docker-Image-1",
-    "page": "Tensorflow CPU",
-    "title": "Building the Docker Image",
-    "category": "section",
-    "text": "With the .whl for tensorflow build, we can build a new Docker container with this  installed. For this step, move tensorflow-...-.whl into the tf-compiled-base/  directory. Then, run the shell script:./build.sh tensorflow-1.12.1-cp35-cm35m-linux_x86_64.whlFinally, if necessary, push the image to the darchr docker hub viadocker push darchr/tf-compiled-base"
-},
-
-{
-    "location": "docker/tensorflow/#Some-Notes-1",
-    "page": "Tensorflow CPU",
-    "title": "Some Notes",
-    "category": "section",
-    "text": "Annoyingly, the .whl created in the previous step only works with Python 3.5. I tried  hacking it by changing the name (cp35-cp35m -> cp36-cp36m), but installation with pip  failed. This means that we need a working copy of Python 3.5 in order to run this.  Fortunately, the Python foundation supplies Debian (I think ... or Ubuntu) based containers for past Python versions. We can use this as a starting point for our Dockerfile.Permissions with the docker containers was becoming a bit of a nightmare. I finally found a solution that works by installing gosu:https://github.com/tianon/gosu\nhttps://denibertovic.com/posts/handling-permissions-with-docker-volumes/Essentially, a dummy account user is created that does not have root privileges, but we can still create directories within the docker containers."
-},
-
-{
-    "location": "datasets/imagenet/#",
-    "page": "Imagenet",
-    "title": "Imagenet",
-    "category": "page",
-    "text": ""
-},
-
-{
-    "location": "datasets/imagenet/#Imagenet-1",
-    "page": "Imagenet",
-    "title": "Imagenet",
-    "category": "section",
-    "text": ""
-},
-
-{
-    "location": "datasets/imagenet/#Getting-the-Datasets-1",
-    "page": "Imagenet",
-    "title": "Getting the Datasets",
-    "category": "section",
-    "text": "Theoretically, you can download the original 2012 Imagenet images from  http://image-net.org/download-images by first registering. However, when I tried that, I never received an email confirming my registration and thus allowing me to download. I had to resort to ... other means.In the process of searching for where to download, I came across some comments that the  Imagenet2012 database had moved to a new home. However, when writing up this documentation, I couldn\'t find that reference nor the new home.In conclusion, it seems that getting the dataset is significantly less straightforward than it should be. However, it is possible to find the dataset eventually. I think the dataset has officially been mirrored on Kaggle:  https://www.kaggle.com/c/imagenet-object-localization-challenge/data"
-},
-
-{
-    "location": "datasets/imagenet/#Imagenet-for-Tensorflow-Official-Models-1",
-    "page": "Imagenet",
-    "title": "Imagenet for Tensorflow Official Models",
-    "category": "section",
-    "text": "The training and validation .tar files need to be converted into something called a  TFRecord format (something used by Tensorflow I guess). This flow assumes that you have the datasets downloaded and stored in a path /path-to-datasets/. Some helpful links are provided:Documentation on how to get the official ResNet tensorflow models working on the   Image net data: https://github.com/tensorflow/models/tree/master/official/resnet\nDocumentation and script for converting the Imagenet .tar files into the form desired   by Tensorflow: https://github.com/tensorflow/tpu/tree/master/tools/datasets#imagenet_to_gcspy\nThe Python script that does the conversion: https://github.com/tensorflow/tpu/blob/master/tools/datasets/imagenet_to_gcs.pyThis info should all be incorporated into the build script build.sh. To run it, just  execute./build.sh /path-to-tar-filesThis will create the folders/path-to-tar-files/train\n/path-to-tar-files/validationand unpack the tar files into these respective folders. The original tar files will be left alone, so make sure you have around 300G of extra free space when you do this, otherwise  you\'re gonna have a bad day.After unpacking, the build script will execute the imagenet_to_gcs.py script to do the actual conversion.Be aware that dataset conversion can take a long time. You probably want to run the build script in a tmux shell or something so you can go have a coffee.Note that the build script will launch an docker instance of darchr/tf-compiled-base  because the Python script needs Tensorflow to run. Once the script finishes, you should be good to go."
-},
-
-{
-    "location": "datasets/imagenet/#Changes-made-to-imagenet_to_gcs.py-1",
-    "page": "Imagenet",
-    "title": "Changes made to imagenet_to_gcs.py",
-    "category": "section",
-    "text": "I had to make several changes for Python 2 to Python 3 compatibility. (Seriously folks,  can\'t we all just agree to use Python 3??)Line 58: Commented out the import google.cloud ... line because we\'re not uploading    anything to the google cloud and I don\'t want to install that package.\nLines 177, 179: Suffixed string literals with \'\'.encode() to tell python that these    should by byte collections.\nLines 187, 189: Add .encode to several strings to _bytes_feature doesn\'t complain.\nLine 282: Change the \'r\' option in reading to \'rb\'. Avoid trying to reinterpret image   data as utf-8, which will definitely not work.\nLine 370: A Python range object is used and then shuffled. However, in Python3, ranges   have become lazy and thus cannot be shuffled. I changed this by explicitly converting   the range to a list, forcing materialization of the whole range."
-},
-
-{
-    "location": "datasets/imagenet/#Tensorflow-for-Slim-Models-1",
-    "page": "Imagenet",
-    "title": "Tensorflow for Slim Models",
-    "category": "section",
-    "text": ""
-},
-
-{
-    "location": "datasets/imagenet/#Preparation-steps-(don\'t-need-to-repeat)-1",
-    "page": "Imagenet",
-    "title": "Preparation steps (don\'t need to repeat)",
-    "category": "section",
-    "text": "The code in this repo is taken from the build process that comes in the slim project. However, I\'ve modified it so it works without having to go through Bazel (I don\'t really know why that was used in the first place) and also updated it so it works with Python3.Changes made to builddownload_and_convert_imagenet.sh\nRemoved some build comments that are no longer relevant.\nLine 59: Change path for WORK_DIR since we\'re no longer doing the Bazel style   build.\nLine 104: Change path to build_iamgenet_data.py.\nLine 108: Put python3 in front of script invocation. Get around executable   permission errors.\ndatasets/build_imagenet_data.py\nLines 213, 216, 217, and 224: Suffix .encode() on string arguments to pass them   as bytes to _bytes_feature.\nLines 527: Wrap range(len(filenames)) in list() to materialize the lazy range   type.\ndatasets/download_imagenet.sh\nLines 72 and 81: Comment out wget commands, avoid downloading imagenet training   and validation data.\ndatasets/preprocess_imagenet_validation_data.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instances of xrange to range. The range type in python3 behaves   just like the xrange type.\ndatasets/process_bounding_boxes.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instance of xrange to range."
-},
-
-{
-    "location": "datasets/imagenet/#Steps-for-building-slim-1",
-    "page": "Imagenet",
-    "title": "Steps for building slim",
-    "category": "section",
-    "text": "Put ILSVRC2012_img_train.tar and ILSVRC2012_img_val.tar in a known spot (<path/to/imagenet>) with 500GB+ of available memory.Navigate in this repository to: /datasets/imagenet/slim. Launch a Tensorflow docker container withdocker run -it --rm \\\n    -v <path/to/imagnet>:/imagenet \\\n    -v $PWD:/slim-builder \\\n    -e LOCAL_USER_ID=$UID \\\n    darchr/tf-compiled-base /bin/bashinside the docker container, run:cd slim-builder\n$PWD/download_and_convert_imagenet.sh /imagenetWhen prompted to enter in your credentials, just hit enter. The script won\'t download imagenet anyways so it doesn\'t matter what you put in.  Hopefully, everything works  as expected. If not, you can always edit the download_and_convert_imagenet.sh file,  commenting out the script/python invokations that have already completed."
-},
-
-{
-    "location": "datasets/imagenet/#Imagenet-for-Metalhead-(Julia-experimental)-1",
-    "page": "Imagenet",
-    "title": "Imagenet for Metalhead (Julia - experimental)",
-    "category": "section",
-    "text": "Navigate to the directory where the dataset will live. We are going to use an  unofficial Kaggle CLI that supports resuming  downloads to download the dataset.Sign up for Kaggle and register for the imagenet challenge at https://www.kaggle.com/c/imagenet-object-localization-challenge/dataLaunch a docker container withdocker run -v $PWD:/data -it --rm python:3.6 /bin/bashInside the container:pip3 install kaggle-cli\ncd data\nkg download -c imagenet-object-localization-challenge -u <username> -p <password>"
+    "text": "Inspired by the vDNN paper, we use Vgg416, which is essentially Vgg16 but with 80 extra convolution layers in each of the 5 convolution layer groups (for a total of 400 extra  layers). From the vDNN paper, there is some precedent for this. To run this benchmark, do the following from Launcherjulia> using Launcher\n\njulia> workload = Launcher.Slim(args = (model_name = \"vgg_416\", batchsize = 32))\nLauncher.Slim\n  args: NamedTuple{(:batchsize, :model_name),Tuple{Int64,String}}\n  interactive: Bool false\n\njulia run(workload)The normal command-line arguments for the Slim workloads also apply to this model, so feel free to play with the parameters."
 },
 
 {
@@ -353,48 +225,112 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "workloads/tensorflow/#",
-    "page": "Tensorflow Models",
-    "title": "Tensorflow Models",
-    "category": "page",
-    "text": ""
-},
-
-{
-    "location": "workloads/tensorflow/#Tensorflow-Models-1",
-    "page": "Tensorflow Models",
-    "title": "Tensorflow Models",
-    "category": "section",
-    "text": ""
-},
-
-{
-    "location": "workloads/tensorflow/#Resnet-1",
-    "page": "Tensorflow Models",
-    "title": "Resnet",
-    "category": "section",
-    "text": "A model for ResNet that can be trained on either Cifar or ImageNet, though as of now only ImageNet is supported.File: /workloads/tensorflow/official/resnet/imagenet_main.py\nContainer entry point: /models/official/resnet/imagenet_main.py\nDataset: \nVolume Binds:\nScript ArgumentsCommon flags:     * --batch_size=size : Configure batch size. Default: 32     * --resnet_size=size : Define the version of ResNet to use. Choices:          18, 34, 50, 101, 152, 200. Default: 50     * --train_epochs=N : Number of epochs to train for. Default: 90     * --data_dir=path : Path (inside the container) to the data directory. Default          provided by Launcher.  NOTE: If this is set to something besides /imagenet -          things will probably break horribly.All flags:Runs a ResNet model on the ImageNet dataset.\nflags:\n\nabsl.app:\n  -?,--[no]help: show this help\n    (default: \'false\')\n  --[no]helpfull: show full help\n    (default: \'false\')\n  -h,--[no]helpshort: show this help\n    (default: \'false\')\n  --[no]helpxml: like --helpfull, but generates XML output\n    (default: \'false\')\n  --[no]only_check_args: Set to true to validate args and exit.\n    (default: \'false\')\n  --[no]pdb_post_mortem: Set to true to handle uncaught exceptions with PDB post mortem.\n    (default: \'false\')\n  --profile_file: Dump profile information to a file (for python -m pstats). Implies --run_with_profiling.\n  --[no]run_with_pdb: Set to true for PDB debug mode\n    (default: \'false\')\n  --[no]run_with_profiling: Set to true for profiling the script. Execution will be slower, and the output format might change over time.\n    (default: \'false\')\n  --[no]use_cprofile_for_profiling: Use cProfile instead of the profile module for profiling. This has no effect unless --run_with_profiling is set.\n    (default: \'true\')\n\nabsl.logging:\n  --[no]alsologtostderr: also log to stderr?\n    (default: \'false\')\n  --log_dir: directory to write logfiles into\n    (default: \'\')\n  --[no]logtostderr: Should only log to stderr?\n    (default: \'false\')\n  --[no]showprefixforinfo: If False, do not prepend prefix to info messages when it\'s logged to stderr, --verbosity is set to INFO level, and python logging is used.\n    (default: \'true\')\n  --stderrthreshold: log messages at this level, or more severe, to stderr in addition to the logfile.  Possible values are \'debug\', \'info\', \'warning\', \'error\', and \'fatal\'.\n    Obsoletes --alsologtostderr. Using --alsologtostderr cancels the effect of this flag. Please also note that this flag is subject to --verbosity and requires logfile not\n    be stderr.\n    (default: \'fatal\')\n  -v,--verbosity: Logging verbosity level. Messages logged at this level or lower will be included. Set to 1 for debug logging. If the flag was not set or supplied, the\n    value will be changed from the default of -1 (warning) to 0 (info) after flags are parsed.\n    (default: \'-1\')\n    (an integer)\n\nofficial.resnet.resnet_run_loop:\n  --[no]eval_only:\n    Skip training and only perform evaluation on the latest checkpoint.\n    (default: \'false\')\n  -ft,--[no]fine_tune:\n    If True do not train any parameters except for the final layer.\n    (default: \'false\')\n  --[no]image_bytes_as_serving_input:\n    If True exports savedmodel with serving signature that accepts JPEG image bytes\n    instead of a fixed size [HxWxC] tensor that represents the image. The former is\n    easier to use for serving at the expense of image resize/cropping being done as\n    part of model inference. Note, this flag only applies to ImageNet and cannot be\n    used for CIFAR.\n    (default: \'false\')\n  -pmcp,--pretrained_model_checkpoint_path:\n    If not None initialize all the network except the final layer with these values\n  -rs,--resnet_size: <18|34|50|101|152|200>:\n    The size of the ResNet model to use.\n    (default: \'50\')\n  -rv,--resnet_version: <1|2>:\n    Version of ResNet. (1 or 2) See README.md for details.\n    (default: \'1\')\n\nofficial.utils.flags._base:\n  -bs,--batch_size:\n    Batch size for training and evaluation. When using multiple gpus, this is the\n    global batch size for all devices. For example, if the batch size is 32 and\n    there are 4 GPUs, each GPU will get 8 examples on each step.\n    (default: \'32\')\n    (an integer)\n  --[no]clean:\n    If set, model_dir will be removed if it exists.\n    (default: \'false\')\n  -dd,--data_dir:\n    The location of the input data.\n    (default: \'/tmp\')\n  -ebe,--epochs_between_evals:\n    The number of training epochs to run between evaluations.\n    (default: \'1\')\n    (an integer)\n  -ed,--export_dir:\n    If set, a SavedModel serialization of the model will be exported to this\n    directory at the end of training. See the README for more details and relevant\n    links.\n  -hk,--hooks:\n    A list of (case insensitive) strings to specify the names of training hooks.\n      Hook:\n        loggingtensorhook\n        loggingmetrichook\n        examplespersecondhook\n        profilerhook\n      Example: `--hooks ProfilerHook,ExamplesPerSecondHook`\n    See official.utils.logs.hooks_helper for details.\n    (default: \'LoggingTensorHook\')\n    (a comma separated list)\n  -md,--model_dir:\n    The location of the model checkpoint files.\n    (default: \'/tmp\')\n  -ng,--num_gpus:\n    How many GPUs to use with the DistributionStrategies API. The default is 1 if\n    TensorFlow can detect a GPU, and 0 otherwise.\n    (default: \'0\')\n    (an integer)\n  -st,--stop_threshold:\n    If passed, training will stop at the earlier of train_epochs and when the\n    evaluation metric is  greater than or equal to stop_threshold.\n    (a number)\n  -te,--train_epochs:\n    The number of epochs used to train.\n    (default: \'90\')\n    (an integer)\n\nofficial.utils.flags._benchmark:\n  -bld,--benchmark_log_dir:\n    The location of the benchmark logging.\n  --benchmark_logger_type: <BaseBenchmarkLogger|BenchmarkFileLogger|BenchmarkBigQueryLogger>:\n    The type of benchmark logger to use. Defaults to using BaseBenchmarkLogger\n    which logs to STDOUT. Different loggers will require other flags to be able to\n    work.\n    (default: \'BaseBenchmarkLogger\')\n  -bti,--benchmark_test_id:\n    The unique test ID of the benchmark run. It could be the combination of key\n    parameters. It is hardware independent and could be used compare the performance\n    between different test runs. This flag is designed for human consumption, and\n    does not have any impact within the system.\n  -bds,--bigquery_data_set:\n    The Bigquery dataset name where the benchmark will be uploaded.\n    (default: \'test_benchmark\')\n  -bmt,--bigquery_metric_table:\n    The Bigquery table name where the benchmark metric information will be\n    uploaded.\n    (default: \'benchmark_metric\')\n  -brst,--bigquery_run_status_table:\n    The Bigquery table name where the benchmark run status information will be\n    uploaded.\n    (default: \'benchmark_run_status\')\n  -brt,--bigquery_run_table:\n    The Bigquery table name where the benchmark run information will be uploaded.\n    (default: \'benchmark_run\')\n  -gp,--gcp_project:\n    The GCP project name where the benchmark will be uploaded.\n\nofficial.utils.flags._misc:\n  -df,--data_format: <channels_first|channels_last>:\n    A flag to override the data format used in the model. channels_first provides a\n    performance boost on GPU but is not always compatible with CPU. If left\n    unspecified, the data format will be chosen automatically based on whether\n    TensorFlow was built for CPU or GPU.\n\nofficial.utils.flags._performance:\n  -ara,--all_reduce_alg:\n    Defines the algorithm to use for performing all-reduce.See\n    tf.contrib.distribute.AllReduceCrossTowerOps for more details and available\n    options.\n  --datasets_num_parallel_batches:\n    Determines how many batches to process in parallel when using map and batch\n    from tf.data.\n    (an integer)\n  --datasets_num_private_threads:\n    Number of threads for a private threadpool created for alldatasets\n    computation..\n    (an integer)\n  -dt,--dtype: <fp16|fp32>:\n    The TensorFlow datatype used for calculations. Variables may be cast to a\n    higher precision on a case-by-case basis for numerical stability.\n    (default: \'fp32\')\n  -inter,--inter_op_parallelism_threads:\n    Number of inter_op_parallelism_threads to use for CPU. See TensorFlow\n    config.proto for details.\n    (default: \'0\')\n    (an integer)\n  -intra,--intra_op_parallelism_threads:\n    Number of intra_op_parallelism_threads to use for CPU. See TensorFlow\n    config.proto for details.\n    (default: \'0\')\n    (an integer)\n  -ls,--loss_scale:\n    The amount to scale the loss by when the model is run. Before gradients are\n    computed, the loss is multiplied by the loss scale, making all gradients\n    loss_scale times larger. To adjust for this, gradients are divided by the loss\n    scale before being applied to variables. This is mathematically equivalent to\n    training without a loss scale, but the loss scale helps avoid some intermediate\n    gradients from underflowing to zero. If not provided the default for fp16 is 128\n    and 1 for all other dtypes.\n    (an integer)\n  -mts,--max_train_steps:\n    The model will stop training if the global_step reaches this value. If not set,\n    training will run until the specified number of epochs have run as usual. It is\n    generally recommended to set --train_epochs=1 when using this flag.\n    (an integer)\n  -gt_mode,--tf_gpu_thread_mode:\n    Whether and how the GPU device uses its own threadpool.\n  -synth,--[no]use_synthetic_data:\n    If set, use fake data (zeroes) instead of a real dataset. This mode is useful\n    for performance debugging, as it removes input processing steps, but will not\n    learn anything.\n    (default: \'false\')\n\nabsl.flags:\n  --flagfile: Insert flag definitions from the given file into the command line.\n    (default: \'\')\n  --undefok: comma-separated list of flag names that it is okay to specify on the command line even if the program does not define a flag with that name.  IMPORTANT: flags\n    in this list that have arguments MUST use the --flag=value format.\n    (default: \'\')Launcher DocsLauncher.ResnetTFimagenet_main.pyLines 42-47: Made script expect training and validation files to be in train and    validation directories respectively whereas the original expected both to be in   the same directory.\nAditionally, made the _NUM_TRAIN_FILES and _NUM_VALIDATION_FILES be assigned to   the number of files in these directories.\nThis allows us to operate on a subset of the ImageNet data by just pointing to another   folder.\nAlso hardcoded _DATA_DIR to /imagenet to allow this to take place. This limits the   migratability of this project outside of docker, but we\'ll deal with that when we need   to.**utils/logs/hooks.pyLine 75: Change default value for every_n_iter from 100 to 5, allowing for finer    resolution benchmarking."
-},
-
-{
     "location": "workloads/slim/#",
-    "page": "Slim",
-    "title": "Slim",
+    "page": "VGG416/Slim",
+    "title": "VGG416/Slim",
     "category": "page",
     "text": ""
 },
 
 {
-    "location": "workloads/slim/#Slim-1",
-    "page": "Slim",
-    "title": "Slim",
+    "location": "workloads/slim/#VGG416/Slim-1",
+    "page": "VGG416/Slim",
+    "title": "VGG416/Slim",
     "category": "section",
-    "text": "More information coming.For now, arguments that have to be passed to Launcher.Slim:args = (dataset_name=\"imagenet\", clone_on_cpu=true)"
+    "text": "This is actually a collection of models implemented using using Tensorflow\'s Slim framework. The original repo for these models is  https://github.com/tensorflow/models/tree/master/research/slim.When I benchmarked this against the official tensorflow models for Resnet, this  implementation seemed to train a little faster. Plus, the official models did not have VGG implemented, which is why I ended up using this implementation."
+},
+
+{
+    "location": "workloads/slim/#Using-from-Launcher-1",
+    "page": "VGG416/Slim",
+    "title": "Using from Launcher",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "workloads/slim/#Dataset-1",
+    "page": "VGG416/Slim",
+    "title": "Dataset",
+    "category": "section",
+    "text": "This collection of models uses the Imagenet dataset."
+},
+
+{
+    "location": "workloads/slim/#Preparation-steps-(don\'t-need-to-repeat)-1",
+    "page": "VGG416/Slim",
+    "title": "Preparation steps (don\'t need to repeat)",
+    "category": "section",
+    "text": "The code in this repo is taken from the build process that comes in the slim project. However, I\'ve modified it so it works without having to go through Bazel (I don\'t really know why that was used in the first place) and also updated it so it works with Python3.Changes made to builddownload_and_convert_imagenet.sh\nRemoved some build comments that are no longer relevant.\nLine 59: Change path for WORK_DIR since we\'re no longer doing the Bazel style   build.\nLine 104: Change path to build_iamgenet_data.py.\nLine 108: Put python3 in front of script invocation. Get around executable   permission errors.\ndatasets/build_imagenet_data.py\nLines 213, 216, 217, and 224: Suffix .encode() on string arguments to pass them   as bytes to _bytes_feature.\nLines 527: Wrap range(len(filenames)) in list() to materialize the lazy range   type.\ndatasets/download_imagenet.sh\nLines 72 and 81: Comment out wget commands, avoid downloading imagenet training   and validation data.\ndatasets/preprocess_imagenet_validation_data.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instances of xrange to range. The range type in python3 behaves   just like the xrange type.\ndatasets/process_bounding_boxes.py\nLine 1: #!/usr/bin/python -> #!/usr/bin/python3\nRemove importing of six.moves module.\nChange all instance of xrange to range."
+},
+
+{
+    "location": "workloads/slim/#Steps-for-building-slim-1",
+    "page": "VGG416/Slim",
+    "title": "Steps for building slim",
+    "category": "section",
+    "text": "Put ILSVRC2012_img_train.tar and ILSVRC2012_img_val.tar in a known spot (<path/to/imagenet>) with 500GB+ of available memory.Navigate in this repository to: /datasets/imagenet/slim. Launch a Tensorflow docker container withdocker run -it --rm \\\n    -v <path/to/imagnet>:/imagenet \\\n    -v $PWD:/slim-builder \\\n    -e LOCAL_USER_ID=$UID \\\n    darchr/tf-compiled-base /bin/bashinside the docker container, run:cd slim-builder\n$PWD/download_and_convert_imagenet.sh /imagenetWhen prompted to enter in your credentials, just hit enter. The script won\'t download imagenet anyways so it doesn\'t matter what you put in.  Hopefully, everything works  as expected. If not, you can always edit the download_and_convert_imagenet.sh file,  commenting out the script/python invokations that have already completed."
+},
+
+{
+    "location": "workloads/slim/#Docker-Tensorflow-CPU-1",
+    "page": "VGG416/Slim",
+    "title": "Docker - Tensorflow CPU",
+    "category": "section",
+    "text": "The Docker Hub where the most current version of this container lives is here: https://hub.docker.com/r/darchr/tf-compiled-base/. This repo will be kept  up-to-date as I make needed changes to the container.I\'m using the official tensorflow docker approach to compile and build the pip package for tensor flow.https://www.tensorflow.org/install/source\nhttps://www.tensorflow.org/install/dockerHelpful post talking about docker permissions https://denibertovic.com/posts/handling-permissions-with-docker-volumes/"
+},
+
+{
+    "location": "workloads/slim/#Compilation-Overview-1",
+    "page": "VGG416/Slim",
+    "title": "Compilation Overview",
+    "category": "section",
+    "text": "Containers will be build incrementally, starting with darchr/tf-compiled-base, which is the base image containing Tensorflow that has been compiled on amarillo. Compiling Tensorflow is important because the default Tensorflow binary is not compiled to use AVX2 instructions. Using the very scientific \"eyeballing\" approach, this compiled version of Tensorflow runs ~60% faster.Other containers that use Tensorflow can be build from darchr/tf-compiled/base."
+},
+
+{
+    "location": "workloads/slim/#darchr/tf-compiled-base-1",
+    "page": "VGG416/Slim",
+    "title": "darchr/tf-compiled-base",
+    "category": "section",
+    "text": "As a high level overview, we use an official Tensorflow docker containers to build a  Python 3.5 \"wheel\" (package). We then use a Python 3.5.6 docker container as a base to  install the compiled tensorflow wheel."
+},
+
+{
+    "location": "workloads/slim/#Compiling-Tensorflow-1",
+    "page": "VGG416/Slim",
+    "title": "Compiling Tensorflow",
+    "category": "section",
+    "text": "Pull the docker container with the source code:docker pull tensorflow/tensorflow:1.12.0-devel-py3Launch the container withdocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:1.12.0-devel-py3 bashThis does the following:Opens the container in the /tensorflow directory, which contains the tensorflow source   code\nMounts the current directory into the /mnt directory in the container. This allows the   .whl build to be dropped in the PWD after compilation.Inside the container, rungit pullto pull the latest copy of the tensorflow source. Then configure the build with./configureSettings used:Python Location: default\nPython Library Path: default\nApache Ignite Support: Y\nXLA Jit support: Y\nOpenCL SYCL support: N\nROCm support: N\nCUDA support: N\nFresh clang release: N\nMPI support: N\nOptimization flags: default\nInteractively configure ./WORKSPACE: NSteps to build:bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whlNote, compilation takes quite a while, so be patient. If running on amarillo, enjoy the 96 thread awesomeness."
+},
+
+{
+    "location": "workloads/slim/#Summary-1",
+    "page": "VGG416/Slim",
+    "title": "Summary",
+    "category": "section",
+    "text": "docker pull tensorflow/tensorflow:nightly-devel-py3\ndocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:nightly-devel-py3 bash\n# inside container\ngit pull\n./configure # Look at options above\nbazel build --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl"
+},
+
+{
+    "location": "workloads/slim/#Building-the-Docker-Image-1",
+    "page": "VGG416/Slim",
+    "title": "Building the Docker Image",
+    "category": "section",
+    "text": "With the .whl for tensorflow build, we can build a new Docker container with this  installed. For this step, move tensorflow-...-.whl into the tf-compiled-base/  directory. Then, run the shell script:./build.sh tensorflow-1.12.1-cp35-cm35m-linux_x86_64.whlFinally, if necessary, push the image to the darchr docker hub viadocker push darchr/tf-compiled-base"
+},
+
+{
+    "location": "workloads/slim/#Some-Notes-1",
+    "page": "VGG416/Slim",
+    "title": "Some Notes",
+    "category": "section",
+    "text": "Annoyingly, the .whl created in the previous step only works with Python 3.5. I tried  hacking it by changing the name (cp35-cp35m -> cp36-cp36m), but installation with pip  failed. This means that we need a working copy of Python 3.5 in order to run this.  Fortunately, the Python foundation supplies Debian (I think ... or Ubuntu) based containers for past Python versions. We can use this as a starting point for our Dockerfile.Permissions with the docker containers was becoming a bit of a nightmare. I finally found a solution that works by installing gosu:https://github.com/tianon/gosu\nhttps://denibertovic.com/posts/handling-permissions-with-docker-volumes/Essentially, a dummy account user is created that does not have root privileges, but we can still create directories within the docker containers."
 },
 
 {
     "location": "workloads/slim/#Script-Arguments:-1",
-    "page": "Slim",
+    "page": "VGG416/Slim",
     "title": "Script Arguments:",
     "category": "section",
     "text": "Generic training script that trains a model using a given dataset.\nflags:\n\n/models/slim/train_image_classifier.py:\n  --adadelta_rho: The decay rate for adadelta.\n    (default: \'0.95\')\n    (a number)\n  --adagrad_initial_accumulator_value: Starting value for the AdaGrad accumulators.\n    (default: \'0.1\')\n    (a number)\n  --adam_beta1: The exponential decay rate for the 1st moment estimates.\n    (default: \'0.9\')\n    (a number)\n  --adam_beta2: The exponential decay rate for the 2nd moment estimates.\n    (default: \'0.999\')\n    (a number)\n  --batch_size: The number of samples in each batch.\n    (default: \'32\')\n    (an integer)\n  --checkpoint_exclude_scopes: Comma-separated list of scopes of variables to exclude when restoring from a checkpoint.\n  --checkpoint_path: The path to a checkpoint from which to fine-tune.\n  --[no]clone_on_cpu: Use CPUs to deploy clones.\n    (default: \'false\')\n  --dataset_dir: The directory where the dataset files are stored.\n  --dataset_name: The name of the dataset to load.\n    (default: \'imagenet\')\n  --dataset_split_name: The name of the train/test split.\n    (default: \'train\')\n  --end_learning_rate: The minimal end learning rate used by a polynomial decay learning rate.\n    (default: \'0.0001\')\n    (a number)\n  --ftrl_initial_accumulator_value: Starting value for the FTRL accumulators.\n    (default: \'0.1\')\n    (a number)\n  --ftrl_l1: The FTRL l1 regularization strength.\n    (default: \'0.0\')\n    (a number)\n  --ftrl_l2: The FTRL l2 regularization strength.\n    (default: \'0.0\')\n    (a number)\n  --ftrl_learning_rate_power: The learning rate power.\n    (default: \'-0.5\')\n    (a number)\n  --[no]ignore_missing_vars: When restoring a checkpoint would ignore missing variables.\n    (default: \'false\')\n  --label_smoothing: The amount of label smoothing.\n    (default: \'0.0\')\n    (a number)\n  --labels_offset: An offset for the labels in the dataset. This flag is primarily used to evaluate the VGG and ResNet architectures which do not use a background class for the ImageNet\n    dataset.\n    (default: \'0\')\n    (an integer)\n  --learning_rate: Initial learning rate.\n    (default: \'0.01\')\n    (a number)\n  --learning_rate_decay_factor: Learning rate decay factor.\n    (default: \'0.94\')\n    (a number)\n  --learning_rate_decay_type: Specifies how the learning rate is decayed. One of \"fixed\", \"exponential\", or \"polynomial\"\n    (default: \'exponential\')\n  --log_every_n_steps: The frequency with which logs are print.\n    (default: \'10\')\n    (an integer)\n  --master: The address of the TensorFlow master to use.\n    (default: \'\')\n  --max_number_of_steps: The maximum number of training steps.\n    (an integer)\n  --model_name: The name of the architecture to train.\n    (default: \'inception_v3\')\n  --momentum: The momentum for the MomentumOptimizer and RMSPropOptimizer.\n    (default: \'0.9\')\n    (a number)\n  --moving_average_decay: The decay to use for the moving average.If left as None, then moving averages are not used.\n    (a number)\n  --num_clones: Number of model clones to deploy. Note For historical reasons loss from all clones averaged out and learning rate decay happen per clone epochs\n    (default: \'1\')\n    (an integer)\n  --num_epochs_per_decay: Number of epochs after which learning rate decays. Note: this flag counts epochs per clone but aggregates per sync replicas. So 1.0 means that each clone will go\n    over full epoch individually, but replicas will go once across all replicas.\n    (default: \'2.0\')\n    (a number)\n  --num_preprocessing_threads: The number of threads used to create the batches.\n    (default: \'4\')\n    (an integer)\n  --num_ps_tasks: The number of parameter servers. If the value is 0, then the parameters are handled locally by the worker.\n    (default: \'0\')\n    (an integer)\n  --num_readers: The number of parallel readers that read data from the dataset.\n    (default: \'4\')\n    (an integer)\n  --opt_epsilon: Epsilon term for the optimizer.\n    (default: \'1.0\')\n    (a number)\n  --optimizer: The name of the optimizer, one of \"adadelta\", \"adagrad\", \"adam\",\"ftrl\", \"momentum\", \"sgd\" or \"rmsprop\".\n    (default: \'rmsprop\')\n  --preprocessing_name: The name of the preprocessing to use. If left as `None`, then the model_name flag is used.\n  --quantize_delay: Number of steps to start quantized training. Set to -1 would disable quantized training.\n    (default: \'-1\')\n    (an integer)\n  --replicas_to_aggregate: The Number of gradients to collect before updating params.\n    (default: \'1\')\n    (an integer)\n  --rmsprop_decay: Decay term for RMSProp.\n    (default: \'0.9\')\n    (a number)\n  --rmsprop_momentum: Momentum.\n    (default: \'0.9\')\n    (a number)\n  --save_interval_secs: The frequency with which the model is saved, in seconds.\n    (default: \'600\')\n    (an integer)\n  --save_summaries_secs: The frequency with which summaries are saved, in seconds.\n    (default: \'600\')\n    (an integer)\n  --[no]sync_replicas: Whether or not to synchronize the replicas during training.\n    (default: \'false\')\n  --task: Task id of the replica running the training.\n    (default: \'0\')\n    (an integer)\n  --train_dir: Directory where checkpoints and event logs are written to.\n    (default: \'/tmp/tfmodel/\')\n  --train_image_size: Train image size\n    (an integer)\n  --trainable_scopes: Comma-separated list of scopes to filter the set of variables to train.By default, None would train all the variables.\n  --weight_decay: The weight decay on the model weights.\n    (default: \'4e-05\')\n    (a number)\n  --worker_replicas: Number of worker replicas.\n    (default: \'1\')\n    (an integer)"
@@ -402,7 +338,7 @@ var documenterSearchIndex = {"docs": [
 
 {
     "location": "workloads/slim/#File-Changes-1",
-    "page": "Slim",
+    "page": "VGG416/Slim",
     "title": "File Changes",
     "category": "section",
     "text": "train_image_classifier.pyLine 62: Change default value of log_every_n_steps from 10 to 5."
@@ -534,30 +470,6 @@ var documenterSearchIndex = {"docs": [
     "title": "Finding Perf Codes",
     "category": "section",
     "text": "A VERY helpful resource for finding event codes and such:  http://www.bnikolic.co.uk/blog/hpc-prof-events.html."
-},
-
-{
-    "location": "deprecated/#",
-    "page": "Deprecated Workloads",
-    "title": "Deprecated Workloads",
-    "category": "page",
-    "text": ""
-},
-
-{
-    "location": "deprecated/#Deprecated-Workloads-1",
-    "page": "Deprecated Workloads",
-    "title": "Deprecated Workloads",
-    "category": "section",
-    "text": ""
-},
-
-{
-    "location": "deprecated/#Street-(FSNS)-1",
-    "page": "Deprecated Workloads",
-    "title": "Street (FSNS)",
-    "category": "section",
-    "text": "Recurrent neural network for classifying French Street signs. This model required a lot of modification to get working in Tensorflow 1.12, and the initial data from snooping did not look very good (i.e. wrong). Thus, this workload is classified as deprecated."
 },
 
 ]}
