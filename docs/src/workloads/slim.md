@@ -161,7 +161,7 @@ Settings used:
 
 Steps to build:
 ```
-bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
+bazel build --config=mkl --config=opt //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
 chown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl
 ```
