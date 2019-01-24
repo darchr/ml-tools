@@ -19,6 +19,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import faulthandler; faulthandler.enable()
+
 import os
 import time
 from absl import app
@@ -161,7 +163,7 @@ flags.DEFINE_integer(
         'should be checkpointed. Set to 0 to disable.')
 
 flags.DEFINE_bool(
-        'moving_average', True,
+        'moving_average', False,
         'Whether to enable moving average computation on variables')
 
 flags.DEFINE_string(
@@ -730,11 +732,6 @@ class LoadEMAHook(tf.train.SessionRunHook):
 def main(unused_argv):
     del unused_argv  # Unused
 
-    # tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
-    #     FLAGS.tpu,
-    #     zone=FLAGS.tpu_zone,
-    #     project=FLAGS.gcp_project)
-
     assert FLAGS.precision == 'bfloat16' or FLAGS.precision == 'float32', (
             'Invalid value for --precision flag; must be bfloat16 or float32.')
     tf.logging.info('Precision: %s', FLAGS.precision)
@@ -746,23 +743,6 @@ def main(unused_argv):
         'pipeline_transpose_dims': [0, 1, 2, 3],
         'batch_size' : FLAGS.train_batch_size,
     }
-
-    # batch_axis = 0
-    # if FLAGS.transpose_enabled:
-    #   # On the TPU, convolutions are executed with a different leading
-    #   # dimension when batch size per shard is less than 64. By
-    #   # default images are loaded in NHWC order. For optimal performance,
-    #   # we want to use CHWN order while training wjem batch size per
-    #   # worker is smaller than 64 per shard.
-
-    #   if batch_size_per_shard >= 64:
-    #     params['model_transpose_dims'] = [3, 0, 1, 2]
-    #     params['pipeline_transpose_dims'] = [1, 2, 3, 0]
-    #     batch_axis = 3
-    #   else:
-    #     params['model_transpose_dims'] = [2, 0, 1, 3]
-    #     params['pipeline_transpose_dims'] = [1, 2, 0, 3]
-    #     batch_axis = 2
 
     if FLAGS.eval_total_size > 0:
         eval_size = FLAGS.eval_total_size
@@ -776,30 +756,25 @@ def main(unused_argv):
     eval_batch_size = (None if FLAGS.mode == 'train' else
                                           FLAGS.eval_batch_size)
 
-    per_host_input_for_training = (
-            FLAGS.num_shards <= 8 if FLAGS.mode == 'train' else True)
+    # per_host_input_for_training = (
+    #         FLAGS.num_shards <= 8 if FLAGS.mode == 'train' else True)
 
     run_config = tf.estimator.RunConfig(
-            #cluster=tpu_cluster_resolver,
-            model_dir=FLAGS.model_dir,
-            save_checkpoints_secs=FLAGS.save_checkpoints_secs,
-            save_summary_steps=FLAGS.save_summary_steps,
+            model_dir = FLAGS.model_dir,
+            save_checkpoints_secs = FLAGS.save_checkpoints_secs,
+            save_summary_steps = FLAGS.save_summary_steps,
             log_step_count_steps = 1,
-            session_config=tf.ConfigProto(
+            session_config = tf.ConfigProto(
                 intra_op_parallelism_threads = 48,
                 inter_op_parallelism_threads = 2,
-                allow_soft_placement=True,
-                log_device_placement=FLAGS.log_device_placement),
+                allow_soft_placement = True,
+                log_device_placement = FLAGS.log_device_placement),
             )
 
     inception_classifier = tf.estimator.Estimator(
             model_fn=inception_model_fn,
-            #use_tpu=FLAGS.use_tpu,
             config=run_config,
             params=params,
-            #train_batch_size=FLAGS.train_batch_size,
-            #eval_batch_size=eval_batch_size,
-            #batch_axis=(batch_axis, 0)
     )
 
     # Input pipelines are slightly different (with regards to shuffling and
@@ -809,6 +784,7 @@ def main(unused_argv):
             is_training=True,
             data_dir=FLAGS.data_dir,
             use_bfloat16=use_bfloat16)
+
     imagenet_eval = InputPipeline(
             is_training=False,
             data_dir=FLAGS.data_dir,
@@ -853,7 +829,9 @@ def main(unused_argv):
         for cycle in range(FLAGS.train_steps // FLAGS.train_steps_per_eval):
             tf.logging.info('Starting training cycle %d.' % cycle)
             inception_classifier.train(
-                    input_fn=imagenet_train.input_fn, steps=FLAGS.train_steps_per_eval)
+                    input_fn = imagenet_train.input_fn,
+                    steps = FLAGS.train_steps_per_eval,
+                )
 
             tf.logging.info('Starting evaluation cycle %d .' % cycle)
             eval_results = inception_classifier.evaluate(
