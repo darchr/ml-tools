@@ -32,13 +32,17 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope
 
+#data_format = 'NCHW'
+data_format = 'NHWC'
+concat_axis = 1 if (data_format == 'NCHW') else 3
+
 
 def block_inception_a(inputs, scope=None, reuse=None):
   """Builds Inception-A block for Inception v4 network."""
   # By default use stride=1 and SAME padding
   with slim.arg_scope(
       [slim.conv2d, slim.avg_pool2d, slim.max_pool2d], stride=1,
-      padding='SAME'):
+      padding='SAME', data_format = data_format):
     with variable_scope.variable_scope(
         scope, 'BlockInceptionA', [inputs], reuse=reuse):
       with variable_scope.variable_scope('Branch_0'):
@@ -54,7 +58,7 @@ def block_inception_a(inputs, scope=None, reuse=None):
         branch_3 = slim.avg_pool2d(inputs, [3, 3], scope='AvgPool_0a_3x3')
         branch_3 = slim.conv2d(branch_3, 96, [1, 1], scope='Conv2d_0b_1x1')
       return array_ops.concat(
-          axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+          axis=concat_axis, values=[branch_0, branch_1, branch_2, branch_3])
 
 
 def block_reduction_a(inputs, scope=None, reuse=None):
@@ -62,7 +66,7 @@ def block_reduction_a(inputs, scope=None, reuse=None):
   # By default use stride=1 and SAME padding
   with slim.arg_scope(
       [slim.conv2d, slim.avg_pool2d, slim.max_pool2d], stride=1,
-      padding='SAME'):
+      padding='SAME', data_format = data_format):
     with variable_scope.variable_scope(
         scope, 'BlockReductionA', [inputs], reuse=reuse):
       with variable_scope.variable_scope('Branch_0'):
@@ -71,7 +75,8 @@ def block_reduction_a(inputs, scope=None, reuse=None):
             384, [3, 3],
             stride=2,
             padding='VALID',
-            scope='Conv2d_1a_3x3')
+            scope='Conv2d_1a_3x3',
+            )
       with variable_scope.variable_scope('Branch_1'):
         branch_1 = slim.conv2d(inputs, 192, [1, 1], scope='Conv2d_0a_1x1')
         branch_1 = slim.conv2d(branch_1, 224, [3, 3], scope='Conv2d_0b_3x3')
@@ -84,7 +89,7 @@ def block_reduction_a(inputs, scope=None, reuse=None):
       with variable_scope.variable_scope('Branch_2'):
         branch_2 = slim.max_pool2d(
             inputs, [3, 3], stride=2, padding='VALID', scope='MaxPool_1a_3x3')
-      return array_ops.concat(axis=3, values=[branch_0, branch_1, branch_2])
+      return array_ops.concat(axis=concat_axis, values=[branch_0, branch_1, branch_2])
 
 
 def block_inception_b(inputs, scope=None, reuse=None):
@@ -92,7 +97,7 @@ def block_inception_b(inputs, scope=None, reuse=None):
   # By default use stride=1 and SAME padding
   with slim.arg_scope(
       [slim.conv2d, slim.avg_pool2d, slim.max_pool2d], stride=1,
-      padding='SAME'):
+      padding='SAME', data_format = data_format):
     with variable_scope.variable_scope(
         scope, 'BlockInceptionB', [inputs], reuse=reuse):
       with variable_scope.variable_scope('Branch_0'):
@@ -111,7 +116,7 @@ def block_inception_b(inputs, scope=None, reuse=None):
         branch_3 = slim.avg_pool2d(inputs, [3, 3], scope='AvgPool_0a_3x3')
         branch_3 = slim.conv2d(branch_3, 128, [1, 1], scope='Conv2d_0b_1x1')
       return array_ops.concat(
-          axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+          axis=concat_axis, values=[branch_0, branch_1, branch_2, branch_3])
 
 
 def block_reduction_b(inputs, scope=None, reuse=None):
@@ -119,7 +124,7 @@ def block_reduction_b(inputs, scope=None, reuse=None):
   # By default use stride=1 and SAME padding
   with slim.arg_scope(
       [slim.conv2d, slim.avg_pool2d, slim.max_pool2d], stride=1,
-      padding='SAME'):
+      padding='SAME', data_format = data_format):
     with variable_scope.variable_scope(
         scope, 'BlockReductionB', [inputs], reuse=reuse):
       with variable_scope.variable_scope('Branch_0'):
@@ -131,7 +136,7 @@ def block_reduction_b(inputs, scope=None, reuse=None):
             padding='VALID',
             scope='Conv2d_1a_3x3')
       with variable_scope.variable_scope('Branch_1'):
-        branch_1 = slim.conv2d(inputs, 256, [1, 1], scope='Conv2d_0a_1x1')
+        branch_1 = slim.conv2d(inputs, 256, [1, 1], scope='Conv3d_0a_1x1')
         branch_1 = slim.conv2d(branch_1, 256, [1, 7], scope='Conv2d_0b_1x7')
         branch_1 = slim.conv2d(branch_1, 320, [7, 1], scope='Conv2d_0c_7x1')
         branch_1 = slim.conv2d(
@@ -143,7 +148,7 @@ def block_reduction_b(inputs, scope=None, reuse=None):
       with variable_scope.variable_scope('Branch_2'):
         branch_2 = slim.max_pool2d(
             inputs, [3, 3], stride=2, padding='VALID', scope='MaxPool_1a_3x3')
-      return array_ops.concat(axis=3, values=[branch_0, branch_1, branch_2])
+      return array_ops.concat(axis=concat_axis, values=[branch_0, branch_1, branch_2])
 
 
 def block_inception_c(inputs, scope=None, reuse=None):
@@ -151,7 +156,7 @@ def block_inception_c(inputs, scope=None, reuse=None):
   # By default use stride=1 and SAME padding
   with slim.arg_scope(
       [slim.conv2d, slim.avg_pool2d, slim.max_pool2d], stride=1,
-      padding='SAME'):
+      padding='SAME', data_format = data_format):
     with variable_scope.variable_scope(
         scope, 'BlockInceptionC', [inputs], reuse=reuse):
       with variable_scope.variable_scope('Branch_0'):
@@ -159,7 +164,7 @@ def block_inception_c(inputs, scope=None, reuse=None):
       with variable_scope.variable_scope('Branch_1'):
         branch_1 = slim.conv2d(inputs, 384, [1, 1], scope='Conv2d_0a_1x1')
         branch_1 = array_ops.concat(
-            axis=3,
+            axis=concat_axis,
             values=[
                 slim.conv2d(branch_1, 256, [1, 3], scope='Conv2d_0b_1x3'),
                 slim.conv2d(branch_1, 256, [3, 1], scope='Conv2d_0c_3x1')
@@ -169,7 +174,7 @@ def block_inception_c(inputs, scope=None, reuse=None):
         branch_2 = slim.conv2d(branch_2, 448, [3, 1], scope='Conv2d_0b_3x1')
         branch_2 = slim.conv2d(branch_2, 512, [1, 3], scope='Conv2d_0c_1x3')
         branch_2 = array_ops.concat(
-            axis=3,
+            axis=concat_axis,
             values=[
                 slim.conv2d(branch_2, 256, [1, 3], scope='Conv2d_0d_1x3'),
                 slim.conv2d(branch_2, 256, [3, 1], scope='Conv2d_0e_3x1')
@@ -178,7 +183,7 @@ def block_inception_c(inputs, scope=None, reuse=None):
         branch_3 = slim.avg_pool2d(inputs, [3, 3], scope='AvgPool_0a_3x3')
         branch_3 = slim.conv2d(branch_3, 256, [1, 1], scope='Conv2d_0b_1x1')
       return array_ops.concat(
-          axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+          axis=concat_axis, values=[branch_0, branch_1, branch_2, branch_3])
 
 
 def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
@@ -211,7 +216,7 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
     with slim.arg_scope(
         [slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
         stride=1,
-        padding='SAME'):
+        padding='SAME', data_format = data_format):
       # 299 x 299 x 3
       net = slim.conv2d(
           inputs, 32, [3, 3], stride=2, padding='VALID', scope='Conv2d_1a_3x3')
@@ -233,7 +238,7 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
         with variable_scope.variable_scope('Branch_1'):
           branch_1 = slim.conv2d(
               net, 96, [3, 3], stride=2, padding='VALID', scope='Conv2d_0a_3x3')
-        net = array_ops.concat(axis=3, values=[branch_0, branch_1])
+        net = array_ops.concat(axis=concat_axis, values=[branch_0, branch_1])
         if add_and_check_final('Mixed_3a', net):
           return net, end_points
 
@@ -249,7 +254,7 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
           branch_1 = slim.conv2d(branch_1, 64, [7, 1], scope='Conv2d_0c_7x1')
           branch_1 = slim.conv2d(
               branch_1, 96, [3, 3], padding='VALID', scope='Conv2d_1a_3x3')
-        net = array_ops.concat(axis=3, values=[branch_0, branch_1])
+        net = array_ops.concat(axis=concat_axis, values=[branch_0, branch_1])
         if add_and_check_final('Mixed_4a', net):
           return net, end_points
 
@@ -335,16 +340,17 @@ def inception_v4(inputs,
     end_points: the set of end_points from the inception model.
   """
   end_points = {}
-  with variable_scope.variable_scope(
-      scope, 'InceptionV4', [inputs], reuse=reuse) as scope:
+  with variable_scope.variable_scope(scope, 'InceptionV4', [inputs], reuse=reuse) as scope:
     with slim.arg_scope(
-        [slim.batch_norm, slim.dropout], is_training=is_training):
+            [slim.batch_norm, slim.dropout], is_training=is_training):
       net, end_points = inception_v4_base(inputs, scope=scope)
 
       with slim.arg_scope(
           [slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
           stride=1,
-          padding='SAME'):
+          padding='SAME',
+          data_format = data_format
+          ):
         # Auxiliary Head logits
         if create_aux_logits and num_classes:
           with variable_scope.variable_scope('AuxLogits'):
@@ -360,7 +366,7 @@ def inception_v4(inputs,
             aux_logits = slim.conv2d(
                 aux_logits,
                 768,
-                aux_logits.get_shape()[1:3],
+                aux_logits.get_shape()[2:] if (data_format == 'NCHW') else aux_logits.get_shape()[1:3],
                 padding='VALID',
                 scope='Conv2d_2a')
             aux_logits = slim.flatten(aux_logits)
@@ -373,7 +379,7 @@ def inception_v4(inputs,
         # can be set to False to disable pooling here (as in resnet_*()).
         with variable_scope.variable_scope('Logits'):
           # 8 x 8 x 1536
-          kernel_size = net.get_shape()[1:3]
+          kernel_size = net.get_shape()[2:] if (data_format == 'NCHW') else net.get_shape()[1:3]
           if kernel_size.is_fully_defined():
             net = slim.avg_pool2d(
                 net, kernel_size, padding='VALID', scope='AvgPool_1a')

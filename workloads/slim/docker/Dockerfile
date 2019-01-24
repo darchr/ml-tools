@@ -1,6 +1,7 @@
 # Docker image for running examples in Tensorflow models.
 # base_image depends on whether we are running on GPUs or non-GPUs
-FROM python:3.5.6
+FROM python:3.5
+#FROM tensorflow/tensorflow:1.12.0-devel-py3
 
 #####
 ##### Base Tensorflow
@@ -36,7 +37,7 @@ ADD requirements.txt /requirements.txt
 ENV PYTHONPATH "${PYTHONPATH}:/models"
 ENV PATH "$PATH:/root/.local/bin"
 
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r /requirements.txt
 
 #####
 ##### Wrap up

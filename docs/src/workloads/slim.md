@@ -163,22 +163,19 @@ Steps to build:
 ```
 bazel build --config=mkl --config=opt //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
-chown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl
+chown $HOST_PERMS /mnt/tensorflow-1.12.0-cp35-cp35m-linux_x86_64.whl
 ```
-Note, compilation takes quite a while, so be patient. If running on amarillo, enjoy the
-96 thread awesomeness.
-
 #### Summary
 
 ```sh
-docker pull tensorflow/tensorflow:nightly-devel-py3
+docker pull tensorflow/tensorflow:1.12.0-devel-py3
 docker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS="$(id -u):$(id -g)" tensorflow/tensorflow:nightly-devel-py3 bash
 # inside container
 git pull
 ./configure # Look at options above
-bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
+bazel build --config=mkl --config=opt //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
-chown $HOST_PERMS /mnt/tensorflow-1.12.1-cp35-cp35m-linux_x86_64.whl
+chown $HOST_PERMS /mnt/tensorflow-1.12.0-cp35-cp35m-linux_x86_64.whl
 ```
 
 #### Building the Docker Image
@@ -187,7 +184,7 @@ With the `.whl` for tensorflow build, we can build a new Docker container with t
 installed. For this step, move `tensorflow-...-.whl` into the `tf-compiled-base/` 
 directory. Then, run the shell script:
 ```sh
-./build.sh tensorflow-1.12.1-cp35-cm35m-linux_x86_64.whl
+./build.sh tensorflow-1.12.0-cp35-cm35m-linux_x86_64.whl
 ```
 Finally, if necessary, push the image to the `darchr` docker hub via
 ```sh

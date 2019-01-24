@@ -24,6 +24,8 @@ function runcommand(model::Inception)
         kw = merge(kw, (use_tpu = false,))
     end
 
+    # Environment variables for MKL
+
     if model.interactive
         return `/bin/bash`
     else
@@ -35,12 +37,22 @@ function create(model::Inception; kw...)
     bind_dataset = bind(DATASET_PATHS["imagenet_tf_slim"], "/imagenet")
     bind_code = bind(code(OnHost), code(OnContainer))
 
+    env = [
+        "KMP_BLOCKTIME=1",
+        "KMP_AFFINITY=granularity=fine,compact,1,0",
+        "KMP_SETTINGS=1",
+        "OMP_NUM_THREADS=48",
+        "LOCAL_USER_ID=$(uid())",
+    ]
+
+    @show runcommand(model)
+
     container = Docker.create_container(
         image(model),
         attachStdin = true,
         binds = [bind_dataset, bind_code],
         cmd = runcommand(model),
-        env = ["LOCAL_USER_ID=$(uid())"],
+        env = env,
         kw...
     )
 end
