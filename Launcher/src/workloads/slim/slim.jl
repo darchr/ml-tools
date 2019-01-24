@@ -38,9 +38,9 @@ startfile(::Slim, ::Type{OnContainer}) = joinpath(
     slim_models(OnContainer), "train_image_classifier.py"
 )
 
-function runcommand(resnet::Slim) 
+function runcommand(model::Slim) 
     # Extract the arguments from the stuct
-    kw = resnet.args 
+    kw = model.args 
 
     # Check if the "data_dir" arg is present. If not, add it to the default location.
     if !haskey(kw, :dataset_dir) 
@@ -57,15 +57,15 @@ function runcommand(resnet::Slim)
     end
 
     # Construct the launch comand
-    if resnet.interactive 
+    if model.interactive 
         return `/bin/bash` 
     else
-        return `python3 $(startfile(resnet, OnContainer)) $(makeargs(kw; delim = "="))`
+        return `python3 $(startfile(model, OnContainer)) $(makeargs(kw; delim = "="))`
     end
 end
 
 
-function create(resnet::Slim; kw...)
+function create(model::Slim; kw...)
     # Bind the Imagenet dataset into the top level of the container
     bind_dataset = bind(DATASET_PATHS["imagenet_tf_slim"], "/imagenet")
 
@@ -75,13 +75,13 @@ function create(resnet::Slim; kw...)
     @show bind_dataset
     @show bind_code
 
-    @show runcommand(resnet)
+    @show runcommand(model)
 
     container = Docker.create_container(
-        image(resnet);
+        image(model);
         attachStdin = true,
         binds = [bind_dataset, bind_code],
-        cmd = runcommand(resnet),
+        cmd = runcommand(model),
         env = ["LOCAL_USER_ID=$(uid())"],
         kw...
     )

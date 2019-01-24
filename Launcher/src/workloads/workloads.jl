@@ -47,7 +47,7 @@ Create a filename for `work` based on the data type of `work` and the arguments.
 """
 function filename(work::T, ext = "dat") where {T <: AbstractWorkload}
     args = getargs(work)
-    argstring = join(makeargs(args; delim = "=", prefix = ""), "-")
+    argstring = join(makeargs(args; delim = "=", pre = ""), "-")
     typename = last(split("$T", "."))
     return join((typename, argstring, ext), "-", ".")
 end
@@ -57,3 +57,4 @@ include("test/test.jl")
 include("cifar_cnn/cifar_cnn.jl")
 include("slim/slim.jl")
 include("rnn_translator/translator.jl")
+include("inception/inception.jl")
