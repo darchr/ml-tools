@@ -41,7 +41,7 @@ function create(model::Inception; kw...)
         "KMP_BLOCKTIME=1",
         "KMP_AFFINITY=granularity=fine,compact,1,0",
         "KMP_SETTINGS=1",
-        #"OMP_NUM_THREADS=48",
+        "OMP_NUM_THREADS=48",
         "LOCAL_USER_ID=$(uid())",
     ]
 

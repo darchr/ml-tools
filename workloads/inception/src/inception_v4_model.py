@@ -32,8 +32,8 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope
 
-#data_format = 'NCHW'
-data_format = 'NHWC'
+data_format = 'NCHW'
+#data_format = 'NHWC'
 concat_axis = 1 if (data_format == 'NCHW') else 3
 
 
@@ -270,7 +270,7 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
         with variable_scope.variable_scope('Branch_1'):
           branch_1 = slim.max_pool2d(
               net, [3, 3], stride=2, padding='VALID', scope='MaxPool_1a_3x3')
-        net = array_ops.concat(axis=3, values=[branch_0, branch_1])
+        net = array_ops.concat(axis=concat_axis, values=[branch_0, branch_1])
         if add_and_check_final('Mixed_5a', net):
           return net, end_points
 
@@ -442,7 +442,8 @@ def inception_v4_arg_scope(weight_decay=0.00004,
           'gamma': None,
           'moving_mean': [batch_norm_var_collection],
           'moving_variance': [batch_norm_var_collection],
-      }
+      },
+      'data_format': data_format,
   }
 
   normalizer_fn = slim.batch_norm
@@ -456,5 +457,5 @@ def inception_v4_arg_scope(weight_decay=0.00004,
         weights_initializer=slim.variance_scaling_initializer(),
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,
-        normalizer_params=normalizer_params) as sc:
+        normalizer_params=normalizer_params, data_format = data_format) as sc:
       return sc

@@ -19,7 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import faulthandler; faulthandler.enable()
+#from tensorflow.python import debug as tf_debug
 
 import os
 import time
@@ -739,8 +739,8 @@ def main(unused_argv):
     # Images are loaded in NHWC order
     # Configure transpose to be NCHW, the format recommended when using MKL
     params = {
-        #'pipeline_transpose_dims': [0, 3, 1, 2],
-        'pipeline_transpose_dims': [0, 1, 2, 3],
+        'pipeline_transpose_dims': [0, 3, 1, 2],
+        #'pipeline_transpose_dims': [0, 1, 2, 3],
         'batch_size' : FLAGS.train_batch_size,
     }
 
