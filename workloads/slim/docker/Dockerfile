@@ -1,8 +1,8 @@
 # Docker image for running examples in Tensorflow models.
 # base_image depends on whether we are running on GPUs or non-GPUs
-#FROM python:3.5
+FROM python:3.5.6
 #FROM python:3.6.8
-FROM tensorflow/tensorflow:nightly-devel-py3
+#FROM tensorflow/tensorflow:nightly-devel-py3
 
 #####
 ##### Base Tensorflow

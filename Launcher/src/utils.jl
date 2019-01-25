@@ -88,3 +88,55 @@ function (S::PeriodicSave)(process, trace, measurements)
         S.nextsave = time + S.increment
     end
 end
+
+#####
+##### parameter search
+#####
+
+struct NTIter{names, T}
+    nt::NamedTuple{names, T}
+end
+
+function iterate(N::NTIter{names, T}, state = nothing) where {names, T}
+    if state === nothing
+        item = iterate(product(values(N.nt)...))
+        item === nothing && return nothing
+    else
+        item = iterate(product(values(N.nt)...), state)
+        item === nothing && return nothing
+    end
+    x, state = item
+
+    return NamedTuple{names}(x), state
+end
+
+
+"""
+    search(f, )
+"""
+function search(f, parser, modelkwargs, createkwargs, savefile, runtime) where {T}
+    record = (results = [], modelkw = [], createkw = [])
+    for modelkw in modelkwargs
+        for createkw in createkwargs
+            @show createkw
+            @show modelkw
+
+            workload = f(args = modelkw)
+
+            # Store log output in an iobuffer
+            io = IOBuffer() 
+            run(x -> sleep(runtime), workload; log = io, createkw...)
+
+            # Run the parser on the IO
+            result = parser(io)
+
+            # Push results to the record  
+            push!(record.results, result) 
+            push!(record.modelkw, modelkw)
+            push!(record.createkw, createkw)
+
+            serialize(savefile, record)
+        end
+    end
+    return record
+end

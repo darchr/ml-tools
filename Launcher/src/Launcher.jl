@@ -5,7 +5,8 @@ function __init__()
     setup()
 end
 
-import Base.Iterators: flatten, drop
+import Base.Iterators: flatten, drop, product
+import Base.iterate
 
 export  k_str, create_setup,
         # Models
@@ -29,6 +30,8 @@ const DATASET_PATHS = Dict{String,String}()
 ## STDLIBs
 using Dates
 using InteractiveUtils
+using Serialization
+using Statistics
 
 # Add Docker to talk to the Docker daemon.
 using Docker

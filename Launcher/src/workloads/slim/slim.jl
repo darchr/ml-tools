@@ -64,7 +64,6 @@ function runcommand(model::Slim)
     end
 end
 
-
 function create(model::Slim; kw...)
     # Bind the Imagenet dataset into the top level of the container
     bind_dataset = bind(DATASET_PATHS["imagenet_tf_slim"], "/imagenet")
