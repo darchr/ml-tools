@@ -51,3 +51,17 @@ function create(rnn::Translator; kw...)
 
     return container
 end
+
+function translator_parser(io::IO)
+    seekstart(io)
+
+    times = Float64[]
+    float_regex = r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?"
+    for ln in eachline(io)
+        if all(x -> occursin(x, ln), ("TRAIN", "Time", "Data", "Tok/s"))
+            runtime = collect(eachmatch(float_regex, ln))[5]
+            push!(times, parse(Float64, runtime.match))
+        end
+    end
+    return mean(times)
+end
