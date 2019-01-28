@@ -78,8 +78,8 @@ function Base.run(f::Function, work::AbstractWorkload; log = devnull, kw...)
     try
         f(containers)
     finally
-        for container in _wrap(containers)
-            _writelog(log, container)
+        for (index, container) in enumerate(_wrap(containers))
+            _writelog(log, container; first = (index == 1))
         end
         Docker.remove.(_wrap(containers), force = true)
 
@@ -93,7 +93,7 @@ function _writelog(io::IO, container)
     print(io, "Showing log for $container\n")
     print(io, Docker.log(container))
 end
-_writelog(file::String, container) = open(io -> _writelog(io, container), file, append=true)
+_writelog(file::String, container; first = false)  = open(io -> _writelog(io, container), file; write = true, append = !first)
 
 
 end # module

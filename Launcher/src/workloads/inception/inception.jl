@@ -125,3 +125,4 @@ function tf_timeparser(io::IO)
     end
     return mean(times)
 end
+tf_timeparser(path::String) = open(tf_timeparser, path)

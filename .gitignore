@@ -12,3 +12,4 @@ docs/build
 .ipynb_checkpoints
 deps
 __pycache__
+Launcher/scripts
