@@ -44,7 +44,7 @@ def parse_args():
     results.add_argument('--save', default='gnmt_wmt16',
                          help='defines subdirectory within RESULTS_DIR for \
                         results from this training run')
-    results.add_argument('--print-freq', default=10, type=int,
+    results.add_argument('--print-freq', default=5, type=int,
                          help='print log every PRINT_FREQ batches')
 
     # model

@@ -89,7 +89,7 @@ end
 _wrap(x::Docker.Container) = (x,)
 _wrap(x) = x
 
-function _writelog(io::IO, container) 
+function _writelog(io::IO, container; kw...) 
     print(io, "Showing log for $container\n")
     print(io, Docker.log(container))
 end
