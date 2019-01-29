@@ -24,6 +24,8 @@ services:
 #     - (cd deps; ./init.sh)
 #     - julia --color=yes --project=Launcher -e "using Pkg; Pkg.build()"
 #     - julia --color=yes --check-bounds=yes --project=Launcher -e "using Pkg; Pkg.test()"
+script:
+    echo 'Skipping Script'
 
 ## deploy documentation
 jobs:
