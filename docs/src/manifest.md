@@ -85,27 +85,7 @@ as much as possible since Idle Page Tracking requires Julia to be run as root.
 
 - Add support for monitoring multiple processes.
 
-- Move suitable code from [SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl) 
-    into SystemSnoop.
-
 - Have other people use this package to find bugs and improve documentation.
-
-
-
-### [SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl)
-
-Analysis routines for SystemSnoop that require external dependencies. This will probably 
-eventually just be for plotting plus some other misc stuff.
-
-#### TODO List (Low Priority)
-
-- Documentation
-
-- See when migration to [Makie](https://github.com/JuliaPlots/Makie.jl) is suitable. 
-    Theoretically, the plotting recipe system for Makie might not rely on a macro, so 
-    plotting recipes for SystemSnoop might be able to be implemented straight in SystemSnoop 
-    without adding any dependencies.
-
 
 
 ### [ml-notebooks (private)](https://github.com/darchr/ml-notebooks)
