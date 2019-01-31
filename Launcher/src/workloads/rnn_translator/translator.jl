@@ -3,7 +3,7 @@
     interactive :: Bool = false
 end
 
-image(::Translator) = "gnmt:latest"
+image(::Translator) = "darchr/gnmt"
 
 function runcommand(rnn::Translator) 
     # Extract the arguments from the stuct
@@ -32,20 +32,35 @@ function runcommand(rnn::Translator)
     end
 end
 
-
-function create(rnn::Translator; kw...)
+function create(
+        rnn::Translator; 
+        env = [],
+        kmp_blocktime = 1,
+        kmp_settings = 1,
+        omp_num_threads = 48,
+        kw...)
     # Bind the Imagenet dataset into the top level of the container
     bind_dataset = bind(
         joinpath(DATASET_PATHS["rnn_translator"], "data"),
         "/data"
     )
 
+    # Extend the provided environmental
+    localenv = [
+        "KMP_BLOCKTIME=$kmp_blocktime",
+        "KMP_AFFINITY=granularity=fine,compact,1,0",
+        "KMP_SETTINGS=$kmp_settings",
+        "OMP_NUM_THREADS=$omp_num_threads",
+        "LOCAL_USER_ID=$(uid())",
+    ]
+    env = vcat(env, localenv)
+
     container = Docker.create_container(
         image(rnn);
         attachStdin = true,
         binds = [bind_dataset],
         cmd = runcommand(rnn),
-        env = ["LOCAL_USER_ID=$(uid())"],
+        env = env,
         kw...
     )
 

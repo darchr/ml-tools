@@ -1,5 +1,5 @@
+#!/bin/bash
 
-DIR=$PWD
-cd ../src/pytorch
-
-docker build -t "gnmt:latest" --rm -f ../../docker/Dockerfile .
+# run the two lower build scripts
+#source  ./pytorch/build.sh
+source ./gnmt/build.sh

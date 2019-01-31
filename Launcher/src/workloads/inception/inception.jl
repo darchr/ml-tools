@@ -5,7 +5,7 @@ end
 
 include("cluster.jl")
 
-image(::Inception) = "darchr/tf-compiled-base"
+image(::Inception) = "darchr/tensorflow-mkl"
 
 code(::Type{OnHost}) = joinpath(WORKLOADS, "inception", "src")
 code(::Type{OnContainer}) = joinpath("/models", "inception")
