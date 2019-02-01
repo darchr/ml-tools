@@ -1,5 +1,3 @@
 #!/bin/bash
-
-# run the two lower build scripts
-#source  ./pytorch/build.sh
-source ./gnmt/build.sh
+cd ../src/pytorch
+docker build -t "darchr/gnmt" --rm -f ../../docker/Dockerfile .
