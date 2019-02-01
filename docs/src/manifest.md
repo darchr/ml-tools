@@ -93,6 +93,29 @@ as much as possible since Idle Page Tracking requires Julia to be run as root.
 Jupyter notebooks and scripts for research.
 
 
+### [X-Mem](https://github.com/hildebrandmw/X-Mem)
+
+Fork of the Microsoft X-Mem repositoy. I've added a little bit to it to
+
+- Ensure latency pointer chasing traverses the whole working set.
+
+- Allows a file to be used the source for memory allocation of the working set. This lets
+    us a memory mapped file on a persistent memory device to give us direct access to that
+    device so we can take measurements of it, assuming the file is mounted on a direct 
+    access file system. (worst sentence ever)
+
+
+### [XMem](https://github.com/hildebrandmw/XMem.jl)
+
+Julia package for dealing with X-Mem. Auto builds the binary, launches it, controls flags,
+all that fun stuff.
+
+
+### [Checkpoints](https://github.com/hildebrandmw/Checkpoints.jl)
+
+I got very tired of suffering jupyter notebook apocalypses. This pacakge helps avoid that
+by managing storing results of long running computations so I can close down the notebook
+but still have the results. It's actuallyh quite convenient.
 
 ## Resources on Shared Machines
 
