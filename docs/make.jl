@@ -21,7 +21,7 @@ makedocs(
             "datasets/imagenet.md",
             "datasets/rnn.md",
             "datasets/brats.md",
-        ]
+        ],
         "Launcher" => [
             "launcher.md"
         ],

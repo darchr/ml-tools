@@ -1,4 +1,5 @@
 [deps]
+Checkpoints = "b4a3413d-e481-5afc-88ff-bdfbd6a50dce"
 Docker = "d141d394-c665-11e8-14fa-718cafd270b3"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Launcher = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
