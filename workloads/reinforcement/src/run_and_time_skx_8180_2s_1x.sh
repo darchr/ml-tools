@@ -18,7 +18,8 @@ seed=${1:-1}
 
 echo "running benchmark with seed $seed"
 # The termination quality is set in params/final.json. See RAEDME.md.
-./run.sh $seed
+cd tensorflow
+./run.sh params/final-112workers.json
 sleep 3
 ret_code=$?; if [[ $ret_code != 0 ]]; then exit $ret_code; fi
 

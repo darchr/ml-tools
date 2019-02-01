@@ -1,70 +1,43 @@
-# 1. Problem 
-This task benchmarks on policy reinforcement learning for the 9x9 version of the boardgame go. The model plays games against itself and uses these games to improve play.
+# 1. Problem
+This task benchmarks on policy reinforcement learning for the 9x9 version of the board game go. The model plays games against itself and uses these games to improve play.
+This implementation is derived from original `mlperf/training/reinforcement` reference implementation, and optimized for Intel® Xeon® scalable processors.
 
 # 2. Directions
 ### Steps to configure machine
-To setup the environment on Ubuntu 16.04 (16 CPUs, one P100, 100 GB disk), you can use these commands. This may vary on a different operating system or graphics card.
+To setup the environment on CentOS 7.4 (112 CPUs, 100 GB disk), you can use these commands. This may vary on a different operating system and hardware environment.
 
-    # Install docker
-    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+1. Install Python3
 
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    sudo apt-key fingerprint 0EBFCD88
-    sudo add-apt-repository    "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-       $(lsb_release -cs) \
-       stable"
-    sudo apt update
-    # sudo apt install docker-ce -y
-    sudo apt install docker-ce=18.03.0~ce-0~ubuntu -y --allow-downgrades
+    Install Python3 on your Linux distribution, we verified our implementation on Python 3.4, but any minor version should work.
 
-    # Install nvidia-docker2
-    curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey |   sudo apt-key add -
-    curl -s -L https://nvidia.github.io/nvidia-docker/ubuntu16.04/nvidia-docker.list |   sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-    sudo apt-get update
-    sudo apt install nvidia-docker2 -y
+2. Install requirements
 
+    `pip3 install -r tensorflow/minigo/requirements.txt`
 
-    sudo tee /etc/docker/daemon.json <<EOF
-    {
-        "runtimes": {
-            "nvidia": {
-                "path": "/usr/bin/nvidia-container-runtime",
-                "runtimeArgs": []
-            }
-        }
-    }
-    EOF
-    sudo pkill -SIGHUP dockerd
+3. Install MLPerf Compliance Logging Utilities and Helper Functions
+    `git clone https://github.com/mlperf/training`
+    `cd training/compliance`
+    `python3 setup.py install`
 
-    sudo apt install -y bridge-utils
-    sudo service docker stop
-    sleep 1;
-    sudo iptables -t nat -F
-    sleep 1;
-    sudo ifconfig docker0 down
-    sleep 1;
-    sudo brctl delbr docker0
-    sleep 1;
-    sudo service docker start
+4. Install TensorFlow 1.10
 
-    ssh-keyscan github.com >> ~/.ssh/known_hosts
-    git clone git@github.com:mlperf/reference.git
+   This model is measured on TensorFlow branch r1.10.  To build this branch, follow the 'Build TensorFlow from Source with Intel MKL' section in the following link:
+   https://software.intel.com/en-us/articles/intel-optimization-for-tensorflow-installation-guide
 
 ### Steps to download and verify data
 Unlike other benchmarks, there is no data to download. All training data comes from games played during benchmarking.
 
 ### Steps to run and time
 
-To run, this assumes you checked out the repo into $HOME, adjust paths as necessary.
+To run, this assumes you get code from minigo submission package and put it to `~/mlperf_minigo/` directory
 
-    cd ~/reference/reinforcement/tensorflow/
-    IMAGE=`sudo docker build . | tail -n 1 | awk '{print $3}'`
-    SEED=1
-    NOW=`date "+%F-%T"`
-    sudo docker run --runtime=nvidia -t -i $IMAGE "./run_and_time.sh" $SEED | tee benchmark-$NOW.log
-    
-To change the quality target, modify `params/final.json` and set the field `TERMINATION_ACCURACY` to be `0.10` for about a 10 hour runtime, or `0.03` for about a 3 hour runtime. Note that you will have to rebuild the docker after modifying `params/final.josn`.
+If you are running on 2 socket Intel® Xeon® Platinum 8180 Processors, run the following
+    `cd ~/mlperf_minigo/`
+    `./run_and_time_skx_8180_2s_1x.sh | tee result_<N>.txt`
+
+If you are running on 4 socket Intel® Xeon® Platinum 8180 Processors, run the following
+    `cd ~/mlperf_minigo/`
+    `./run_and_time_skx_8180_4s_1x.sh | tee result_<N>.txt`
 
 # 3. Model
 ### Publication/Attribution
@@ -96,7 +69,22 @@ Network weights are initialized randomly. Initialization and loss are described 
 ### Optimizer
 We use a MomentumOptimizer to train the primary network. 
 
-# 4. Quality
+# 4. Model optimization
+This implementation is derived from reference TensorFlow based minigo python implementation at https://github.com/mlperf/training/tree/master/reinforcement
+
+This implementation do the following optimizations on top of reference implementation:
+1. concurrent selfplay and evaluation
+    Reference implementation use 16 worker instances for selfplay, assuming running on a 16 core machine.  This implementation use number of worker instances that equals to the number of hyperthreads on the system.  We also pin each worker to different logical CPUs to maximize performance.
+    Reference implementation use single process for selfplay evaluation (old vs. new stage).  This implemenation use 100 instances to play all the 50+50 selfplay evaluation games concurrently.
+    Reference implementation use single process for predict in evaluation.  There are 4 sgf files, each sgf file needs to be evaluated twice.  This implementation run 8 instances concurrently, each instances to evaluate one sgf file for one time.
+2. Batch size optimized for training
+    Reference implementation use batch size = 16 in training stage.  This implementation use batch size = 64 for better training performance.  Both learning rate and learning rate step is adjusted accordingly.
+3. Use freezed graph for selfplay
+    For selfplay in evaluation and selfplay in training data generation, this implemenation freeze the graph before inference.  Consequently, constants are folded together so there is performance improvement in selfplay stages.
+4. Pipeline predict evaluation stage
+    We run predict evaluate stage in parallel with selfplay evaluation stage, selfplay stage of next epoch, and training of next epoch.  So predict evaluation stage overhead is totally hidden.
+
+# 5. Quality
 
 Due to the difficulty of training a highly proficient go model, our quality metric and termination criteria is based on predicting moves from human reference games. Currently published results indicate that it takes weeks of time and/or cluster sized resources to achieve a high level of play. Given more limited time and resources, it is possible to predict a significant number of moves from professional or near-professional games. 
 
@@ -110,18 +98,6 @@ The particular games we use are from Iyama Yuta 6 Title Celebration, between con
 
 ### Quality target
 The quality target is predicting 40% of the moves.
-
-### Quality Progression
-Informally, we have observed that quality should improve roughly linearly with time. We observed roughly 0.5% improvement in quality per hour of runtime. An example of approximately how we've seen quality progress over time:
-
-    Approx. Hours to Quality (16 CPU & 1 P100)
-    2h           3%
-    12h          14%
-    24h          19%
-    36h          24%
-    60h          34%
-
-Note that quality does not necessarily monotonically increase. 
 
 ### Evaluation frequency
 Evaluation should be preformed for every model which is trained (regardless if it wins the "model evaluation" round). 
