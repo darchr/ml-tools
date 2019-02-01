@@ -93,23 +93,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Manifest",
     "title": "TODO List (Med Priority)",
     "category": "section",
-    "text": "Add support for monitoring multiple processes.\nMove suitable code from SnoopAnalyzer    into SystemSnoop.\nHave other people use this package to find bugs and improve documentation."
-},
-
-{
-    "location": "manifest/#[SnoopAnalyzer](https://github.com/hildebrandmw/SnoopAnalyzer.jl)-1",
-    "page": "Manifest",
-    "title": "SnoopAnalyzer",
-    "category": "section",
-    "text": "Analysis routines for SystemSnoop that require external dependencies. This will probably  eventually just be for plotting plus some other misc stuff."
-},
-
-{
-    "location": "manifest/#TODO-List-(Low-Priority)-3",
-    "page": "Manifest",
-    "title": "TODO List (Low Priority)",
-    "category": "section",
-    "text": "Documentation\nSee when migration to Makie is suitable.    Theoretically, the plotting recipe system for Makie might not rely on a macro, so    plotting recipes for SystemSnoop might be able to be implemented straight in SystemSnoop    without adding any dependencies."
+    "text": "Add support for monitoring multiple processes.\nHave other people use this package to find bugs and improve documentation."
 },
 
 {
@@ -118,6 +102,30 @@ var documenterSearchIndex = {"docs": [
     "title": "ml-notebooks (private)",
     "category": "section",
     "text": "Jupyter notebooks and scripts for research."
+},
+
+{
+    "location": "manifest/#[X-Mem](https://github.com/hildebrandmw/X-Mem)-1",
+    "page": "Manifest",
+    "title": "X-Mem",
+    "category": "section",
+    "text": "Fork of the Microsoft X-Mem repositoy. I\'ve added a little bit to it toEnsure latency pointer chasing traverses the whole working set.\nAllows a file to be used the source for memory allocation of the working set. This lets   us a memory mapped file on a persistent memory device to give us direct access to that   device so we can take measurements of it, assuming the file is mounted on a direct    access file system. (worst sentence ever)"
+},
+
+{
+    "location": "manifest/#[XMem](https://github.com/hildebrandmw/XMem.jl)-1",
+    "page": "Manifest",
+    "title": "XMem",
+    "category": "section",
+    "text": "Julia package for dealing with X-Mem. Auto builds the binary, launches it, controls flags, all that fun stuff."
+},
+
+{
+    "location": "manifest/#[Checkpoints](https://github.com/hildebrandmw/Checkpoints.jl)-1",
+    "page": "Manifest",
+    "title": "Checkpoints",
+    "category": "section",
+    "text": "I got very tired of suffering jupyter notebook apocalypses. This pacakge helps avoid that by managing storing results of long running computations so I can close down the notebook but still have the results. It\'s actuallyh quite convenient."
 },
 
 {
@@ -301,7 +309,7 @@ var documenterSearchIndex = {"docs": [
     "page": "VGG416/Slim",
     "title": "Compiling Tensorflow",
     "category": "section",
-    "text": "Pull the docker container with the source code:docker pull tensorflow/tensorflow:1.12.0-devel-py3Launch the container withdocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:1.12.0-devel-py3 bashThis does the following:Opens the container in the /tensorflow directory, which contains the tensorflow source   code\nMounts the current directory into the /mnt directory in the container. This allows the   .whl build to be dropped in the PWD after compilation.Inside the container, rungit pullto pull the latest copy of the tensorflow source. Then configure the build with./configureSettings used:Python Location: default\nPython Library Path: default\nApache Ignite Support: Y\nXLA Jit support: Y\nOpenCL SYCL support: N\nROCm support: N\nCUDA support: N\nFresh clang release: N\nMPI support: N\nOptimization flags: default\nInteractively configure ./WORKSPACE: NSteps to build:bazel build --config=mkl --config=opt //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.0-cp35-cp35m-linux_x86_64.whl"
+    "text": "Pull the docker container with the source code:docker pull tensorflow/tensorflow:1.12.0-devel-py3Launch the container withdocker run -it -w /tensorflow -v $PWD:/mnt -e HOST_PERMS=\"$(id -u):$(id -g)\" tensorflow/tensorflow:1.12.0-devel-py3 bashThis does the following:Opens the container in the /tensorflow directory, which contains the tensorflow source   code\nMounts the current directory into the /mnt directory in the container. This allows the   .whl build to be dropped in the PWD after compilation.Inside the container, rungit pullto pull the latest copy of the tensorflow source. Then configure the build with./configureSettings used:Python Location: default\nPython Library Path: default\nApache Ignite Support: Y\nXLA Jit support: Y\nOpenCL SYCL support: N\nROCm support: N\nCUDA support: N\nFresh clang release: N\nMPI support: N\nOptimization flags: default\nInteractively configure ./WORKSPACE: NSteps to build:bazel build --config=mkl --config=opt --copt=-mtune=native //tensorflow/tools/pip_package:build_pip_package\n./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt\nchown $HOST_PERMS /mnt/tensorflow-1.12.0-cp35-cp35m-linux_x86_64.whl"
 },
 
 {
@@ -374,6 +382,78 @@ var documenterSearchIndex = {"docs": [
     "title": "Cifar Cnn",
     "category": "section",
     "text": "A simple CNN for training on the cifar-10 dataset. This model is small enough that a couple epochs of training takes a reasonably short amount of time, even when snooping memory.File name: /workloads/keras/cifar_cnn.py\nContainer entry point: /home/startup/cifar_cnn.py\nDataset: cifar-10-batches-py.tar.gz    (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz)\nEndpoint for dataset in container: /home/user/.keras/datasets/cifar-10-batches-py.tar.gz.   If dataset doesn\'t exist, it will automatically be downloaded. However, this can take   a while and is a bit rude to the site hosting the dataset.\nScript Arguments:\n--batchsize [size] : Configure the batch size for training.\n--epochs [n] : Train for n epochs\n--abort : Import the keras and tensorflow libraries and then exit. Used for    testing the overhead of code loading.Launcher Docs:Launcher.CifarCnn"
+},
+
+{
+    "location": "datasets/imagenet/#",
+    "page": "-",
+    "title": "-",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "datasets/imagenet/#Imagenet-for-Metalhead-(Julia-experimental)-1",
+    "page": "-",
+    "title": "Imagenet for Metalhead (Julia - experimental)",
+    "category": "section",
+    "text": "Navigate to the directory where the dataset will live. We are going to use an  unofficial Kaggle CLI that supports resuming  downloads to download the dataset.Sign up for Kaggle and register for the imagenet challenge at https://www.kaggle.com/c/imagenet-object-localization-challenge/dataLaunch a docker container withdocker run -v $PWD:/data -it --rm python:3.6 /bin/bashInside the container:pip3 install kaggle-cli\ncd data\nkg download -c imagenet-object-localization-challenge -u <username> -p <password>"
+},
+
+{
+    "location": "datasets/rnn/#",
+    "page": "RNN Translator",
+    "title": "RNN Translator",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "datasets/rnn/#RNN-Translator-1",
+    "page": "RNN Translator",
+    "title": "RNN Translator",
+    "category": "section",
+    "text": "This is the dataset for the project originally belonging to ML-Perf. The exact link to the project is: https://github.com/mlperf/training/tree/master/rnn_translator. To install this dataset, simply runml-tools/datasets/rnn_translator/download_dataset.sh [dataset directory]"
+},
+
+{
+    "location": "datasets/rnn/#Changes-made-to-the-download-script-1",
+    "page": "RNN Translator",
+    "title": "Changes made to the download script",
+    "category": "section",
+    "text": "At the end of the script (lines 172 to 175), I added the following:# Move everything in the output dir into the data dir\nmv ${OUTPUT_DIR}/*.de ${OUTPUT_DIR_DATA}\nmv ${OUTPUT_DIR}/*.en ${OUTPUT_DIR_DATA}\nmv ${OUTPUT_DIR}/*.32000 ${OUTPUT_DIR_DATA}It seems that the verify_dataset.sh script expects these files to be in the data/  subdirectory, so this automates that process.NoteThe verify_dataset.sh script should be run in the top level directory where the dataset was downloaded to because of hard coded paths."
+},
+
+{
+    "location": "datasets/brats/#",
+    "page": "BraTS",
+    "title": "BraTS",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "datasets/brats/#BraTS-1",
+    "page": "BraTS",
+    "title": "BraTS",
+    "category": "section",
+    "text": "Brain Tumor Segmentation library. Specifically, the 2018 edition. Getting this dataset is kind of a pain because you have to register, and then the people hosting the registration don\'t actually tell you when your registration is ready.More information can be found at https://www.med.upenn.edu/sbia/brats2018/data.htmlOnce you have the zip file of the data, titled MICCAI_BraTS_2018_Data_Training.zip,  getting it into a format that is useable by the 3dUnetCNN workload is pretty involved:"
+},
+
+{
+    "location": "datasets/brats/#Preprocessing-1",
+    "page": "BraTS",
+    "title": "Preprocessing",
+    "category": "section",
+    "text": "Create a directory where the dataset will go, and make a folder called \"original\" in it.mkdir ~/brats\ncd brats\nmkdir original\ncd originalMove the zip file into the original foldermv <zip-path> .Unzip the contents of the fileunzip `MICCAI_BraTS_2018_Data_Training.zip`Now, go build the docker container darchr/3dunet (see the 3dunet page). Once that is done, run the preprocess.sh script in workloads/3dUnet/dataset/preprocess.sh using./preprocess.sh ~/bratsGo have a snack while this thing runs. I\'m sorry if you don\'t have a machine with 96  processors because it will take a while.Once the preprocess script is done, there\'s still more preprocessing to do. Unfortunately, factoring out the code that runs this step proved to be more challenging than I was willing to deal with, so you will have to run this workload. Basically, the first step that the  3dUnet implementation does is to turn all the preprocessed files into a gigantic hdf5 file. But, it only has to do it once.Make sure you register the location of the brats data repo in Launcher withcd Launcher\n\njuliajulia> using Launcher\n\njulia> Launcher.edit_setup()Then, run the workload withjulia> workload = Launcher.Unet()\n\njulia> run(workload)Wait patiently the initial conversion to hdf5 to complete. Once it does, you\'ll never have to deal with this stuff again (hopefully)."
+},
+
+{
+    "location": "datasets/brats/#Problems-Solutions-1",
+    "page": "BraTS",
+    "title": "Problems + Solutions",
+    "category": "section",
+    "text": "The python:3.5.6 docker container had a operating system that was to old for the compilers/   cmake versions to build ANTs. Thus, I switched darchr/tensorflow-mkl to be based on   ubuntu 18.04 and build python 3.5.6 from source in that container.\nWhen building ANTs, the make process would just hang when trying to download TKv5 (or    something with a name very similar to that). The problem was with the git protocol used   to clone the repository. The solution to this was to pass a flag to cmake:cmake -DSuperBuild_ANTS_USE_GIT_PROTOCOL=OFF ../ANTsThe 3dUnet implementation, especially the data loading from the HDF5 file is insanely    buggy - it would immediately segfault then loading data. My solutions to this, taken    from comments of users in issues for the repository, was to\nTurn off compresion into the HDF5 file in data.py, line 12: change the key word    arguments to just complevel=0\nEnable multithreading in the training loop training.py: add the argument   use_multiprocessing = True to the fall to fit_generator on line 78."
 },
 
 {
