@@ -1,8 +1,15 @@
 # Docker image for running examples in Tensorflow models.
-# base_image depends on whether we are running on GPUs or non-GPUs
-FROM python:3.5.6
-#FROM python:3.6.8
-#FROM tensorflow/tensorflow:nightly-devel-py3
+FROM ubuntu:18.04
+
+RUN apt-get update && apt-get install -y make cmake libssl-dev openssl wget gcc g++ zlib1g-dev git libbz2-dev
+RUN wget https://www.python.org/ftp/python/3.5.6/Python-3.5.6.tgz
+RUN tar xzvf Python-3.5.6.tgz
+WORKDIR Python-3.5.6
+RUN ./configure
+RUN make -j${nprocs}
+RUN make install
+RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade setuptools
 
 #####
 ##### Base Tensorflow
@@ -20,25 +27,25 @@ RUN pip3 install /home/${tensorflow}
 ##### Keras Dependencies
 #####
 
-RUN pip3 install keras
-
-# Make this directory and set it to readable and writable by all.
-# -- This is where keras stores its saved models. Adding this directory allows keras to make
-# its validation run. Otherwise, it just errors out.
-RUN mkdir /saved_models
-RUN chmod 777 -R /saved_models
-
-#####
-##### Official Models dependencies
-#####
-
-ADD requirements.txt /requirements.txt
-
-# Set some environmental variables
-ENV PYTHONPATH "${PYTHONPATH}:/models"
-ENV PATH "$PATH:/root/.local/bin"
-
-RUN pip3 install -r /requirements.txt
+# RUN pip3 install keras
+# 
+# # Make this directory and set it to readable and writable by all.
+# # -- This is where keras stores its saved models. Adding this directory allows keras to make
+# # its validation run. Otherwise, it just errors out.
+# RUN mkdir /saved_models
+# RUN chmod 777 -R /saved_models
+# 
+# #####
+# ##### Official Models dependencies
+# #####
+# 
+# ADD requirements.txt /requirements.txt
+# 
+# # Set some environmental variables
+# ENV PYTHONPATH "${PYTHONPATH}:/models"
+# ENV PATH "$PATH:/root/.local/bin"
+# 
+# RUN pip3 install -r /requirements.txt
 
 #####
 ##### Wrap up
