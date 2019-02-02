@@ -14,6 +14,10 @@ from nipype.interfaces.ants import N4BiasFieldCorrection
 
 from brats.train import config
 
+# Use multiprocessing to parallelize the preprocessing loop
+import multiprocessing
+from collections import namedtuple
+
 
 def append_basename(in_file, append):
     dirname, basename = os.path.split(in_file)
@@ -140,6 +144,32 @@ def convert_brats_folder(in_folder, out_folder, truth_name='seg', no_bias_correc
     shutil.copy(truth_file, out_file)
     check_origin(out_file, get_image(in_folder, config["all_modalities"][0]))
 
+# Use an args tuple to get around python's serialization limitation for inner objects.
+ArgsTuple = namedtuple("ArgsTuple", ["subject_folder", "out_folder", "overwrite", "no_bias_correction_modalities"])
+def convert_brats_data_inner(args):
+    subject_folder = args.subject_folder
+    out_folder = args.out_folder
+    overwrite = args.overwrite
+    no_bias_correction_modalities = args.no_bias_correction_modalities
+
+    if os.path.isdir(subject_folder):
+        subject = os.path.basename(subject_folder)
+        new_subject_folder = os.path.join(
+                out_folder,
+                os.path.basename(os.path.dirname(subject_folder)),
+                subject
+            )
+
+        if not os.path.exists(new_subject_folder) or overwrite:
+            if not os.path.exists(new_subject_folder):
+                os.makedirs(new_subject_folder)
+
+            convert_brats_folder(
+                    subject_folder,
+                    new_subject_folder,
+                    no_bias_correction_modalities=no_bias_correction_modalities
+                )
+
 
 def convert_brats_data(brats_folder, out_folder, overwrite=False, no_bias_correction_modalities=("flair",)):
     """
@@ -152,13 +182,31 @@ def convert_brats_data(brats_folder, out_folder, overwrite=False, no_bias_correc
     or tuple.
     :return:
     """
-    for subject_folder in glob.glob(os.path.join(brats_folder, "*", "*")):
-        if os.path.isdir(subject_folder):
-            subject = os.path.basename(subject_folder)
-            new_subject_folder = os.path.join(out_folder, os.path.basename(os.path.dirname(subject_folder)),
-                                              subject)
-            if not os.path.exists(new_subject_folder) or overwrite:
-                if not os.path.exists(new_subject_folder):
-                    os.makedirs(new_subject_folder)
-                convert_brats_folder(subject_folder, new_subject_folder,
-                                     no_bias_correction_modalities=no_bias_correction_modalities)
+
+    folders = glob.glob(os.path.join(brats_folder, "*", "*"))
+    # Expand this out into named tuples
+    args = [ArgsTuple(folder, out_folder, overwrite, no_bias_correction_modalities) for folder in folders]
+
+    workers = multiprocessing.cpu_count()
+    with multiprocessing.Pool(workers) as pool:
+        pool.map(convert_brats_data_inner, args)
+
+
+    # for subject_folder in glob.glob(os.path.join(brats_folder, "*", "*")):
+    #     if os.path.isdir(subject_folder):
+    #         subject = os.path.basename(subject_folder)
+    #         new_subject_folder = os.path.join(
+    #                 out_folder,
+    #                 os.path.basename(os.path.dirname(subject_folder)),
+    #                 subject
+    #             )
+
+    #         if not os.path.exists(new_subject_folder) or overwrite:
+    #             if not os.path.exists(new_subject_folder):
+    #                 os.makedirs(new_subject_folder)
+
+    #             convert_brats_folder(
+    #                     subject_folder,
+    #                     new_subject_folder,
+    #                     no_bias_correction_modalities=no_bias_correction_modalities
+    #                 )
