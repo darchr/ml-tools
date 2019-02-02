@@ -5,6 +5,7 @@ from unet3d.data import write_data_to_file, open_data_file
 from unet3d.generator import get_training_and_validation_generators
 from unet3d.model import isensee2017_model
 from unet3d.training import load_old_model, train_model
+import argparse
 
 
 config = dict()
@@ -23,9 +24,9 @@ else:
 config["truth_channel"] = config["nb_channels"]
 config["deconvolution"] = True  # if False, will use upsampling instead of deconvolution
 
-config["batch_size"] = 1
+config["batch_size"] = 16
 config["validation_batch_size"] = 2
-config["n_epochs"] = 500  # cutoff the training after this many epochs
+config["n_epochs"] = 1  # cutoff the training after this many epochs
 config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
 config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
 config["initial_learning_rate"] = 5e-4
@@ -39,7 +40,7 @@ config["validation_patch_overlap"] = 0  # if > 0, during training, validation pa
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
 
-config["data_file"] = os.path.abspath("brats_data.h5")
+config["data_file"] = os.path.abspath("/brats_repo/brats/data/brats_data.h5")
 config["model_file"] = os.path.abspath("isensee_2017_model.h5")
 config["training_file"] = os.path.abspath("isensee_training_ids.pkl")
 config["validation_file"] = os.path.abspath("isensee_validation_ids.pkl")
@@ -112,6 +113,16 @@ def main(overwrite=False):
                 n_epochs=config["n_epochs"])
     data_file_opened.close()
 
+# The original script doesn't have arg parsing. Of course. So - we do it manually for the
+# batchsize.
+parser = argparse.ArgumentParser()
+
+# batchsize
+parser.add_argument("--batchsize", type=int, default = 16)
+
 
 if __name__ == "__main__":
+    args = parser.parse_args()
+    config["batch_size"] = args.batchsize
+
     main(overwrite=config["overwrite"])

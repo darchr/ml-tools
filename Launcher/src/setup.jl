@@ -4,6 +4,7 @@ const DATASETS = (
     "cifar", 
     "imagenet_tf_slim",
     "rnn_translator",
+    "brats",
 )
 
 _writedataset() = open(io -> JSON.print(io, DATASET_PATHS, 4), SETUP_PATH, "w")
