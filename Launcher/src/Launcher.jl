@@ -8,13 +8,7 @@ end
 import Base.Iterators: flatten, drop, product
 import Base.iterate
 
-export  k_str, create_setup,
-        # Models
-        Resnet,
-        CifarCnn,
-        # Util Functions
-        size_mb, memory_vec, subsample
-
+export Slim
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -43,6 +37,7 @@ using Glob
 
 include("utils.jl")
 include("setup.jl")
+include("docker.jl")
 include("workloads/workloads.jl")
 
 ############################################################################################
