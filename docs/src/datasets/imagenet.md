@@ -1,4 +1,4 @@
-## Imagenet for Metalhead (Julia - experimental)
+# Imagenet for Metalhead (Julia - experimental)
 
 Navigate to the directory where the dataset will live. We are going to use an 
 [unofficial Kaggle CLI](https://github.com/floydwch/kaggle-cli) that supports resuming 

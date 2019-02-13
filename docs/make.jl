@@ -10,7 +10,6 @@ makedocs(
     pages = Any[
         "Home" => "index.md",
         "Manifest" => "manifest.md",
-        "Notebooks" => "notebooks.md",
         "Workloads" => [
             "workloads/primary.md",
             "workloads/ubuntu.md",

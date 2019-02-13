@@ -10,8 +10,6 @@ Depth = 3
 
 ## Supporting Projects
 
-
-
 ### [Docker](https://github.com/hildebrandmw/Docker.jl)
 
 Julia interface to the Docker API for managing containers and gathering metrics. This 
@@ -33,8 +31,6 @@ updated to serve our own needs. I've also added CI to the build process.
     [HTTP](https://github.com/JuliaWeb/HTTP.jl) to talk to a Unix socket, I had to extend
     some of the methods in `HTTP`. Contributing this code to HTTP would be a good 
     contribution I think.
-
-
 
 ### [PAPI](https://github.com/hildebrandmw/PAPI.jl)
 
@@ -61,7 +57,6 @@ In essence, this gives access to a processor's hardware event counters through `
 
 - Document the Julia-side API that I use to interact with it. This side is mainly 
     responsible for automatically handling library initialization and cleanup.
-
 
 
 ### [PAPIBuilder2](https://github.com/hildebrandmw/PAPIBuilder2)
@@ -116,6 +111,12 @@ all that fun stuff.
 I got very tired of suffering jupyter notebook apocalypses. This pacakge helps avoid that
 by managing storing results of long running computations so I can close down the notebook
 but still have the results. It's actuallyh quite convenient.
+
+### [PCM](https://github.com/hildebrandmw/PCM.jl)
+
+Very experimental wrapper around PCM, but provides access to per-channel DRAM read/write
+counters and per-dimm PMEM read/write counters, as well as DRAM cache hit-rate when 
+operating in 2LM.
 
 ## Resources on Shared Machines
 

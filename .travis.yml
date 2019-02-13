@@ -20,10 +20,12 @@ services:
 
 
 # Run test script in Launcher
-script:
-    - (cd deps; ./init.sh)
+# script:
+#     - (cd deps; ./init.sh)
 #     - julia --color=yes --project=Launcher -e "using Pkg; Pkg.build()"
 #     - julia --color=yes --check-bounds=yes --project=Launcher -e "using Pkg; Pkg.test()"
+script:
+    echo "Skipping"
 
 ## deploy documentation
 jobs:
