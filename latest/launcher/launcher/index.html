@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Tutorial · ML-Tools</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link href="../../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>ML-Tools</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../../">Home</a></li><li><span class="toctext">Launcher</span><ul><li class="current"><a class="toctext" href>Tutorial</a><ul class="internal"><li><a class="toctext" href="#Basic-Example-1">Basic Example</a></li><li><a class="toctext" href="#Saving-Output-Log-to-a-File-1">Saving Output Log to a File</a></li><li><a class="toctext" href="#Running-a-Container-for-X-seconds-1">Running a Container for X seconds</a></li><li><a class="toctext" href="#Gathering-Performance-Metrics-1">Gathering Performance Metrics</a></li><li><a class="toctext" href="#Passing-Commandline-Arguments-1">Passing Commandline Arguments</a></li><li><a class="toctext" href="#Advanced-Example-1">Advanced Example</a></li></ul></li><li><a class="toctext" href="../docstrings/">Docstrings</a></li></ul></li><li><span class="toctext">Workloads</span><ul><li><a class="toctext" href="../../workloads/slim/">Tensorflow Slim</a></li><li><a class="toctext" href="../../workloads/cifarcnn/">Cifar Cnn</a></li><li><a class="toctext" href="../../workloads/test/">Test Workload</a></li></ul></li><li><span class="toctext">Datasets</span><ul><li><a class="toctext" href="../../datasets/imagenet/">Imagenet</a></li><li><a class="toctext" href="../../datasets/rnn/">RNN Translator</a></li><li><a class="toctext" href="../../datasets/brats/">BraTS</a></li></ul></li><li><a class="toctext" href="../../manifest/">Manifest</a></li><li><span class="toctext">NVM</span><ul><li><a class="toctext" href="../../nvm/swap/">Swap</a></li></ul></li><li><span class="toctext">Misc</span><ul><li><a class="toctext" href="../../extra/perf/">PAPI Notes</a></li></ul></li></ul></nav><article id="docs"><header><nav><ul><li>Launcher</li><li><a href>Tutorial</a></li></ul><a class="edit-page" href="https://github.com/darchr/ml-tools/blob/master/docs/src/launcher/launcher.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Tutorial</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Tutorial-1" href="#Tutorial-1">Tutorial</a></h1><p>Launcher is the Julia package for handling the launching of containers, aggregation of  results, binding containers with relevant datasets, and generally making sure everything is  working correctly. (And if it isn&#39;t working correctly, please open a GitHub issue :D)</p><h2><a class="nav-anchor" id="Basic-Example-1" href="#Basic-Example-1">Basic Example</a></h2><p>The workloads are all up into individual workloads, each of which has their own documentation. Below is an example of running Resnet 50:</p><pre><code class="language-none">cd Launcher
+julia --project</code></pre><p>Inside the Julia REPL:</p><pre><code class="language-julia">julia&gt; using Launcher
+
+julia&gt; workload = Slim(args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32))
+Slim
+  args: NamedTuple{(:model_name, :batchsize),Tuple{String,Int64}}
+  interactive: Bool false
+
+julia&gt; run(workload)</code></pre><p>This will create a docker container running Resnet 50 that will keep running until you interrupt it with <code>ctrl + C</code>.</p><h2><a class="nav-anchor" id="Saving-Output-Log-to-a-File-1" href="#Saving-Output-Log-to-a-File-1">Saving Output Log to a File</a></h2><p>To run a workload and save the stdout to a file for later analysis, you may pass an open file handle as the <code>log</code> keyword of the <code>run</code> function:</p><pre><code class="language-julia">julia&gt; using Launcher
+
+julia&gt; workload = Slim(args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32))
+
+# Open `log.txt` and pass it to `run`. When `run` exists (via `ctrl + C` or other means),
+# the container&#39;s stdout will be saved into `log.txt`.
+julia&gt;  open(&quot;log.txt&quot;; write = true) do f
+            run(workload; log = f)
+        end</code></pre><h2><a class="nav-anchor" id="Running-a-Container-for-X-seconds-1" href="#Running-a-Container-for-X-seconds-1">Running a Container for X seconds</a></h2><p>The <a href="../docstrings/#Base.run-Tuple{Function,Launcher.AbstractWorkload}"><code>run</code></a> function optionally accepts an arbitrary function as its first argument, to which it passes a handle to the Docker container is created. This lets you do anything you want with the guarentee that the container will be successfully cleaned up if things go south. If you just want to run the container for a certain period of time, you can do something like the following:</p><pre><code class="language-julia">julia&gt; using Launcher
+
+julia&gt; workload = Slim(args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32))
+
+# Here, we use Julia&#39;s `do` syntax to implicatly pass a function to the first
+# argument of `run`. In this function, we sleep for 10 seconds before returning. When we
+# return, the function `run` exits.
+julia&gt;  run(workload) do container
+            sleep(10)
+        end</code></pre><h2><a class="nav-anchor" id="Gathering-Performance-Metrics-1" href="#Gathering-Performance-Metrics-1">Gathering Performance Metrics</a></h2><p>One way to gather the performance of a workload is to simply time how long it runs for.</p><pre><code class="language-julia">julia&gt; runtime = @elapsed run(workload)</code></pre><p>However, for long running workloads like DNN training, this is now always feasible. Another approach is to parse through the container&#39;s logs and use its self reported times. There are a couple of functions like <a href="../docstrings/#Launcher.tf_timeparser-Tuple{String}"><code>Launcher.tf_timeparser</code></a> and  <a href="../docstrings/#Launcher.translator_parser-Tuple{String}"><code>Launcher.translator_parser</code></a> that provide this functionality for Tensorflow and  PyTorch based workloads respectively. See the docstrings for those functions for what  exactly they return. Example useage is shown below.</p><pre><code class="language-julia">julia&gt; workload = Launcher.Slim(args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32))
+
+julia&gt;  open(&quot;log.txt&quot;; write = true) do f
+            run(workload; log = f) do container
+                sleep(120)
+            end
+        end
+
+julia&gt; mean_time_per_step = Launcher.tf_timeparser(&quot;log.txt&quot;)</code></pre><h2><a class="nav-anchor" id="Passing-Commandline-Arguments-1" href="#Passing-Commandline-Arguments-1">Passing Commandline Arguments</a></h2><p>Many workloads expose commandline arguments. These arguments can be passed from launcher using the <code>args</code> keyword argument to the workload constructor, like the</p><pre><code class="language-none">args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32)</code></pre><p>Which will be turned into</p><pre><code class="language-none">--model_name=resnet_v1_50 --batchsize=32</code></pre><p>when the script is invoked. In general, you will not have to worry about whether the result will be turned into <code>--arg==value</code> or <code>--arg value</code> since that is taken care of in the workload implementations. Do note, however, that using both the <code>=</code> syntax and space delimited syntax is not supported.</p><p>If an argument has a hyphen <code>-</code> in it, such as <code>batch-size</code>, this is encoded in Launcher as a triple underscore <code>___</code>. Thus, we would encode <code>batch-size=32</code> as</p><pre><code class="language-none">args = (batch___size = 32,)</code></pre><h2><a class="nav-anchor" id="Advanced-Example-1" href="#Advanced-Example-1">Advanced Example</a></h2><p>Below is an advanced example gathering performance counter data for a running workload.</p><pre><code class="language-julia"># Install packages
+julia&gt; using Launcher, Pkg, Serialization, Dates
+
+julia&gt; Pkg.add(&quot;https://github.com/hildebrandmw/SystemSnoop.jl&quot;)
+
+julia&gt; using SystemSnoop
+
+julia&gt; workload = Slim(args = (model_name = &quot;resnet_v1_50&quot;, batchsize = 32))
+
+# Here, we use the SystemSnoop package to provide the monitoring using the `trace` funciton
+# in that package.
+julia&gt;  data = open(&quot;log.txt&quot;; write = true) do f 
+            # Obtain Samples every Second
+            sampler = SystemSnoop.SmartSample(Second(1))
+
+            # Collect data for 5 minutes
+            iter = SystemSnoop.Timeout(Minute(5))
+
+            # Launch the container. Get the PID of the container to pass to `trace` and then
+            # trace.
+            data = run(workload; log = f) do container
+                # We will measure the memory usage of our process over time.
+                measurements = (
+                    timestamp = SystemSnoop.Timestamp(),
+                    memory = SystemSnoop.Statm(),
+                )
+                return trace(getpid(container), measurements; iter = iter, sampletime = sampler)
+            end
+            return data
+        end
+
+# We can plot the memory usage over time from the resulting data
+julia&gt; Pkg.add(&quot;UnicodePlots&quot;); using UnicodePlots
+
+julia&gt; lineplot(getproperty.(data.memory, :resident))
+           ┌────────────────────────────────────────┐
+   2000000 │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⡀⡀⠀⠀⠀⠀⠀⠀⠀⣀⡀⢀⣀⣀⡀⣀⣀⣀⡀│
+           │⠀⠀⠀⢰⠊⠉⠉⠉⠉⠉⠁⠈⠈⠁⠀⠀⠉⠉⠁⠀⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠀⠉⠉⠉⠀⠉⠈⠁⠈⠉│
+           │⠀⠀⠀⣸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⢠⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⠀⡼⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           │⠀⡖⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+         0 │⠴⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│
+           └────────────────────────────────────────┘
+           0                                      300
+
+# We can save the `data` datastructure for later using
+julia&gt; serialize(&quot;my_data.jls&quot;, data)
+
+# Finally, we can analyze the mean time per step
+julia&gt; Launcher.tf_timeparser(&quot;log.txt&quot;)
+8.042285714285715</code></pre><footer><hr/><a class="previous" href="../../"><span class="direction">Previous</span><span class="title">Home</span></a><a class="next" href="../docstrings/"><span class="direction">Next</span><span class="title">Docstrings</span></a></footer></article></body></html>
