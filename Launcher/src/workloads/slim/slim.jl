@@ -25,8 +25,6 @@ Fields
     interactive :: Bool = false
 end
 
-image(::Slim) = "darchr/tf-compiled-base"
-
 slim_models(::Type{OnHost}) = joinpath(WORKLOADS, "slim", "src")
 slim_models(::Type{OnContainer}) = joinpath("/models", "slim")
 
@@ -76,8 +74,8 @@ function create(model::Slim; kw...)
 
     @show runcommand(model)
 
-    container = Docker.create_container(
-        image(model);
+    container = create_container(
+        TensorflowMKL();
         attachStdin = true,
         binds = [bind_dataset, bind_code],
         cmd = runcommand(model),

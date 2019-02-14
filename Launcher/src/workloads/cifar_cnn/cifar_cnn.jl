@@ -1,8 +1,3 @@
-############################################################################################
-# CIFAR CNN
-############################################################################################
-# Small CNN on cifar - used mainly for testing out infrastructure here because of its short
-# training time.
 """
 Workload object for the Keras Cifar10 cnn. Build type using keyword constructors.
 
@@ -12,12 +7,6 @@ Fields
     Default: `NamedTuple()`
 * `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
     instead of Python. Used for debugging the container. Default: `false`.
-
-[`create`](@ref) keywords
------------------
-
-* `cpuSets = ""` - The CPU sets on which to run the workload. Defaults to all processors. 
-    Examples: `"0"`, `"0-3"`, `"1,3"`.
 """
 @with_kw struct CifarCnn <: AbstractWorkload 
     args :: NamedTuple    = NamedTuple()
@@ -26,7 +15,6 @@ end
 
 const cifarfile = "cifar10_cnn.py"
 
-image(::CifarCnn) = "darchr/tf-compiled-base"
 startfile(::CifarCnn, ::Type{OnHost}) = joinpath(WORKLOADS, "cifar_cnn", "src", cifarfile)
 startfile(::CifarCnn, ::Type{OnContainer}) = joinpath("/home", "startup", cifarfile)
 
@@ -38,7 +26,7 @@ function runcommand(cifar::CifarCnn)
     end
 end
 
-function create(cifar::CifarCnn; cpuSets = "", kw...)
+function create(cifar::CifarCnn; kw...)
     bind_dataset = join([
         DATASET_PATHS["cifar"]
         joinpath("/root", ".keras", "datasets")
@@ -50,13 +38,12 @@ function create(cifar::CifarCnn; cpuSets = "", kw...)
     ], ":")
 
     # Create the container
-    container = Docker.create_container( 
-        image(cifar);
-        attachStdin = true,
+    container = create_container( 
+        TensorflowMKL;
         binds = [bind_dataset, bind_start],
         cmd = runcommand(cifar),
         env = ["LOCAL_USER_ID=$(uid())"],
-        cpuSets = cpuSets
+        kw...
     )
 
     return container

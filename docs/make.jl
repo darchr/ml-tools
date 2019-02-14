@@ -9,21 +9,21 @@ makedocs(
     linkcheck = get(ENV, "CI", nothing) == "true",
     pages = Any[
         "Home" => "index.md",
-        "Manifest" => "manifest.md",
+        "Launcher" => [
+            "launcher/launcher.md",
+            "launcher/docstrings.md",
+        ],
         "Workloads" => [
-            "workloads/primary.md",
-            "workloads/ubuntu.md",
             "workloads/slim.md",
-            "workloads/keras.md",
+            "workloads/cifarcnn.md",
+            "workloads/test.md",
         ],
         "Datasets" => [
             "datasets/imagenet.md",
             "datasets/rnn.md",
             "datasets/brats.md",
         ],
-        "Launcher" => [
-            "launcher.md"
-        ],
+        "Manifest" => "manifest.md",
         "NVM" => [
             "nvm/swap.md",
         ],

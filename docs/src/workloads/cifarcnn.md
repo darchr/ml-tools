@@ -1,6 +1,4 @@
-# Keras Models
-
-## Cifar Cnn
+# Cifar Cnn
 
 A simple CNN for training on the cifar-10 dataset. This model is small enough that a couple
 epochs of training takes a reasonably short amount of time, even when snooping memory.

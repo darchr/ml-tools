@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Fetch git repos
-git clone https://github.com/hildebrandmw/PAPI.jl PAPI
-git clone https://github.com/hildebrandmw/Docker.jl Docker
-git clone https://github.com/hildebrandmw/SystemSnoop.jl SystemSnoop
-git clone https://github.com/hildebrandmw/PCM.jl PCM
+JULIA_CMD=${1:-julia}
 
-julia --project=. -e "using Pkg; Pkg.build()"
+# Fetch git repos
+git clone https://github.com/hildebrandmw/Docker.jl Docker
+
+$JULIA_CMD --project=. -e "using Pkg; Pkg.build()"

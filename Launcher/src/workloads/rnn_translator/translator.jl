@@ -1,9 +1,17 @@
+"""
+Workload object for the RNN Translator, built using keyword constructors.
+
+Fields
+------
+* `args :: NamedTuple` - Arguments to pass to the startup script (see docs). 
+    Default: `NamedTuple()`
+* `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
+    instead of Python. Used for debugging the container. Default: `false`.
+"""
 @with_kw struct Translator <: AbstractWorkload
     args :: NamedTuple = NamedTuple()
     interactive :: Bool = false
 end
-
-image(::Translator) = "darchr/gnmt"
 
 function runcommand(rnn::Translator) 
     # Extract the arguments from the stuct
@@ -47,16 +55,12 @@ function create(
 
     # Extend the provided environmental
     localenv = [
-        # "KMP_BLOCKTIME=$kmp_blocktime",
-        # "KMP_AFFINITY=granularity=fine,compact,1,0",
-        # "KMP_SETTINGS=$kmp_settings",
-        # "OMP_NUM_THREADS=$omp_num_threads",
         "LOCAL_USER_ID=$(uid())",
     ]
     env = vcat(env, localenv)
 
-    container = Docker.create_container(
-        image(rnn);
+    container = create_container(
+        GNMT();
         attachStdin = true,
         binds = [bind_dataset],
         cmd = runcommand(rnn),
@@ -67,6 +71,12 @@ function create(
     return container
 end
 
+"""
+    Launcher.translator_parser(file::String) -> Float64
+
+Return the mean time per step from an output log file for the [`Launcher.Translator`](@ref)
+workload.
+"""
 translator_parser(file::String) = open(translator_parser, file)
 function translator_parser(io::IO)
     seekstart(io)

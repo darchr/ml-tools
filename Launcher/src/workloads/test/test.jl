@@ -28,8 +28,8 @@ function create(test::TestWorkload; kw...)
     ], ":")
 
     # Create the container
-    container = Docker.create_container( 
-        image(test);
+    container = create_container( 
+        "ubuntu:latest";
         attachStdin = true,
         binds = [bind_start],
         cmd = runcommand(test),

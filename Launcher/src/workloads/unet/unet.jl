@@ -1,9 +1,17 @@
+"""
+Workload object for the Keras Cifar10 cnn. Built using keyword constructors.
+
+Fields
+------
+* `args :: NamedTuple` - Arguments to pass to the startup script (see docs). 
+    Default: `NamedTuple()`
+* `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
+    instead of Python. Used for debugging the container. Default: `false`.
+"""
 @with_kw struct Unet <: AbstractWorkload
     args::NamedTuple = NamedTuple()
     interactive::Bool = false
 end
-
-image(::Unet) = "darchr/3dunet"
 
 code(::Unet, ::Type{OnHost}) = joinpath(WORKLOADS, "3dUnet", "src")
 code(::Unet, ::Type{OnContainer}) = joinpath("/brats_repo")
@@ -23,7 +31,7 @@ function create(
         kmp_settings = 1,
         omp_num_threads = 48,
         kw...
-       )
+    )
 
     # Bind the dataset directory into the "brats" folder of the brats repo
     bind_dataset = bind(
@@ -49,7 +57,8 @@ function create(
 
     @show runcommand(model)
 
-    container = Docker.create_container(image(model);
+    container = Docker.create_container(
+        Unet3d();
         binds = [bind_code, bind_dataset],
         cmd = runcommand(model),
         env = env,

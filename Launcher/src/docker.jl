@@ -25,10 +25,22 @@ function instantiate(image::AbstractDockerImage)
     return nothing
 end
 
+# Overload "create" so we can automatically build containers when a workload is launched
+# if it doesn't exist.
+function create_container(image::AbstractDockerImage; kw...)
+    instantiate(image)
+    return Docker.create_container(tag(image); kw...)
+end
+
+create_container(image::AbstractString; kw...) = Docker.create_container(image; kw...)
+
 #####
 ##### TensorflowBuilder
 #####
 
+"""
+Docker image for Tensorflow compiled with MKL
+"""
 struct TensorflowMKL <: AbstractDockerImage end
 
 tag(::TensorflowMKL) = "darchr/tensorflow-mkl:latest"
@@ -48,7 +60,8 @@ function build(::TensorflowMKL)
             wheels = glob(glob"*.whl", pwd())
         end
 
-        run(`./build-image.sh $(first(wheels))`)
+        wheel = basename(first(wheels))
+        run(`./build-image.sh ./$wheel`)
     finally
         cd(dir)
     end
@@ -58,6 +71,9 @@ end
 ##### GNMT
 #####
 
+"""
+PyTorch docker container for the [`Launcher.Translator`](@ref) workload.
+"""
 struct GNMT <: AbstractDockerImage end
 
 tag(::GNMT) = "darchr/gnmt:latest"
@@ -78,6 +94,9 @@ end
 ##### ANTS
 #####
 
+"""
+Intermediate image with a compiled version of the ANTs image processing library.
+"""
 struct ANTS <: AbstractDockerImage end
 
 tag(::ANTS) = "darchr/ants:latest"
@@ -98,9 +117,12 @@ end
 ##### unet3d
 #####
 
+"""
+Image containing the dependencies for the 3d Unet workload
+"""
 struct Unet3d <: AbstractDockerImage end
 
-tag(::Unet3d) = "darchr/unet3d:latest"
+tag(::Unet3d) = "darchr/3dunet:latest"
 dependencies(::Unet3d) = (ANTS(),)
 
 function build(::Unet3d)

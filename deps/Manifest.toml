@@ -70,7 +70,7 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
 [[Launcher]]
-deps = ["Checkpoints", "Dates", "Docker", "HTTP", "InteractiveUtils", "JSON", "PAPI", "Parameters", "ProgressMeter", "Serialization", "Statistics", "SystemSnoop"]
+deps = ["Checkpoints", "Dates", "Docker", "HTTP", "InteractiveUtils", "JSON",  "Parameters", "ProgressMeter", "Serialization", "Statistics"]
 path = "../Launcher"
 uuid = "79c37f8a-c8ce-11e8-0bef-e91aba7c5fd1"
 version = "0.1.0"
@@ -112,18 +112,6 @@ deps = ["Random", "Serialization", "Test"]
 git-tree-sha1 = "85619a3f3e17bb4761fe1b1fd47f0e979f964d5b"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.0.2"
-
-[[PAPI]]
-deps = ["BinaryProvider", "Libdl"]
-path = "PAPI"
-uuid = "25707955-362c-5858-b477-b2b4559b2019"
-version = "0.1.0"
-
-[[PCM]]
-deps = ["CxxWrap", "LibGit2"]
-path = "PCM"
-uuid = "7d644800-0fd4-5f4f-871b-eb28bd968194"
-version = "0.1.0"
 
 [[Parameters]]
 deps = ["Markdown", "OrderedCollections", "REPL", "Test"]
@@ -179,12 +167,6 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[[SystemSnoop]]
-deps = ["Dates", "PAPI", "PCM", "RecipesBase", "Serialization"]
-path = "SystemSnoop"
-uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
-version = "0.1.0"
 
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]

@@ -1,4 +1,4 @@
-# Ubuntu Workloads
+# Test Workload
 
 Workloads that run under the official `ubuntu` docker image.
 

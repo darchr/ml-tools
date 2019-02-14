@@ -8,7 +8,7 @@ end
 import Base.Iterators: flatten, drop, product
 import Base.iterate
 
-export Slim
+export Slim, Translator, Inception, CifarCnn, Unet
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -29,7 +29,6 @@ using Statistics
 
 # Add Docker to talk to the Docker daemon.
 using Docker
-using SystemSnoop
 using ProgressMeter
 using JSON
 using Parameters

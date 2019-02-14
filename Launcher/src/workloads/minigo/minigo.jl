@@ -18,18 +18,13 @@ function create(
 
     # Extend the provided environmental
     localenv = [
-        # "KMP_BLOCKTIME=$kmp_blocktime",
-        # "KMP_AFFINITY=granularity=fine,compact,1,0",
-        # "KMP_SETTINGS=$kmp_settings",
-        # "OMP_NUM_THREADS=$omp_num_threads",
         "LOCAL_USER_ID=$(uid())",
     ]
     env = vcat(env, localenv)
 
-    container = Docker.create_container(
-        image(minigo);
+    container = create_container(
+        TensorflowMKL();
         attachStdin = true,
-       # binds = [bind_dataset],
         cmd = runcommand(minigo),
         env = env,
         kw...

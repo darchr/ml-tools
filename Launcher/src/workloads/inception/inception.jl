@@ -1,3 +1,13 @@
+"""
+Workload object for the Inception cnn, built using keyword constructors.
+
+Fields
+------
+* `args :: NamedTuple` - Arguments to pass to the startup script (see docs). 
+    Default: `NamedTuple()`
+* `interactive :: Bool` - If set to true, the container will launch into `/bin/bash`
+    instead of Python. Used for debugging the container. Default: `false`.
+"""
 @with_kw struct Inception <: AbstractWorkload
     args::NamedTuple = NamedTuple()
     interactive::Bool = false
@@ -48,7 +58,8 @@ function create(
     ]
     env = vcat(env, localenv)
 
-    container = Docker.create_container(image(model);
+    container = create_container(
+        TensorflowMKL();
         binds = [bind_dataset, bind_code],
         cmd = runcommand(model),
         env = env,
@@ -103,16 +114,16 @@ function create(cluster::InceptionCluster; base = 5000)
     return containers
 end
 
-# Check to see if this line matches the the printout for the time per step.
-#
-# An example line looks like this:
-#
-# I0125 15:02:43.353371 140087033124608 tf_logging.py:115] loss = 11.300481, step = 2 (10.912 sec)
-#
-# This is a very brutal strategy, but we'll look for the key words "loss", "step" and "sec".
-#
-# If those all match, we'll match for a float and take the last item.
 function tf_timeparser(io::IO)
+    # Check to see if this line matches the the printout for the time per step.
+    #
+    # An example line looks like this:
+    #
+    # I0125 15:02:43.353371 140087033124608 tf_logging.py:115] loss = 11.300481, step = 2 (10.912 sec)
+    #
+    # This is a very brutal strategy, but we'll look for the key words "loss", "step" and "sec".
+    #
+    # If those all match, we'll match for a float and take the last item.
     seekstart(io)
 
     times = Float64[]
@@ -125,4 +136,15 @@ function tf_timeparser(io::IO)
     end
     return mean(times)
 end
+
+"""
+    Launcher.tf_timeparser(file::String) -> Float64
+
+Return the average time per step of a tensorflow based training run stored in `io`. 
+Applicable when the output of the log is in the format shown below
+
+```    
+I0125 15:02:43.353371 140087033124608 tf_logging.py:115] loss = 11.300481, step = 2 (10.912 sec)
+```
+"""
 tf_timeparser(path::String) = open(tf_timeparser, path)
