@@ -24,30 +24,6 @@ ADD ${tensorflow} /home/${tensorflow}
 RUN pip3 install /home/${tensorflow}
 
 #####
-##### Keras Dependencies
-#####
-
-# RUN pip3 install keras
-# 
-# # Make this directory and set it to readable and writable by all.
-# # -- This is where keras stores its saved models. Adding this directory allows keras to make
-# # its validation run. Otherwise, it just errors out.
-# RUN mkdir /saved_models
-# RUN chmod 777 -R /saved_models
-# 
-# #####
-# ##### Official Models dependencies
-# #####
-# 
-# ADD requirements.txt /requirements.txt
-# 
-# # Set some environmental variables
-# ENV PYTHONPATH "${PYTHONPATH}:/models"
-# ENV PATH "$PATH:/root/.local/bin"
-# 
-# RUN pip3 install -r /requirements.txt
-
-#####
 ##### Wrap up
 #####
 

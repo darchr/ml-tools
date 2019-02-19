@@ -14,7 +14,7 @@ makedocs(
             "launcher/docstrings.md",
         ],
         "Workloads" => [
-            "workloads/slim.md",
+            "workloads/tf_benchmarks.md",
             "workloads/cifarcnn.md",
             "workloads/test.md",
         ],

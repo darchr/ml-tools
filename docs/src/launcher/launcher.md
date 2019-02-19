@@ -16,9 +16,9 @@ Inside the Julia REPL:
 ```julia
 julia> using Launcher
 
-julia> workload = Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
-Slim
-  args: NamedTuple{(:model_name, :batchsize),Tuple{String,Int64}}
+julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
+TFBenchmark
+  args: NamedTuple{(:model, :batch_size),Tuple{String,Int64}}
   interactive: Bool false
 
 julia> run(workload)
@@ -34,7 +34,7 @@ file handle as the `log` keyword of the `run` function:
 ```julia
 julia> using Launcher
 
-julia> workload = Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
+julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
 
 # Open `log.txt` and pass it to `run`. When `run` exists (via `ctrl + C` or other means),
 # the container's stdout will be saved into `log.txt`.
@@ -54,7 +54,7 @@ do something like the following:
 ```julia
 julia> using Launcher
 
-julia> workload = Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
+julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
 
 # Here, we use Julia's `do` syntax to implicatly pass a function to the first
 # argument of `run`. In this function, we sleep for 10 seconds before returning. When we
@@ -72,12 +72,12 @@ julia> runtime = @elapsed run(workload)
 ```
 However, for long running workloads like DNN training, this is now always feasible. Another
 approach is to parse through the container's logs and use its self reported times. There
-are a couple of functions like [`Launcher.tf_timeparser`](@ref) and 
+are a couple of functions like [`Launcher.benchmark_timeparser`](@ref) and 
 [`Launcher.translator_parser`](@ref) that provide this functionality for Tensorflow and 
 PyTorch based workloads respectively. See the docstrings for those functions for what 
 exactly they return. Example useage is shown below.
 ```julia
-julia> workload = Launcher.Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
+julia> workload = Launcher.TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
 
 julia>  open("log.txt"; write = true) do f
             run(workload; log = f) do container
@@ -85,7 +85,7 @@ julia>  open("log.txt"; write = true) do f
             end
         end
 
-julia> mean_time_per_step = Launcher.tf_timeparser("log.txt")
+julia> mean_time_per_step = Launcher.benchmark_timeparser("log.txt")
 ```
 
 ## Passing Commandline Arguments
@@ -93,11 +93,11 @@ julia> mean_time_per_step = Launcher.tf_timeparser("log.txt")
 Many workloads expose commandline arguments. These arguments can be passed from launcher
 using the `args` keyword argument to the workload constructor, like the
 ```
-args = (model_name = "resnet_v1_50", batchsize = 32)
+args = (model = "resnet50_v2", batch_size = 32)
 ```
 Which will be turned into
 ```
---model_name=resnet_v1_50 --batchsize=32
+--model=resnet50_v2 --batch_size=32
 ```
 when the script is invoked. In general, you will not have to worry about whether the result
 will be turned into `--arg==value` or `--arg value` since that is taken care of in the
@@ -119,11 +119,11 @@ Below is an advanced example gathering performance counter data for a running wo
 # Install packages
 julia> using Launcher, Pkg, Serialization, Dates
 
-julia> Pkg.add("https://github.com/hildebrandmw/SystemSnoop.jl")
+julia> Pkg.add(PackageSpec(url = "https://github.com/hildebrandmw/SystemSnoop.jl"))
 
 julia> using SystemSnoop
 
-julia> workload = Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
+julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
 
 # Here, we use the SystemSnoop package to provide the monitoring using the `trace` funciton
 # in that package.
@@ -173,7 +173,7 @@ julia> lineplot(getproperty.(data.memory, :resident))
 # We can save the `data` datastructure for later using
 julia> serialize("my_data.jls", data)
 
-# Finally, we can analyze the mean time per step
-julia> Launcher.tf_timeparser("log.txt")
-8.042285714285715
+# Finally, we can analyze the number of images per second
+julia> Launcher.benchmark_timeparser("log.txt")
+24.7
 ```

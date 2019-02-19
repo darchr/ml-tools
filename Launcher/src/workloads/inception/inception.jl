@@ -114,7 +114,7 @@ function create(cluster::InceptionCluster; base = 5000)
     return containers
 end
 
-function tf_timeparser(io::IO)
+function inception_timeparser(io::IO)
     # Check to see if this line matches the the printout for the time per step.
     #
     # An example line looks like this:
@@ -138,7 +138,7 @@ function tf_timeparser(io::IO)
 end
 
 """
-    Launcher.tf_timeparser(file::String) -> Float64
+    Launcher.inception_timeparser(file::String) -> Float64
 
 Return the average time per step of a tensorflow based training run stored in `io`. 
 Applicable when the output of the log is in the format shown below
@@ -147,4 +147,4 @@ Applicable when the output of the log is in the format shown below
 I0125 15:02:43.353371 140087033124608 tf_logging.py:115] loss = 11.300481, step = 2 (10.912 sec)
 ```
 """
-tf_timeparser(path::String) = open(tf_timeparser, path)
+inception_timeparser(path::String) = open(inception_timeparser, path)

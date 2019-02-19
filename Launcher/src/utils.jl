@@ -60,3 +60,12 @@ argify(a, b::Nothing, delim::Nothing, pre) = (prefix(a, pre),)
 argify(a, b, delim::Nothing, pre) = (prefix(a, pre), b)
 
 makeargs(@nospecialize(nt::NamedTuple); delim = nothing, pre = "--") = collect(flatten(argify(a, b, delim, pre) for (a,b) in pairs(nt)))
+
+# Nice syntax for applying default values to keyword arguments if needed
+macro default(kw, key, value)
+    return esc(quote
+       if !haskey($(kw),$(quot(Symbol(key))))
+            $(kw) = merge($kw, ($key = $value,))
+        end
+    end)
+end

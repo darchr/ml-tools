@@ -7,8 +7,9 @@ end
 
 import Base.Iterators: flatten, drop, product
 import Base.iterate
+import Base.Meta: quot
 
-export Slim, Translator, Inception, CifarCnn, Unet
+export TFBenchmark, Translator, Inception, CifarCnn, Unet
 
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)

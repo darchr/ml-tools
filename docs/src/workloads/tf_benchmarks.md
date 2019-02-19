@@ -1,0 +1,393 @@
+# Tensorflow Benchmarks
+
+This is a collection of models distributed by Tensorflow for benchmarking purposes:
+<https://github.com/tensorflow/benchmarks>. The code here supplies several models capable
+of working with Imagenet and Cifar
+
+## Using From Launcher
+
+```@docs
+Launcher.TFBenchmarks
+```
+
+Navigate to the `Launcher/` directory and launch Julia with
+```
+julia --project
+```
+From inside Julia, to launch resnet 50 with a batchsize of 32, use the following command:
+```julia
+julia> using Launcher
+
+julia> workload = Launcher.TFBenchmarks(args = (model = "resnet50_v2", batchsize = 32))
+```
+
+**Valid Imagenet Models**
+
+```
+vgg11
+vgg16
+vgg19
+lenet
+googlenet
+overfeat
+alexnet
+trivial
+inception3
+inception4
+resnet50
+resnet50_v1.5
+resnet50_v2
+resnet101
+resnet101_v2
+resnet152
+resnet152_v2
+nasnet
+nasnetlarge
+mobilenet
+ncf
+```
+
+## Automatically Applied Arguments
+
+These are arguments automatically supplied by Launcher.
+
+* `--data_dir`: Binds the dataset at `imagenet_tf_slim` into `/imagenet` in the container.
+
+* `--data_name`: Defaults to `imagenet`.
+
+* `--device`: `cpu`.
+
+* `--data_format`: `NCHW`
+
+* `--mkl`: Defaults to `true`.
+
+## All Script Arguments
+
+```
+absl.app:
+  -?,--[no]help: show this help
+    (default: 'false')
+  --[no]helpfull: show full help
+    (default: 'false')
+  --[no]helpshort: show this help
+    (default: 'false')
+  --[no]helpxml: like --helpfull, but generates XML output
+    (default: 'false')
+  --[no]only_check_args: Set to true to validate args and exit.
+    (default: 'false')
+  --[no]pdb_post_mortem: Set to true to handle uncaught exceptions with PDB post mortem.
+    (default: 'false')
+  --profile_file: Dump profile information to a file (for python -m pstats). Implies --run_with_profiling.
+  --[no]run_with_pdb: Set to true for PDB debug mode
+    (default: 'false')
+  --[no]run_with_profiling: Set to true for profiling the script. Execution will be slower, and the output format might change over time.
+    (default: 'false')
+  --[no]use_cprofile_for_profiling: Use cProfile instead of the profile module for profiling. This has no effect unless --run_with_profiling is set.
+    (default: 'true')
+
+absl.logging:
+  --[no]alsologtostderr: also log to stderr?
+    (default: 'false')
+  --log_dir: directory to write logfiles into
+    (default: '')
+  --[no]logtostderr: Should only log to stderr?
+    (default: 'false')
+  --[no]showprefixforinfo: If False, do not prepend prefix to info messages when it's logged to stderr, --verbosity is set to INFO level, and python logging is used.
+    (default: 'true')
+  --stderrthreshold: log messages at this level, or more severe, to stderr in addition to the logfile.  Possible values are 'debug', 'info', 'warning', 'error', and 'fatal'.  Obsoletes
+    --alsologtostderr. Using --alsologtostderr cancels the effect of this flag. Please also note that this flag is subject to --verbosity and requires logfile not be stderr.
+    (default: 'fatal')
+  -v,--verbosity: Logging verbosity level. Messages logged at this level or lower will be included. Set to 1 for debug logging. If the flag was not set or supplied, the value will be changed
+    from the default of -1 (warning) to 0 (info) after flags are parsed.
+    (default: '-1')
+    (an integer)
+
+flags:
+  --adam_beta1: Beta2 term for the Adam optimizer
+    (default: '0.9')
+    (a number)
+  --adam_beta2: Beta2 term for the Adam optimizer
+    (default: '0.999')
+    (a number)
+  --adam_epsilon: Epsilon term for the Adam optimizer
+    (default: '1e-08')
+    (a number)
+  --agg_small_grads_max_bytes: If > 0, try to aggregate tensors of less than this number of bytes prior to all-reduce.
+    (default: '0')
+    (an integer)
+  --agg_small_grads_max_group: When aggregating small tensors for all-reduce do not aggregate more than this many into one new tensor.
+    (default: '10')
+    (an integer)
+  --all_reduce_spec: A specification of the all_reduce algorithm to be used for reducing gradients.  For more details, see parse_all_reduce_spec in variable_mgr.py.  An all_reduce_spec has
+    BNF form:
+    int ::= positive whole number
+    g_int ::= int[KkMGT]?
+    alg_spec ::= alg | alg#int
+    range_spec ::= alg_spec | alg_spec/alg_spec
+    spec ::= range_spec | range_spec:g_int:range_spec
+    NOTE: not all syntactically correct constructs are supported.
+
+    Examples:
+    "xring" == use one global ring reduction for all tensors
+    "pscpu" == use CPU at worker 0 to reduce all tensors
+    "nccl" == use NCCL to locally reduce all tensors.  Limited to 1 worker.
+    "nccl/xring" == locally (to one worker) reduce values using NCCL then ring reduce across workers.
+    "pscpu:32k:xring" == use pscpu algorithm for tensors of size up to 32kB, then xring for larger tensors.
+  --[no]allow_growth: whether to enable allow_growth in GPU_Options
+  --allreduce_merge_scope: Establish a name scope around this many gradients prior to creating the all-reduce operations. It may affect the ability of the backend to merge parallel ops.
+    (default: '1')
+    (an integer)
+  --autotune_threshold: The autotune threshold for the models
+    (an integer)
+  --backbone_model_path: Path to pretrained backbone model checkpoint. Pass None if not using a backbone model.
+  --batch_group_size: number of groups of batches processed in the image producer.
+    (default: '1')
+    (an integer)
+  --batch_size: batch size per compute device
+    (default: '0')
+    (an integer)
+  --[no]batchnorm_persistent: Enable/disable using the CUDNN_BATCHNORM_SPATIAL_PERSISTENT mode for batchnorm.
+    (default: 'true')
+  --benchmark_log_dir: The directory to place the log files containing the results of benchmark. The logs are created by BenchmarkFileLogger. Requires the root of the Tensorflow models
+    repository to be in $PYTHTONPATH.
+  --benchmark_test_id: The unique test ID of the benchmark run. It could be the combination of key parameters. It is hardware independent and could be used compare the performance between
+    different test runs. This flag is designed for human consumption, and does not have any impact within the system.
+  --[no]cache_data: Enable use of a special datasets pipeline that reads a single TFRecord into memory and repeats it infinitely many times. The purpose of this flag is to make it possible to
+    write regression tests that are not bottlenecked by CNS throughput.
+    (default: 'false')
+  --[no]compact_gradient_transfer: Compact gradientas much as possible for cross-device transfer and aggregation.
+    (default: 'true')
+  --controller_host: optional controller host
+  --[no]cross_replica_sync: (no help available)
+    (default: 'true')
+  --data_dir: Path to dataset in TFRecord format (aka Example protobufs). If not specified, synthetic data will be used.
+  --data_format: <NHWC|NCHW>: Data layout to use: NHWC (TF native) or NCHW (cuDNN native, requires GPU).
+    (default: 'NCHW')
+  --data_name: Name of dataset: imagenet or cifar10. If not specified, it is automatically guessed based on data_dir.
+  --datasets_num_private_threads: Number of threads for a private threadpool created for all datasets computation. By default, we pick an appropriate number. If set to 0, we use the default
+    tf-Compute threads for dataset operations.
+    (an integer)
+  --datasets_prefetch_buffer_size: Prefetching op buffer size per compute device.
+    (default: '1')
+    (an integer)
+  --[no]datasets_use_prefetch: Enable use of prefetched datasets for input pipeline. This option is meaningless if use_datasets=False.
+    (default: 'true')
+  --debugger: If set, use the TensorFlow debugger. If set to "cli", use the local CLI debugger. Otherwise, this must be in the form hostname:port (e.g., localhost:7007) in which case the
+    experimental TensorBoard debugger will be used
+  --device: <cpu|gpu|CPU|GPU>: Device to use for computation: cpu or gpu
+    (default: 'gpu')
+  --display_every: Number of local steps after which progress is printed out
+    (default: '10')
+    (an integer)
+  --[no]distort_color_in_yiq: Distort color of input images in YIQ space.
+    (default: 'true')
+  --[no]distortions: Enable/disable distortions during image preprocessing. These include bbox and color distortions.
+    (default: 'true')
+  --[no]enable_optimizations: Whether to enable grappler and other optimizations.
+    (default: 'true')
+  --[no]eval: whether use eval or benchmarking
+    (default: 'false')
+  --eval_dir: Directory where to write eval event logs.
+    (default: '/tmp/tf_cnn_benchmarks/eval')
+  --eval_interval_secs: How often to run eval on saved checkpoints. Usually the same as save_model_secs from the corresponding training run. Pass 0 to eval only once.
+    (default: '0')
+    (an integer)
+  --[no]force_gpu_compatible: whether to enable force_gpu_compatible in GPU_Options
+    (default: 'false')
+  --[no]forward_only: whether use forward-only or training for benchmarking
+    (default: 'false')
+  --[no]fp16_enable_auto_loss_scale: If True and use_fp16 is True, automatically adjust the loss scale during training.
+    (default: 'false')
+  --fp16_inc_loss_scale_every_n: If fp16 is enabled and fp16_enable_auto_loss_scale is True, increase the loss scale every n steps.
+    (default: '1000')
+    (an integer)
+  --fp16_loss_scale: If fp16 is enabled, the loss is multiplied by this amount right before gradients are computed, then each gradient is divided by this amount. Mathematically, this has no
+    effect, but it helps avoid fp16 underflow. Set to 1 to effectively disable.
+    (a number)
+  --[no]fp16_vars: If fp16 is enabled, also use fp16 for variables. If False, the variables are stored in fp32 and casted to fp16 when retrieved.  Recommended to leave as False.
+    (default: 'false')
+  --[no]freeze_when_forward_only: whether to freeze the graph when in forward-only mode.
+    (default: 'false')
+  --[no]fuse_decode_and_crop: Fuse decode_and_crop for image preprocessing.
+    (default: 'true')
+  --gpu_indices: indices of worker GPUs in ring order
+    (default: '')
+  --gpu_memory_frac_for_testing: If non-zero, the fraction of GPU memory that will be used. Useful for testing the benchmark script, as this allows distributed mode to be run on a single
+    machine. For example, if there are two tasks, each can be allocated ~40 percent of the memory on a single machine
+    (default: '0.0')
+    (a number in the range [0.0, 1.0])
+  --gpu_thread_mode: Methods to assign GPU host work to threads. global: all GPUs and CPUs share the same global threads; gpu_private: a private threadpool for each GPU; gpu_shared: all GPUs
+    share the same threadpool.
+    (default: 'gpu_private')
+  --gradient_clip: Gradient clipping magnitude. Disabled by default.
+    (a number)
+  --gradient_repacking: Use gradient repacking. Itcurrently only works with replicated mode. At the end ofof each step, it repacks the gradients for more efficientcross-device transportation.
+    A non-zero value specifiesthe number of split packs that will be formed.
+    (default: '0')
+    (a non-negative integer)
+  --graph_file: Write the model's graph definition to this file. Defaults to binary format unless filename ends in "txt".
+  --[no]hierarchical_copy: Use hierarchical copies. Currently only optimized for use on a DGX-1 with 8 GPUs and may perform poorly on other hardware. Requires --num_gpus > 1, and only
+    recommended when --num_gpus=8
+    (default: 'false')
+  --horovod_device: Device to do Horovod all-reduce on: empty (default), cpu or gpu. Default with utilize GPU if Horovod was compiled with the HOROVOD_GPU_ALLREDUCE option, and CPU otherwise.
+    (default: '')
+  --init_learning_rate: Initial learning rate for training.
+    (a number)
+  --input_preprocessor: Name of input preprocessor. The list of supported input preprocessors are defined in preprocessing.py.
+    (default: 'default')
+  --job_name: <ps|worker|controller|>: One of "ps", "worker", "controller", "".  Empty for local training
+    (default: '')
+  --kmp_affinity: Restricts execution of certain threads (virtual execution units) to a subset of the physical processing units in a multiprocessor computer.
+    (default: 'granularity=fine,verbose,compact,1,0')
+  --kmp_blocktime: The time, in milliseconds, that a thread should wait, after completing the execution of a parallel region, before sleeping
+    (default: '0')
+    (an integer)
+  --kmp_settings: If set to 1, MKL settings will be printed.
+    (default: '1')
+    (an integer)
+  --learning_rate_decay_factor: Learning rate decay factor. Decay by this factor every `num_epochs_per_decay` epochs. If 0, learning rate does not decay.
+    (default: '0.0')
+    (a number)
+  --local_parameter_device: <cpu|gpu|CPU|GPU>: Device to use as parameter server: cpu or gpu. For distributed training, it can affect where caching of variables happens.
+    (default: 'gpu')
+  --loss_type_to_report: <base_loss|total_loss>: Which type of loss to output and to write summaries for. The total loss includes L2 loss while the base loss does not. Note that the total
+    loss is always used while computing gradients during training if weight_decay > 0, but explicitly computing the total loss, instead of just computing its gradients, can have a performance
+    impact.
+    (default: 'total_loss')
+  --max_ckpts_to_keep: Max number of checkpoints to keep.
+    (default: '5')
+    (an integer)
+  --minimum_learning_rate: The minimum learning rate. The learning rate will never decay past this value. Requires `learning_rate`, `num_epochs_per_decay` and `learning_rate_decay_factor` to
+    be set.
+    (default: '0.0')
+    (a number)
+  --[no]mkl: If true, set MKL environment variables.
+    (default: 'false')
+  --model: Name of the model to run, the list of supported models are defined in models/model.py
+    (default: 'trivial')
+  --momentum: Momentum for training.
+    (default: '0.9')
+    (a number)
+  --multi_device_iterator_max_buffer_size: Configuration parameter for the MultiDeviceIterator that  specifies the host side buffer size for each device.
+    (default: '1')
+    (an integer)
+  --network_topology: <dgx1|gcp_v100>: Network topology specifies the topology used to connect multiple devices. Network topology is used to decide the hierarchy to use for the
+    hierarchical_copy.
+    (default: 'NetworkTopology.DGX1')
+  --num_batches: number of batches to run, excluding warmup. Defaults to 100
+    (an integer)
+  --num_epochs: number of epochs to run, excluding warmup. This and --num_batches cannot both be specified.
+    (a number)
+  --num_epochs_per_decay: Steps after which learning rate decays. If 0, the learning rate does not decay.
+    (default: '0.0')
+    (a number)
+  --num_gpus: the number of GPUs to run on
+    (default: '1')
+    (an integer)
+  --num_inter_threads: Number of threads to use for inter-op parallelism. If set to 0, the system will pick an appropriate number.
+    (default: '0')
+    (an integer)
+  --num_intra_threads: Number of threads to use for intra-op parallelism. If set to 0, the system will pick an appropriate number.
+    (an integer)
+  --num_learning_rate_warmup_epochs: Slowly increase to the initial learning rate in the first num_learning_rate_warmup_epochs linearly.
+    (default: '0.0')
+    (a number)
+  --num_warmup_batches: number of batches to run before timing
+    (an integer)
+  --optimizer: <momentum|sgd|rmsprop|adam>: Optimizer to use
+    (default: 'sgd')
+  --partitioned_graph_file_prefix: If specified, after the graph has been partitioned and optimized, write out each partitioned graph to a file with the given prefix.
+  --per_gpu_thread_count: The number of threads to use for GPU. Only valid when gpu_thread_mode is not global.
+    (default: '0')
+    (an integer)
+  --piecewise_learning_rate_schedule: Specifies a piecewise learning rate schedule based on the number of epochs. This is the form LR0;E1;LR1;...;En;LRn, where each LRi is a learning rate and
+    each Ei is an epoch indexed from 0. The learning rate is LRi if the E(i-1) <= current_epoch < Ei. For example, if this paramater is 0.3;10;0.2;25;0.1, the learning rate is 0.3 for the
+    first 10 epochs, then is 0.2 for the next 15 epochs, then is 0.1 until training ends.
+  --[no]print_training_accuracy: whether to calculate and print training accuracy during training
+    (default: 'false')
+  --ps_hosts: Comma-separated list of target hosts
+    (default: '')
+  --resize_method: Method for resizing input images: crop, nearest, bilinear, bicubic, area, or round_robin. The `crop` mode requires source images to be at least as large as the network
+    input size. The `round_robin` mode applies different resize methods based on position in a batch in a round-robin fashion. Other modes support any sizes and apply random bbox distortions
+    before resizing (even with distortions=False).
+    (default: 'bilinear')
+  --rewriter_config: Config for graph optimizers, described as a RewriterConfig proto buffer.
+  --rmsprop_decay: Decay term for RMSProp.
+    (default: '0.9')
+    (a number)
+  --rmsprop_epsilon: Epsilon term for RMSProp.
+    (default: '1.0')
+    (a number)
+  --rmsprop_momentum: Momentum in RMSProp.
+    (default: '0.9')
+    (a number)
+  --save_model_secs: How often to save trained models. Pass 0 to disable checkpoints.
+    (default: '0')
+    (an integer)
+  --save_summaries_steps: How often to save summaries for trained models. Pass 0 to disable summaries.
+    (default: '0')
+    (an integer)
+  --server_protocol: protocol for servers
+    (default: 'grpc')
+  --[no]single_l2_loss_op: If True, instead of using an L2 loss op per variable, concatenate the variables into a single tensor and do a single L2 loss on the concatenated tensor.
+    (default: 'false')
+  --[no]staged_vars: whether the variables are staged from the main computation
+    (default: 'false')
+  --summary_verbosity: Verbosity level for summary ops. level 0: disable any summary.
+    level 1: small and fast ops, e.g.: learning_rate, total_loss.
+    level 2: medium-cost ops, e.g. histogram of all gradients.
+    level 3: expensive ops: images and histogram of each gradient.
+    (default: '0')
+    (an integer)
+  --[no]sync_on_finish: Enable/disable whether the devices are synced after each step.
+    (default: 'false')
+  --task_index: Index of task within the job
+    (default: '0')
+    (an integer)
+  --tf_random_seed: The TensorFlow random seed. Useful for debugging NaNs, as this can be set to various values to see if the NaNs depend on the seed.
+    (default: '1234')
+    (an integer)
+  --tfprof_file: If specified, write a tfprof ProfileProto to this file. The performance and other aspects of the model can then be analyzed with tfprof. See
+    https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/profiler/g3doc/command_line.md for more info on how to do this. The first 10 steps are profiled. Additionally, the top
+    20 most time consuming ops will be printed.
+    Note: profiling with tfprof is very slow, but most of the overhead is spent between steps. So, profiling results are more accurate than the slowdown would suggest.
+  --trace_file: Enable TensorFlow tracing and write trace to this file.
+    (default: '')
+  --train_dir: Path to session checkpoints. Pass None to disable saving checkpoint at the end.
+  --[no]use_chrome_trace_format: If True, the trace_file, if specified, will be in a Chrome trace format. If False, then it will be a StepStats raw proto.
+    (default: 'true')
+  --[no]use_datasets: Enable use of datasets for input pipeline
+    (default: 'true')
+  --[no]use_fp16: Use 16-bit floats for certain tensors instead of 32-bit floats. This is currently experimental.
+    (default: 'false')
+  --[no]use_multi_device_iterator: If true, we use the MultiDeviceIterator for prefetching, which deterministically prefetches the data onto the various GPUs
+    (default: 'false')
+  --[no]use_python32_barrier: When on, use threading.Barrier at Python 3.2.
+    (default: 'false')
+  --[no]use_resource_vars: Use resource variables instead of normal variables. Resource variables are slower, but this option is useful for debugging their performance.
+    (default: 'false')
+  --[no]use_tf_layers: If True, use tf.layers for neural network layers. This should not affect performance or accuracy in any way.
+    (default: 'true')
+  --variable_consistency: <strong|relaxed>: The data consistency for trainable variables. With strong consistency, the variable always have the updates from previous step. With relaxed
+    consistency, all the updates will eventually show up in the variables. Likely one step behind.
+    (default: 'strong')
+  --variable_update: <parameter_server|replicated|distributed_replicated|independent|distributed_all_reduce|collective_all_reduce|horovod>: The method for managing variables:
+    parameter_server, replicated, distributed_replicated, independent, distributed_all_reduce, collective_all_reduce, horovod
+    (default: 'parameter_server')
+  --weight_decay: Weight decay factor for training.
+    (default: '4e-05')
+    (a number)
+  --[no]winograd_nonfused: Enable/disable using the Winograd non-fused algorithms.
+    (default: 'true')
+  --worker_hosts: Comma-separated list of target hosts
+    (default: '')
+  --[no]xla: whether to enable XLA auto-jit compilation
+    (default: 'false')
+
+absl.flags:
+  --flagfile: Insert flag definitions from the given file into the command line.
+    (default: '')
+  --undefok: comma-separated list of flag names that it is okay to specify on the command line even if the program does not define a flag with that name.  IMPORTANT: flags in this list that
+    have arguments MUST use the --flag=value format.
+    (default: '')
+```

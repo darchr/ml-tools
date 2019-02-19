@@ -18,7 +18,7 @@ cd data
 kg download -c imagenet-object-localization-challenge -u <username> -p <password>
 ```
 
-## Slim Preprocessing
+## TFBenchmarks Preprocessing
 
 This collection of models uses the Imagenet dataset.
 

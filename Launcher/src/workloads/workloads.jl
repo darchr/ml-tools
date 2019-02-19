@@ -55,8 +55,8 @@ end
 ## Concrete model
 include("test/test.jl")
 include("cifar_cnn/cifar_cnn.jl")
-include("slim/slim.jl")
 include("rnn_translator/translator.jl")
 include("inception/inception.jl")
 include("minigo/minigo.jl")
 include("unet/unet.jl")
+include("tf_benchmarks/tf_benchmarks.jl")
