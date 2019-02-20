@@ -61,6 +61,38 @@ container's `stdout`.
 This function ensures that containers are stopped and cleaned up in case something goes wrong.
 
 After the container is stopped, write the log to IO
+
+# Keyword Arguments
+
+Extra keyword arguments will be forwarded to the `Docker.create`. With these arguments, it 
+is possible to contstrain the resources available to the container. Standard arguments valid
+across all workloads are shown below:
+
+* `user::String`: The name of the user to run the container as. Default: "" (Root)
+
+* `entryPoint::String` : The entry point for the container as a string or an array of 
+    strings.  
+
+    If the array consists of exactly one empty string ([""]) then the entry point is reset 
+    to system default (i.e., the entry point used by docker when there is no ENTRYPOINT 
+    instruction in the Dockerfile)
+
+    Default: ""
+
+* `memory::Integer`: Memory limit in bytes. Default: 0 (unlimited)
+
+* `cpuSets::String`: CPUs in which to allow execution (e.g., 0-3, 0,1). Default: All CPUs
+
+* `cpuMems::String`: Memory nodes (MEMs) in which to allow execution (0-3, 0,1). Only 
+    effective on NUMA systems. Default: All NUMA nodea.
+
+* `env::Vector{String}`: A list of environment variables to set inside the container in the 
+    form ["VAR=value", ...]. A variable without = is removed from the environment, rather 
+    than to have an empty value. Default: []
+
+    **NOTE**: Some workloads (especially those working with MKL) may automatically specify 
+    some environmental variables. Consult the documentation for those workloads to see
+    which are specified.
 """
 function Base.run(f::Function, work::AbstractWorkload; log = devnull, kw...)
     # If "create" only returns a single container, wrap it in a tuple so the broadcasted

@@ -177,3 +177,24 @@ julia> serialize("my_data.jls", data)
 julia> Launcher.benchmark_timeparser("log.txt")
 24.7
 ```
+
+## Constraining Docker Resources
+
+Extra keyword arguments passed to the [`run`](@ref) function will be forwarded to the
+function that constructs the Docker container. With these arguments, it is possible to 
+contstrain the resources available to the container. While certain workloads may define 
+extra keyword arguments, those documented in the docstring for [`run`](@ref) should apply
+to all workloads.
+
+To see how these might be used, suppose are are running on a system with 48 CPUs and 96 
+threads, with for NUMA nodes. Further, suppose we wanted to constraing our workload to only
+execute on CPUs attach to NUMA node 0, and only allocate memory in NUMA node zero. We could
+do that in the following way:
+
+```julia
+julia> using Launcher
+
+julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
+
+julia> run(workload; cpuSets = "0-11,48-59", cpuMems = "0")
+```
