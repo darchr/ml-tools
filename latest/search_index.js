@@ -129,6 +129,14 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "launcher/launcher/#Constraining-Docker-Resources-1",
+    "page": "Tutorial",
+    "title": "Constraining Docker Resources",
+    "category": "section",
+    "text": "Extra keyword arguments passed to the run function will be forwarded to the function that constructs the Docker container. With these arguments, it is possible to  contstrain the resources available to the container. While certain workloads may define  extra keyword arguments, those documented in the docstring for run should apply to all workloads.To see how these might be used, suppose are are running on a system with 48 CPUs and 96  threads, with for NUMA nodes. Further, suppose we wanted to constraing our workload to only execute on CPUs attach to NUMA node 0, and only allocate memory in NUMA node zero. We could do that in the following way:julia> using Launcher\n\njulia> workload = TFBenchmark(args = (model = \"resnet50_v2\", batch_size = 32))\n\njulia> run(workload; cpuSets = \"0-11,48-59\", cpuMems = \"0\")"
+},
+
+{
     "location": "launcher/docstrings/#",
     "page": "Docstrings",
     "title": "Docstrings",
@@ -229,7 +237,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Docstrings",
     "title": "Base.run",
     "category": "method",
-    "text": "run([f::Function], work::AbstractWorkload; log::IO = devnull, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nAfter the container is stopped, write the log to IO\n\n\n\n\n\n"
+    "text": "run([f::Function], work::AbstractWorkload; log::IO = devnull, kw...)\n\nCreate and launch a container from work with\n\ncontainer = create(work; kw...)\n\nStart the container and then call f(container). If f is not given, then attach to the container\'s stdout.\n\nThis function ensures that containers are stopped and cleaned up in case something goes wrong.\n\nAfter the container is stopped, write the log to IO\n\nKeyword Arguments\n\nExtra keyword arguments will be forwarded to the Docker.create. With these arguments, it  is possible to contstrain the resources available to the container. Standard arguments valid across all workloads are shown below:\n\nuser::String: The name of the user to run the container as. Default: \"\" (Root)\nentryPoint::String : The entry point for the container as a string or an array of    strings.  \nIf the array consists of exactly one empty string ([\"\"]) then the entry point is reset    to system default (i.e., the entry point used by docker when there is no ENTRYPOINT    instruction in the Dockerfile)\nDefault: \"\"\nmemory::Integer: Memory limit in bytes. Default: 0 (unlimited)\ncpuSets::String: CPUs in which to allow execution (e.g., 0-3, 0,1). Default: All CPUs\ncpuMems::String: Memory nodes (MEMs) in which to allow execution (0-3, 0,1). Only    effective on NUMA systems. Default: All NUMA nodea.\nenv::Vector{String}: A list of environment variables to set inside the container in the    form [\"VAR=value\", ...]. A variable without = is removed from the environment, rather    than to have an empty value. Default: []\nNOTE: Some workloads (especially those working with MKL) may automatically specify    some environmental variables. Consult the documentation for those workloads to see   which are specified.\n\n\n\n\n\n"
 },
 
 {
