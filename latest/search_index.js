@@ -385,6 +385,46 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "workloads/ngraph/#",
+    "page": "NGraph Models",
+    "title": "NGraph Models",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "workloads/ngraph/#NGraph-Models-1",
+    "page": "NGraph Models",
+    "title": "NGraph Models",
+    "category": "section",
+    "text": "This (eventually) will be a collection of models implemented directly in nGraph, which will have high performance CPU models for inference and training."
+},
+
+{
+    "location": "workloads/ngraph/#Usage-From-Launcher-1",
+    "page": "NGraph Models",
+    "title": "Usage From Launcher",
+    "category": "section",
+    "text": "Navigate to the Launcher/ directory and launch Julia withjulia --projectFrom inside Julia, to launch resnet 50 with a batchsize of 32, use the following command:julia> using Launcher\n\njulia> workload = Launcher.NGraph(args = (model = \"resnet50\", batchsize = 64, iterations = 100))Note that running for a larger number of iterations will likely yield better results.Valid Command Line Argumentsusage: ngraph.jl [--model MODEL] [--batchsize BATCHSIZE] [--mode MODE]\n                 [--iterations ITERATIONS] [-h]\n\noptional arguments:\n  --model MODEL         Define the model to use (default: \"resnet50\")\n  --batchsize BATCHSIZE\n                        The Batchsize to use (type: Int64, default:\n                        16)\n  --mode MODE           The mode to use [train or inference] (default:\n                        \"inference\")\n  --iterations ITERATIONS\n                        The number of calls to perform for\n                        benchmarking (type: Int64, default: 20)\n  -h, --help            show this help message and exit"
+},
+
+{
+    "location": "workloads/ngraph/#Automatically-Applied-Arguments-1",
+    "page": "NGraph Models",
+    "title": "Automatically Applied Arguments",
+    "category": "section",
+    "text": "These are arguments automatically supplied by Launcher.--model: resnet50\n--mode: inference"
+},
+
+{
+    "location": "workloads/ngraph/#Automatically-Applied-Environmental-Veriables-1",
+    "page": "NGraph Models",
+    "title": "Automatically Applied Environmental Veriables",
+    "category": "section",
+    "text": "Many of the nGraph parameters are controlled through environmental variables. The default supplied by Launcher are:NGRAPH_CODEGEN=1: Enable code generation of models. This typically has much tighter   runtimes than the nGraph interpreter, even if it\'s not necessarily faster.NOTE: Right now, the functionality to add more environmental variables does not exist, but will be exposed over time as the variables of interest are identified."
+},
+
+{
     "location": "workloads/cifarcnn/#",
     "page": "Cifar Cnn",
     "title": "Cifar Cnn",
