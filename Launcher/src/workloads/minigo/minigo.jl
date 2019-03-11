@@ -2,8 +2,6 @@
     args::NamedTuple = NamedTuple()
 end
 
-image(::Minigo) = "darchr/reinforcement"
-
 function runcommand(minigo::Minigo)
     return `./run_and_time_skx_8180_2s_1x.sh`
 end

@@ -15,6 +15,7 @@ makedocs(
         ],
         "Workloads" => [
             "workloads/tf_benchmarks.md",
+            "workloads/ngraph.md",
             "workloads/cifarcnn.md",
             "workloads/test.md",
         ],

@@ -2,6 +2,7 @@
 const DOCKERDIR = joinpath(MLTOOLS, "docker")
 
 abstract type AbstractDockerImage end
+dependencies(::AbstractDockerImage) = ()
 
 function exists(image::AbstractDockerImage)
     # Get all of the images on the system
@@ -44,7 +45,6 @@ Docker image for Tensorflow compiled with MKL
 struct TensorflowMKL <: AbstractDockerImage end
 
 tag(::TensorflowMKL) = "darchr/tensorflow-mkl:latest"
-dependencies(::TensorflowMKL) = ()
 
 function build(::TensorflowMKL)
     @info "Building TensorflowMKL"
@@ -77,7 +77,6 @@ PyTorch docker container for the [`Launcher.Translator`](@ref) workload.
 struct GNMT <: AbstractDockerImage end
 
 tag(::GNMT) = "darchr/gnmt:latest"
-dependencies(::GNMT) = ()
 
 function build(::GNMT)
     @info "Building GNMT"
@@ -134,4 +133,23 @@ function build(::Unet3d)
     finally
         cd(dir)
     end
+end
+
+#####
+##### nGraph
+#####
+
+struct NGraphImage <: AbstractDockerImage end
+tag(::NGraphImage) = "darchr/ngraph:latest"
+
+function build(::NGraphImage)
+    @info "Building nGraph Image"
+    dir = pwd()
+    try
+        cd(joinpath(DOCKERDIR, "ngraph-exp"))
+        run(`./build.sh`)
+    finally
+        cd(dir)
+    end
+
 end
