@@ -3,6 +3,8 @@ module Runner
 using nGraph, Flux, JSON
 using Dates
 
+include("serializer.jl")
+
 #####
 ##### PMEM initialization
 #####
@@ -14,6 +16,28 @@ function setup_pmem(file = "/mnt/public/file.pmem", size = 2^32)
     @show manager
     nGraph.Lib.create_pool(manager, file, convert(UInt, size))
     return nothing
+end
+
+#####
+##### Setup Affinities
+#####
+
+function setup_affinities()
+    ENV["KMP_AFFINITY"] = "compact,granularity=fine"
+    
+    # Use the first 24 cores - 2 threads for each core, 0 offset (numanode 0)
+    ENV["KMP_HW_SUBSET"] = "24c,2t"
+
+    # 1 Thread for each core
+    ENV["OMP_NUM_THREADS"] = 48
+    #ENV["OMP_PROC_BIND"] = true
+end
+
+teardown_affinities() = delete!.(Ref(ENV), ("KMP_AFFINITY", "KMP_HW_SUBSET", "OMP_NUM_THREADS"))
+
+function setup_profiling()
+    nGraph.enable_codegen()
+    nGraph.enable_timing()
 end
 
 #####
@@ -52,42 +76,6 @@ function simple_network()
     return f, (X,)
 end
 
-
-# Simple test for seeing if the compilation chain for Persistent Memory works.
-function persistent_memory_test()
-    # Setup PMEM
-    setup_pmem() 
-
-    # Create the function
-    f, args = simple_network() 
-
-    # This involves digging into the internals of nGraph a little bit - we tunnel through
-    # the compiled function to get the underlying nGraph function
-    ngraph_function = f.ex.ngraph_function 
-
-    # Iterate through the ops in the function. If we will try to change the output of the
-    # max pool operation
-    for i in 1:length(ngraph_function)
-        op = ngraph_function[i]
-        @show nGraph.name(op)
-        if nGraph.description(op) == "MaxPool"
-            println("    Making Persistent")
-            # Get the output tensor - make it as persistent.
-            tensor_ptr = nGraph.Lib.get_output_tensor_ptr(op.ptr)  
-
-            # Mark this tensor as belonging in persistent memory
-            nGraph.Lib.make_persistent(tensor_ptr)
-        end
-    end
-
-    # Recompile the function
-    backend = nGraph.Backend()
-    g = nGraph.recompile(backend, f)
-
-    return g, args
-end
-
-
 _skip(op) = in(nGraph.description(op), ("Parameter", "Constant", "Result"))
 keep(op) = !_skip(op)
 
@@ -113,6 +101,26 @@ end
 # NOTE: We should skip "constants" as we don't yet have the technology to map these into
 # PMEM.
 function memory_profile(fex::nGraph.FluxExecutable, args)
+    # I've hacked the compiler chain with an environmental variable to disable running
+    # most of the compilation passes.
+    #
+    # The only passes that get run if this environmental variable is defined is the
+    # MemoryAllocation pass
+    #
+    # This SHOULD let us recompile a function without a bunch of extra nodes getting 
+    # inserted.
+    ENV["NGRAPH_PASS_HACK"] = 1
+    setup_profiling()
+    local x
+    try
+        x = _memory_profile(fex, args)
+    finally
+        delete!(ENV, "NGRAPH_PASS_HACK")
+    end
+    return x
+end
+
+function _memory_profile(fex::nGraph.FluxExecutable, args)
     setup_pmem()
 
     # Unpack the function
@@ -125,36 +133,32 @@ function memory_profile(fex::nGraph.FluxExecutable, args)
     # Iterate through all of the ops in nGraph
     node_map = Dict{String, nGraph.Node}()
 
-    etype = NamedTuple{(:name, :index), Tuple{nGraph.Node, Int}}
+    etype = NamedTuple{(:node, :index), Tuple{nGraph.Node, Int}}
     input_map = Dict{String, Vector{etype}}()
 
     # Note: due to the way nGraph is constructed, each output from a node can have multiple
     # users. Thus, to construct the output node map, we first construct the input node map
     # and then traverse it.
 
-    for i in 1:length(ngraph_function)
-        op = ngraph_function[i]
+    for op in ngraph_function
+        op_name = nGraph.name(op)
+        
+        # Here, we get a tuple with a Node and an index.
+        #
+        # The node input node for this input of the graph and the index is the output
+        # index that this node references.
+        input_tuples = nGraph.get_inputs(op)
 
-        # We want to ignore some ops.
-        if !_skip(op)
-            op_name = nGraph.name(op)
-            
-            # Here, we get a tuple with a Node and an index.
-            #
-            # The node input node for this input of the graph and the index is the output
-            # index that this node references.
-            input_tuples = nGraph.get_inputs(op)
+        # Do some doctoring to get the convert the returned tuple to a named tuple for
+        # slightly nices processing
+        inputs = map(x -> (node = first(x), index = last(x)), input_tuples)
 
-            # Do some doctoring to get the convert the returned tuple to a named tuple for
-            # slightly nices processing
-            filter!(x -> keep(first(x)), input_tuples)
-            inputs = map(x -> (name = first(x), index = last(x)), input_tuples)
-
-            # Save a bunch of metadata
-            node_map[op_name] = op
-            input_map[op_name] = inputs
-        end
+        # Save a bunch of metadata
+        node_map[op_name] = op
+        input_map[op_name] = inputs
     end
+
+    results = Dict{String, Dict{NodeConfig, Float64}}()
 
     # Now we start doing timings
     for i in 1:length(ngraph_function)
@@ -163,21 +167,34 @@ function memory_profile(fex::nGraph.FluxExecutable, args)
         if keep(op)
             # Get the number of inputs and outputs for the op
             ninputs = nGraph.get_input_size(op)
-            noutputs = nGraph.get_output_size(op)
+            noutputs = convert(Int, nGraph.get_output_size(op))
 
-            # Everything is horribly type unstable. But that's the beauty of a
-            # dynamic language!
-            for inputs in Iterators.product([(PMEM, DRAM) for _ in 1:ninputs]...)
-                for outputs in Iterators.product([(PMEM, DRAM) for _ in 1:noutputs]...)
-                    @show inputs
-                    @show outputs
+            op_name = nGraph.name(op)
 
-                    config = NodeConfig(inputs, outputs)
+            # Build up a list of iterators for the inputs. For inputs that are `ops` that
+            # we want to skip, only let them be DRAM
+            input_configs = [keep(input.node) ? (PMEM, DRAM) : (DRAM,) for input in input_map[op_name]]
+            output_configs = [nGraph.Lib.output_is_result(op.ptr, i-1) ? (DRAM,) : (PMEM, DRAM) for i in 1:noutputs]
+
+            local_results = Dict{NodeConfig, Float64}() 
+
+            for input_config in Iterators.product(input_configs...)
+                for output_config in Iterators.product(output_configs...)
+                    @show input_config
+                    @show output_config
+
+                    config = NodeConfig(input_config, output_config)
                     fex, time = _profile(fex, args, op, config)
+
+                    local_results[config] = time
                 end
             end
+
+            results[op_name] = local_results
         end
     end
+
+    return results
 end
 
 function _profile(fex, args, node::nGraph.Node, config::NodeConfig; runtime = Second(3))
