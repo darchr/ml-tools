@@ -1,6 +1,7 @@
 module Runner
 
 using nGraph, Flux, JSON
+using Dates
 
 #####
 ##### PMEM initialization
@@ -92,10 +93,9 @@ keep(op) = !_skip(op)
 
 @enum TensorLocation::UInt8 DRAM PMEM
 
-struct WorklistEntry
-    name::String
-    inputs::Vector{TensorLocation}
-    outputs::Vector{TensorLocation}
+struct NodeConfig{N, M}
+    inputs::NTuple{N, TensorLocation}
+    outputs::NTuple{M, TensorLocation}
 end
 
 # Steps
@@ -112,9 +112,11 @@ end
 #
 # NOTE: We should skip "constants" as we don't yet have the technology to map these into
 # PMEM.
-function memory_profile(exe::nGraph.FluxExecutable, args)
+function memory_profile(fex::nGraph.FluxExecutable, args)
+    setup_pmem()
+
     # Unpack the function
-    ngraph_function = exe.ex.ngraph_function
+    ngraph_function = fex.ex.ngraph_function
 
     # Intermediate files are generated from the function name. We grap that here so we know
     # what to look for later
@@ -123,7 +125,7 @@ function memory_profile(exe::nGraph.FluxExecutable, args)
     # Iterate through all of the ops in nGraph
     node_map = Dict{String, nGraph.Node}()
 
-    etype = NamedTuple{(:name, :index), Tuple{String, Int}}
+    etype = NamedTuple{(:name, :index), Tuple{nGraph.Node, Int}}
     input_map = Dict{String, Vector{etype}}()
 
     # Note: due to the way nGraph is constructed, each output from a node can have multiple
@@ -146,42 +148,97 @@ function memory_profile(exe::nGraph.FluxExecutable, args)
             # Do some doctoring to get the convert the returned tuple to a named tuple for
             # slightly nices processing
             filter!(x -> keep(first(x)), input_tuples)
-            inputs = map(x -> (name = nGraph.name(first(x)), index = last(x)), input_tuples)
+            inputs = map(x -> (name = first(x), index = last(x)), input_tuples)
 
             # Save a bunch of metadata
             node_map[op_name] = op
             input_map[op_name] = inputs
+        end
+    end
 
-            println("Op: $op_name")
-            for i in 1:length(inputs)
-                println("    Input $i: $(inputs[i].name) : $(inputs[i].index)")
+    # Now we start doing timings
+    for i in 1:length(ngraph_function)
+        println("$i of $(length(ngraph_function))")
+        op = ngraph_function[i]
+        if keep(op)
+            # Get the number of inputs and outputs for the op
+            ninputs = nGraph.get_input_size(op)
+            noutputs = nGraph.get_output_size(op)
+
+            # Everything is horribly type unstable. But that's the beauty of a
+            # dynamic language!
+            for inputs in Iterators.product([(PMEM, DRAM) for _ in 1:ninputs]...)
+                for outputs in Iterators.product([(PMEM, DRAM) for _ in 1:noutputs]...)
+                    @show inputs
+                    @show outputs
+
+                    config = NodeConfig(inputs, outputs)
+                    fex, time = _profile(fex, args, op, config)
+                end
             end
-            println()
+        end
+    end
+end
+
+function _profile(fex, args, node::nGraph.Node, config::NodeConfig; runtime = Second(3))
+    _setup!(node, config)
+
+    backend = nGraph.Backend()
+    fex = nGraph.recompile(backend, fex)
+    # Run for `runtime` seconds then take a measurement
+    time = now() 
+    while now() < time + runtime
+        fex(args...)
+    end
+
+    # Get the function name
+    function_name = nGraph.name(fex.ex.ngraph_function)
+    timings = JSON.parsefile("$function_name.timeline.json")
+
+    # Look up the timing for this node and return it
+    index = findfirst(x -> x["name"] == nGraph.name(node), timings["traceEvents"])
+    time = timings["traceEvents"][index]["dur"]
+
+    _cleanup!(node)
+    return fex, time
+end
+
+#####
+##### Setup and cleanup code
+#####
+
+function _setup!(node::nGraph.Node, config::NodeConfig)
+    # Configure all the outputs - those are easy
+    for (i, location) in enumerate(config.outputs)
+        if location == PMEM
+            tensor_ptr = nGraph.Lib.get_output_tensor_ptr(node.ptr, i-1)
+            nGraph.Lib.make_persistent(tensor_ptr)
         end
     end
 
-    # Construct the output_map from the inputs
-    # Initialize an empty dict with 
-    #
-    # - Keys: Node Names
-    # - Values: Vector with a length equal to the number of outputs for the node
-    #   - Elements of the vector are all the user nodes of that output
-    #     - Encoded as a NamedTuple with `name => node_name`, `index => input_index`
-    output_map = Dict(name => [Vector{etype}() for _ in 1:nGraph.get_output_size(node_map[name])] for name in keys(input_map))
-    for (node_name, inputs) in input_map
-        for input_index in eachindex(inputs)
-            # Register this node at the outputs
-            nt = (name = node_name, index = input_index) 
-
-            user_node_name = inputs[input_index].name
-            user_node_input_index = inputs[input_index].index
-            push!(output_map[user_node_name][user_node_input_index], nt)
+    # Now for the inputs
+    for (i, location) in enumerate(config.inputs)
+        if location == PMEM
+            input_node, index = nGraph.get_input(node, i)
+            _skip(input_node) && continue
+            tensor_ptr = nGraph.Lib.get_output_tensor_ptr(input_node.ptr, convert(Int, index-1))
+            nGraph.Lib.make_persistent(tensor_ptr)
         end
     end
+end
 
-    # Now that we have that out of the way, we generate a dictionary mapping node names to
-    # all the combinations of inputs and outputs in DRAM/PMEM
-    worklist =   
+# Set everything back to volatile
+function _cleanup!(node::nGraph.Node)
+    for i in 1:nGraph.get_output_size(node)
+        tensor_ptr = nGraph.Lib.get_output_tensor_ptr(node.ptr, convert(Int, i-1))
+        nGraph.Lib.make_volatile(tensor_ptr)
+    end
+
+    for i in 1:nGraph.get_input_size(node)
+        input_node, index = nGraph.get_input(node, i)
+        tensor_ptr = nGraph.Lib.get_output_tensor_ptr(input_node.ptr, convert(Int, index-1))
+        nGraph.Lib.make_volatile(tensor_ptr)
+    end
 end
 
 end # module
