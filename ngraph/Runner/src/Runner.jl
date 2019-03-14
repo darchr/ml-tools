@@ -162,14 +162,18 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
 
     # Now we start doing timings
     for i in 1:length(ngraph_function)
-        println("$i of $(length(ngraph_function))")
         op = ngraph_function[i]
+        println()
+        println()
+        println("$i of $(length(ngraph_function)). Op Name: $(nGraph.name(op))")
         if keep(op)
             # Get the number of inputs and outputs for the op
             ninputs = nGraph.get_input_size(op)
             noutputs = convert(Int, nGraph.get_output_size(op))
 
             op_name = nGraph.name(op)
+            @show nGraph.name.(i.node for i in input_map[op_name])
+            println()
 
             # Build up a list of iterators for the inputs. For inputs that are `ops` that
             # we want to skip, only let them be DRAM
@@ -197,7 +201,7 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
     return results
 end
 
-function _profile(fex, args, node::nGraph.Node, config::NodeConfig; runtime = Second(3))
+function _profile(fex, args, node::nGraph.Node, config::NodeConfig; runtime = Millisecond(100))
     _setup!(node, config)
 
     backend = nGraph.Backend()
