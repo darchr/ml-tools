@@ -3,7 +3,7 @@ module Runner
 using nGraph, Flux, JSON
 using Dates
 
-include("serializer.jl")
+include("graph.jl")
 
 #####
 ##### PMEM initialization
@@ -126,103 +126,148 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
     # Unpack the function
     ngraph_function = fex.ex.ngraph_function
 
-    # Intermediate files are generated from the function name. We grap that here so we know
-    # what to look for later
-    function_name = nGraph.name(ngraph_function)
-
-    # Iterate through all of the ops in nGraph
-    node_map = Dict{String, nGraph.Node}()
-
-    etype = NamedTuple{(:node, :index), Tuple{nGraph.Node, Int}}
-    input_map = Dict{String, Vector{etype}}()
-
-    # Note: due to the way nGraph is constructed, each output from a node can have multiple
-    # users. Thus, to construct the output node map, we first construct the input node map
-    # and then traverse it.
-
-    for op in ngraph_function
-        op_name = nGraph.name(op)
-        
-        # Here, we get a tuple with a Node and an index.
-        #
-        # The node input node for this input of the graph and the index is the output
-        # index that this node references.
-        input_tuples = nGraph.get_inputs(op)
-
-        # Do some doctoring to get the convert the returned tuple to a named tuple for
-        # slightly nices processing
-        inputs = map(x -> (node = first(x), index = last(x)), input_tuples)
-
-        # Save a bunch of metadata
-        node_map[op_name] = op
-        input_map[op_name] = inputs
-    end
-
-    results = Dict{String, Dict{NodeConfig, Float64}}()
+    #graph = ExtractedGraph(ngraph_function)
+    graph = Dict(nGraph.name(op) => op for op in ngraph_function) 
 
     # Now we start doing timings
-    for i in 1:length(ngraph_function)
-        op = ngraph_function[i]
-        println()
-        println()
-        println("$i of $(length(ngraph_function)). Op Name: $(nGraph.name(op))")
+    #
+    # Because large nGraph functions can take a while to compile (seconds - 10s of seconds),
+    # we have to get as much milage out of each profiling run as possible.
+    #
+    # The general idea is 
+    #   - generate all of the configurations we want to run for the whole profile
+    #   - pick a configuration that has not been tested yet, use that as an assignment
+    #       and capture all of the nodes participating in that transaction.
+    #
+    #   - Keep picking configurations until we can't pick another configuration without
+    #       interfering with another configuration. 
+    #
+    #   - Then, compile the function and get all of the profiling information.
+    remaining_configs = Set{Tuple{String, NodeConfig}}()
+    results = Dict(
+        nGraph.name(op) => Dict{NodeConfig, Float64}() 
+        for op in ngraph_function
+        if keep(op)
+    )
+
+    for op in ngraph_function
         if keep(op)
             # Get the number of inputs and outputs for the op
             ninputs = nGraph.get_input_size(op)
             noutputs = convert(Int, nGraph.get_output_size(op))
 
             op_name = nGraph.name(op)
-            @show nGraph.name.(i.node for i in input_map[op_name])
-            println()
 
             # Build up a list of iterators for the inputs. For inputs that are `ops` that
             # we want to skip, only let them be DRAM
-            input_configs = [keep(input.node) ? (PMEM, DRAM) : (DRAM,) for input in input_map[op_name]]
-            output_configs = [nGraph.Lib.output_is_result(op.ptr, i-1) ? (DRAM,) : (PMEM, DRAM) for i in 1:noutputs]
+            input_configs = [
+                 keep(input) ? (PMEM, DRAM) : (DRAM,) 
+                 for input in nGraph.get_inputs(op)
+            ]
 
-            local_results = Dict{NodeConfig, Float64}() 
+            # TODO: Clean up this API
+            output_configs = [
+                nGraph.Lib.output_is_result(op.ptr, i-1) ? (DRAM,) : (PMEM, DRAM) 
+                for i in 1:noutputs
+            ]
 
             for input_config in Iterators.product(input_configs...)
                 for output_config in Iterators.product(output_configs...)
-                    @show input_config
-                    @show output_config
-
                     config = NodeConfig(input_config, output_config)
-                    fex, time = _profile(fex, args, op, config)
-
-                    local_results[config] = time
+                    push!(remaining_configs, (op_name, config))
                 end
             end
-
-            results[op_name] = local_results
         end
     end
+
+    @info "Testing $(length(remaining_configs)) total configurations"
+
+    loop_counter = 0
+    while !isempty(remaining_configs)
+        @info "Configurations Left: $(length(remaining_configs))"
+
+        # Keep track of the nodes that are being tested so we don't overlap
+        seen = Set{String}()
+        
+        for (name, config) in remaining_configs
+            # Abort if this node is already being tested
+            in(name, seen) && continue
+
+            # Abort if any neighbors of this node are under test
+            inputs = nGraph.get_inputs(graph[name]) 
+            outputs = Iterators.flatten(nGraph.get_outputs(graph[name]))
+            neighbors = Iterators.flatten((inputs, outputs))
+            any(in(seen), nGraph.name.(neighbors)) && continue
+
+            # Set the config for the parent node and mark tha parent + all neighbors as seen
+            # so the config is not overwritten
+            _setup!(graph[name], config)
+            push!(seen, name)
+            for neighbor in neighbors
+                push!(seen, nGraph.name(neighbor))
+            end
+        end
+
+        # Run the profiling
+        fex = _profile(fex, args)
+        tally!(results, fex, graph)
+
+        # Get all the configs present in the graph and clear them from the remaining configs
+        for op in ngraph_function
+            config = getconfig(op)
+            name = nGraph.name(op)
+
+            delete!(remaining_configs, (name, config))
+        end
+        map(_cleanup!, ngraph_function)
+        loop_counter += 1
+    end
+
+    @info "Profiling took $loop_counter iterations"
 
     return results
 end
 
-function _profile(fex, args, node::nGraph.Node, config::NodeConfig; runtime = Millisecond(100))
-    _setup!(node, config)
-
-    backend = nGraph.Backend()
-    fex = nGraph.recompile(backend, fex)
-    # Run for `runtime` seconds then take a measurement
-    time = now() 
+function _profile(fex, args; runtime = Millisecond(3000))
+    fex = nGraph.recompile(nGraph.Backend(), fex)
+    time = now()
     while now() < time + runtime
         fex(args...)
     end
-
-    # Get the function name
-    function_name = nGraph.name(fex.ex.ngraph_function)
-    timings = JSON.parsefile("$function_name.timeline.json")
-
-    # Look up the timing for this node and return it
-    index = findfirst(x -> x["name"] == nGraph.name(node), timings["traceEvents"])
-    time = timings["traceEvents"][index]["dur"]
-
-    _cleanup!(node)
-    return fex, time
+    return fex
 end
+
+function tally!(results::Dict{String, Dict{NodeConfig, Float64}}, fex, graph)
+    f = fex.ex.ngraph_function
+
+    function_name = nGraph.name(f)
+    timings = JSON.parsefile("$function_name.timeline.json")["traceEvents"]
+
+    # Slurp up all the results that haven't been seen yet.
+    for (node_name, result_dict) in results
+        # Record the time for this config.
+        config = getconfig(graph[node_name])
+
+        # Get the timing and record it
+        index = findfirst(x -> x["name"] == node_name, timings)
+        @assert index !== nothing
+        time = timings[index]["dur"]
+
+        result_time = min(time, get(result_dict, config, typemax(time)))
+        result_dict[config] = result_time
+    end
+end
+
+function getconfig(n::nGraph.Node)
+    input = Tuple(nGraph.is_persistent(nGraph.input_descriptor(n, i)) ? PMEM : DRAM 
+                  for i in 1:nGraph.get_input_size(n))
+    output = Tuple(nGraph.is_persistent(nGraph.output_descriptor(n, i)) ? PMEM : DRAM 
+                  for i in 1:nGraph.get_output_size(n))
+
+    return NodeConfig(input, output)
+end
+
+reset!(fex) = map(_cleanup!, fex.ex.ngraph_function)
 
 #####
 ##### Setup and cleanup code
@@ -232,18 +277,14 @@ function _setup!(node::nGraph.Node, config::NodeConfig)
     # Configure all the outputs - those are easy
     for (i, location) in enumerate(config.outputs)
         if location == PMEM
-            tensor_ptr = nGraph.Lib.get_output_tensor_ptr(node.ptr, i-1)
-            nGraph.Lib.make_persistent(tensor_ptr)
+            nGraph.make_persistent(nGraph.output_descriptor(node, i))
         end
     end
 
     # Now for the inputs
     for (i, location) in enumerate(config.inputs)
         if location == PMEM
-            input_node, index = nGraph.get_input(node, i)
-            _skip(input_node) && continue
-            tensor_ptr = nGraph.Lib.get_output_tensor_ptr(input_node.ptr, convert(Int, index-1))
-            nGraph.Lib.make_persistent(tensor_ptr)
+            nGraph.make_persistent(nGraph.input_descriptor(node, i))
         end
     end
 end
@@ -251,14 +292,11 @@ end
 # Set everything back to volatile
 function _cleanup!(node::nGraph.Node)
     for i in 1:nGraph.get_output_size(node)
-        tensor_ptr = nGraph.Lib.get_output_tensor_ptr(node.ptr, convert(Int, i-1))
-        nGraph.Lib.make_volatile(tensor_ptr)
+        nGraph.make_volatile(nGraph.output_descriptor(node, i))
     end
 
     for i in 1:nGraph.get_input_size(node)
-        input_node, index = nGraph.get_input(node, i)
-        tensor_ptr = nGraph.Lib.get_output_tensor_ptr(input_node.ptr, convert(Int, index-1))
-        nGraph.Lib.make_volatile(tensor_ptr)
+        nGraph.make_volatile(nGraph.input_descriptor(node, i))
     end
 end
 
