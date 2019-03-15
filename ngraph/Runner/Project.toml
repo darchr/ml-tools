@@ -8,10 +8,9 @@ Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+Plotly = "58dd65bb-95f3-509e-9936-c39a10fdeae7"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]
