@@ -3,6 +3,8 @@ module Runner
 using nGraph, Flux, JSON
 using Dates
 
+include("models/simple.jl")
+
 #####
 ##### PMEM initialization
 #####
@@ -11,7 +13,6 @@ function setup_pmem(file = "/mnt/public/file.pmem", size = 2^36)
     ispath(file) && rm(file)
 
     manager = nGraph.Lib.getinstance()
-    @show manager
     nGraph.Lib.create_pool(manager, file, convert(UInt, size))
     return nothing
 end
@@ -90,10 +91,10 @@ function setup_affinities()
 
     # Use the first 24 cores - 2 threads for each core
     # Send to numa-node 1 for a hopefully more quiet system
-    ENV["KMP_HW_SUBSET"] = "1s@1"
+    ENV["KMP_HW_SUBSET"] = "1s@1,1t"
 
     # 2 Threads for each cor
-    ENV["OMP_NUM_THREADS"] = 48
+    ENV["OMP_NUM_THREADS"] = 24
 end
 
 teardown_affinities() = delete!.(Ref(ENV), ("KMP_AFFINITY", "KMP_HW_SUBSET", "OMP_NUM_THREADS"))
@@ -101,42 +102,6 @@ teardown_affinities() = delete!.(Ref(ENV), ("KMP_AFFINITY", "KMP_HW_SUBSET", "OM
 function setup_profiling()
     nGraph.enable_codegen()
     nGraph.enable_timing()
-end
-
-#####
-##### Example Network Building
-#####
-
-function _network(x)
-    # Construct a conv followed by a max pool
-    chain = Chain(
-        Conv((3, 3), size(x, 3) => 128, relu; pad = (1, 1)),
-        x -> maxpool(x, (3, 3); stride = (1, 1)),
-        x -> reshape(x, :,  size(x, 4))
-    )
-
-    # Perform this operation
-    y = chain(x)
-
-    # Get the size of `x` and use that to construct a `Dense` layer
-    return softmax(Dense(size(y, 1), 10, relu)(y))
-end
-
-function simple_network()
-    # Instantiate the nGraph backend object
-    backend = nGraph.Backend()
-
-    batchsize = 8
-    nchannels = 16
-
-    # Create a nGraph tensor
-    X = nGraph.Tensor(backend, rand(Float32, 20, 20, nchannels, batchsize))
-
-    f = nGraph.compile(backend, _network, X)
-
-    # Return the arguments as a tuple so in the future, we can return multiple compiled
-    # function arguments and still have downstream code work.
-    return f, (X,)
 end
 
 _skip(op) = in(nGraph.description(op), ("Parameter", "Constant", "Result"))
@@ -148,13 +113,26 @@ struct NodeConfig{N, M}
     inputs::NTuple{N, TensorLocation}
     outputs::NTuple{M, TensorLocation}
 end
+function Base.show(io::IO, config::NodeConfig{N,M}) where {N,M}
+    f = x -> (x == DRAM) ? "DRAM" : "PMEM" 
+    print(io, "NodeConfig{N,M}: ")
+    print(io, "(", join(f.(config.inputs), ", "), ") -- ")
+    print(io, "(", join(f.(config.outputs), ", "), ")")
+end
+
+struct TimeData
+    time::Float64
+    run_number::Int64
+end
+gettime(T::TimeData) = T.time
+getnumber(T::TimeData) = T.run_number
 
 struct ProfileData
     name::String
     description::String
     input_sizes::Vector{Int64}
     output_sizes::Vector{Int64}
-    timings::Dict{NodeConfig,Vector{Float64}}
+    timings::Dict{NodeConfig,Vector{TimeData}}
 end
 
 ProfileData(node::nGraph.Node) = ProfileData(
@@ -180,7 +158,7 @@ ProfileData(node::nGraph.Node) = ProfileData(
 #
 # NOTE: We should skip "constants" as we don't yet have the technology to map these into
 # PMEM.
-function memory_profile(fex::nGraph.FluxExecutable, args)
+function memory_profile(fex::nGraph.FluxExecutable, args; kw...)
     # I've hacked the compiler chain with an environmental variable to disable running
     # most of the compilation passes.
     #
@@ -193,14 +171,14 @@ function memory_profile(fex::nGraph.FluxExecutable, args)
     setup_profiling()
     local x
     try
-        x = _memory_profile(fex, args)
+        x = _memory_profile(fex, args; kw...)
     finally
         delete!(ENV, "NGRAPH_PASS_HACK")
     end
     return x
 end
 
-function _memory_profile(fex::nGraph.FluxExecutable, args)
+function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_configs = typemax(Int64))
     setup_pmem()
 
     # Unpack the function
@@ -261,12 +239,17 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
     @info "Testing $(length(remaining_configs)) total configurations"
 
     loop_counter = 0
+
+    # Keep track of the number of function runs
+    run_count = Ref(0)
+
     while !isempty(remaining_configs)
         @info "Configurations Left: $(length(remaining_configs))"
 
         # Keep track of the nodes that are being tested so we don't overlap
         seen = Set{String}()
 
+        simultaneous_configs = 0
         for (name, config) in remaining_configs
             # Abort if this node is already being tested
             in(name, seen) && continue
@@ -284,13 +267,18 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
             for neighbor in neighbors
                 push!(seen, nGraph.name(neighbor))
             end
+
+            # Update the number of configs we've used. If we're over the allowed number of
+            # simultaneous configs, exit
+            simultaneous_configs += 1 
+            simultaneous_configs >= max_simultaneous_configs && break
         end
 
         # Run the profiling
         # Run GC right before to clean up any left over buffers to ensure we have space
         # for the recompilation.
         GC.gc()
-        fex = _profile(fex, args, results, name_to_node)
+        fex = profile!(fex, args, results, name_to_node, run_count)
         #tally!(results, fex, name_to_node)
 
         # Get all the configs present in the graph and clear them from the remaining configs
@@ -309,17 +297,19 @@ function _memory_profile(fex::nGraph.FluxExecutable, args)
     return results
 end
 
-function _profile(fex, args, results, name_to_node; runtime = Millisecond(5000))
+function profile!(fex, args, results, name_to_node, run_count::Ref{Int64}; runtime = Millisecond(5000))
     fex = nGraph.recompile(nGraph.Backend(), fex)
     time = now()
     while now() < time + runtime
         fex(args...)
-        tally!(results, fex, name_to_node)
+        # Update run count
+        run_count[] += 1
+        tally!(results, fex, name_to_node, run_count[])
     end
     return fex
 end
 
-function tally!(results::Dict{String, ProfileData}, fex, name_to_node)
+function tally!(results::Dict{String, ProfileData}, fex, name_to_node, run_count::Int)
     f = fex.ex.ngraph_function
 
     function_name = nGraph.name(f)
@@ -335,8 +325,8 @@ function tally!(results::Dict{String, ProfileData}, fex, name_to_node)
         @assert index !== nothing
         time = timings[index]["dur"]
 
-        timing_vec = get!(profile_data.timings, config, Float64[])
-        push!(timing_vec, time)
+        timing_vec = get!(profile_data.timings, config, TimeData[])
+        push!(timing_vec, TimeData(time, run_count))
     end
 end
 

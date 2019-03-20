@@ -52,8 +52,8 @@ uuid = "7057c7e9-c182-5462-911a-8362d720325c"
 version = "0.2.2"
 
 [[Checkpoints]]
-deps = ["MacroTools", "Serialization"]
-git-tree-sha1 = "bebb42895f32d95488f8bb30144cac4a546c3eab"
+deps = ["Serialization"]
+git-tree-sha1 = "02c80c3dc2e037ee1b7046d11ae6164d365e2f6d"
 repo-rev = "master"
 repo-url = "https://github.com/hildebrandmw/Checkpoints.jl"
 uuid = "b4a3413d-e481-5afc-88ff-bdfbd6a50dce"

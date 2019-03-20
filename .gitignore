@@ -8,7 +8,9 @@
 *.so
 .DS_Store
 *.pkl
+*.ipynb
 
+cpu_codegen/
 docs/build
 .ipynb_checkpoints
 deps
