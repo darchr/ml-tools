@@ -1,148 +1,125 @@
 module Runner
 
 using nGraph, Flux, JSON
-using Dates
+using Dates, Statistics
 
+include("setup.jl")
+include("opt/opt.jl")
 include("models/simple.jl")
 
-#####
-##### PMEM initialization
-#####
-
-function setup_pmem(file = "/mnt/public/file.pmem", size = 2^36)
-    ispath(file) && rm(file)
-
-    manager = nGraph.Lib.getinstance()
-    nGraph.Lib.create_pool(manager, file, convert(UInt, size))
-    return nothing
-end
-
-#####
-##### Setup Affinities
-#####
-
-# Documentation on KMP_HW_SUBSET:
-#
-# Specifies the number of sockets, cores per socket, and the number of threads per core, to 
-# use with an OpenMP* application, as an alternative to writing explicit affinity settings 
-# or a process affinity mask. You can also specify an offset value to set which resources 
-# to use.
-#
-# An extended syntax is available when KMP_TOPOLOGY_METHOD=hwloc. Depending on what 
-# resources are detected, you may be able to specify additional resources, such as NUMA 
-# nodes and groups of hardware resources that share certain cache levels. For example, 
-# tiles are sets of cores that share an L2 cache on some processors in the Intel® Xeon Phi™ 
-# family.
-#
-# Basic syntax:
-#
-# socketsS[@offset],coresC[@offset],threadsT
-#
-# S, C and T are not case-sensitive.
-#
-# - sockets: The number of sockets to use.
-# - cores: The number of cores to use per socket.
-# - threads: The number of threads to use per core.
-# - offset: (Optional) The number of sockets or cores to skip.
-#
-# Extended syntax when KMP_TOPOLOGY_METHOD=hwloc:
-# 
-# socketsS[@offset],numasN[@offset],tilesL2[@offset],coresC[@offset],threadsT
-# 
-# S, N, L2, C and T are not case-sensitive. Some designators are aliases on some machines. 
-# Specifying duplicate or multiple alias designators for the same resource type is not 
-# allowed.
-# 
-# - sockets: The number of sockets to use.
-# - numas: If detectable, the number of NUMA nodes to use per socket,where available.
-# - tiles: If detectable, the number of tiles to use per NUMA node, where available, otherwise per socket.
-# - cores: The number of cores to use per socket, where available, otherwise per NUMA node, or per socket.
-# - threads: The number of threads to use per core.
-# - offset: (Optional) The number of sockets or cores to skip.
-#
-# NOTE
-# If you don't specify one or more types of resource, sockets, cores or threads, all 
-# available resources of that type are used.
-#
-# NOTE
-# If a particular type of resource is specified, but detection of that resource is not 
-# supported by the chosen topology detection method, the setting of KMP_HW_SUBSET is ignored.
-#
-# NOTE
-# This variable does not work if the OpenMP* affinity is set to disabled.
-# Default: If omitted, the default value is to use all the available hardware resources.
-# 
-# Examples:
-# 
-# 2s,4c,2t: Use the first 2 sockets (s0 and s1), the first 4 cores on each socket (c0 - c3), 
-# and 2 threads per core.
-# 
-# 2s@2,4c@8,2t: Skip the first 2 sockets (s0 and s1) and use 2 sockets (s2-s3), skip the 
-# first 8 cores (c0-c7) and use 4 cores on each socket (c8-c11), and use 2 threads per core.
-# 
-# 5C@1,3T: Use all available sockets, skip the first core and use 5 cores, and use 3 threads 
-# per core.
-# 
-# 2T: Use all cores on all sockets, 2 threads per core.
-# 
-# 4C@12: Use 4 cores with offset 12, all available threads per core.
-function setup_affinities()
-    ENV["KMP_AFFINITY"] = "compact,granularity=fine"
-
-    # Use the first 24 cores - 2 threads for each core
-    # Send to numa-node 1 for a hopefully more quiet system
-    ENV["KMP_HW_SUBSET"] = "1s@1,1t"
-
-    # 2 Threads for each cor
-    ENV["OMP_NUM_THREADS"] = 24
-end
-
-teardown_affinities() = delete!.(Ref(ENV), ("KMP_AFFINITY", "KMP_HW_SUBSET", "OMP_NUM_THREADS"))
-
-function setup_profiling()
-    nGraph.enable_codegen()
-    nGraph.enable_timing()
-end
-
-_skip(op) = in(nGraph.description(op), ("Parameter", "Constant", "Result"))
-keep(op) = !_skip(op)
+keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result"))
+keep(op::nGraph.Node) = keep(nGraph.description(op))
 
 @enum TensorLocation::UInt8 DRAM PMEM
 
-struct NodeConfig{N, M}
+struct IOConfig{N, M}
     inputs::NTuple{N, TensorLocation}
     outputs::NTuple{M, TensorLocation}
 end
-function Base.show(io::IO, config::NodeConfig{N,M}) where {N,M}
-    f = x -> (x == DRAM) ? "DRAM" : "PMEM" 
-    print(io, "NodeConfig{N,M}: ")
+
+function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
+    f = x -> (x == DRAM) ? "DRAM" : "PMEM"
+    print(io, "IOConfig{$N,$M}: ")
     print(io, "(", join(f.(config.inputs), ", "), ") -- ")
     print(io, "(", join(f.(config.outputs), ", "), ")")
 end
 
-struct TimeData
-    time::Float64
-    run_number::Int64
+struct TensorData
+    name::String
+    bytes::Int64
+    locations::Vector{TensorLocation}
 end
-gettime(T::TimeData) = T.time
-getnumber(T::TimeData) = T.run_number
 
-struct ProfileData
+function TensorData(tensor::nGraph.TensorDescriptor)
+    return TensorData(
+        nGraph.get_name(tensor),
+        sizeof(tensor),
+        TensorLocation[], 
+    )
+end
+
+# We pull all this information out of nGraph so we can serialize it properly.
+#
+# Serializing anything with nGraph references leads to a really bad time.
+struct NodeData
     name::String
     description::String
-    input_sizes::Vector{Int64}
-    output_sizes::Vector{Int64}
-    timings::Dict{NodeConfig,Vector{TimeData}}
+    input_tensors::Vector{String}
+    output_tensors::Vector{String}
+
+    # Results from profiling
+    timings::Dict{IOConfig, Vector{Float64}}
+    run_numbers ::Dict{IOConfig, Vector{Int64}}
 end
 
-ProfileData(node::nGraph.Node) = ProfileData(
-    nGraph.name(node),
-    nGraph.description(node),
-    sizeof.(nGraph.input_descriptors(node)),
-    sizeof.(nGraph.output_descriptors(node)),
-    Dict{NodeConfig,Vector{Float64}}(),
-)
+function NodeData(node::nGraph.Node)
+    return NodeData(
+        nGraph.name(node),
+        nGraph.description(node),
+        nGraph.get_name.(nGraph.input_descriptors(node)),
+        nGraph.get_name.(nGraph.output_descriptors(node)),
+        Dict{IOConfig, Vector{Float64}}(),
+        Dict{IOConfig, Vector{Float64}}(),
+    )
+end
 
+struct ProfileData
+    tensors::Dict{String, TensorData}
+
+    # Stored in program order.
+    nodes::Vector{NodeData}
+
+    # Liveness Analysis
+    newlist::Vector{Vector{String}}
+    freelist::Vector{Vector{String}}
+end
+
+function ProfileData(fn::nGraph.NFunction)
+    # Construct the tensors and nodes fields
+    tensors = Dict{String, TensorData}()
+    nodes = NodeData[]
+    for op in fn
+        push!(nodes, NodeData(op))
+        for tensor in nGraph.output_descriptors(op)
+            @assert !haskey(tensors, nGraph.get_name(tensor))
+            tensor_data = TensorData(tensor)
+            tensors[tensor_data.name] = tensor_data
+        end
+    end
+
+    # How, perform the liveness analysis on the nodes and tensors data structures
+    liveness = liveness_analysis(nodes)
+
+    return ProfileData(
+        tensors,
+        nodes,
+        liveness.new_list,
+        liveness.free_list
+    )
+end
+
+function liveness_analysis(nodes::Vector{NodeData})
+    new_list = [String[] for _ in nodes]
+    free_list = [String[] for _ in nodes]
+
+    # Forward Pass
+    for (index, op) in enumerate(nodes)
+        new_list[index] = op.output_tensors
+    end
+
+    # Backward Pass
+    freed_tensors = Set{String}() 
+    for (index, op) in enumerate(reverse(nodes))
+        for tensor in op.input_tensors
+            if !in(tensor, freed_tensors)
+                push!(free_list[end + 1 - index], tensor)
+                push!(freed_tensors, tensor)
+            end
+        end
+    end
+
+    return (new_list = new_list, free_list = free_list)
+end
 
 # Steps
 #
@@ -183,55 +160,56 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
 
     # Unpack the function
     ngraph_function = fex.ex.ngraph_function
-
     name_to_node = Dict(nGraph.name(op) => op for op in ngraph_function)
 
-    # Now we start doing timings
-    #
-    # Because large nGraph functions can take a while to compile (seconds - 10s of seconds),
-    # we have to get as much milage out of each profiling run as possible.
-    #
-    # The general idea is
-    #   - generate all of the configurations we want to run for the whole profile
-    #   - pick a configuration that has not been tested yet, use that as an assignment
-    #       and capture all of the nodes participating in that transaction.
-    #
-    #   - Keep picking configurations until we can't pick another configuration without
-    #       interfering with another configuration.
-    #
-    #   - Then, compile the function and get all of the profiling information.
-    remaining_configs = Set{Tuple{String, NodeConfig}}()
-    results = Dict(nGraph.name(op) => ProfileData(op)
-        for op in ngraph_function
-        if keep(op)
-    )
+    data = ProfileData(ngraph_function)
 
+    # Determine the possible locations for intermediate tensors
     for op in ngraph_function
-        if keep(op)
-            # Get the number of inputs and outputs for the op
-            ninputs = nGraph.get_input_size(op)
-            noutputs = convert(Int, nGraph.get_output_size(op))
+        for (index, descriptor) in enumerate(nGraph.output_descriptors(op))
+            tensor_name = nGraph.get_name(descriptor)
+            # If the op is a Constant or Parameter, then the output tensor can only
+            # live in DRAM (for now)
+            if in(nGraph.description(op), ("Constant", "Parameter"))
+                push!(data.tensors[tensor_name].locations, DRAM)
 
-            op_name = nGraph.name(op)
+            # Likewise, is a user of this output tensor is a `Result` node, the
+            # tensor can only live in DRAM
+            elseif nGraph.Lib.output_is_result(op.ptr, index - 1)
+                push!(data.tensors[tensor_name].locations, DRAM)
 
-            # Build up a list of iterators for the inputs. For inputs that are `ops` that
-            # we want to skip, only let them be DRAM
-            input_configs = [
-                 keep(input) ? (PMEM, DRAM) : (DRAM,)
-                 for input in nGraph.get_inputs(op)
-            ]
+            # Finally, generic tensors can live in either DRAM or PMEM
+            else
+                push!(data.tensors[tensor_name].locations, DRAM, PMEM)
+            end
+        end
+    end
 
-            # TODO: Clean up this API
-            output_configs = [
-                nGraph.Lib.output_is_result(op.ptr, i-1) ? (DRAM,) : (PMEM, DRAM)
-                for i in 1:noutputs
-            ]
+    # Sanity checks
+    for tensor_data in values(data.tensors)
+        locations = tensor_data.locations
+        @assert !isempty(locations)
+        @assert allunique(locations)
+    end
 
-            for input_config in Iterators.product(input_configs...)
-                for output_config in Iterators.product(output_configs...)
-                    config = NodeConfig(input_config, output_config)
-                    push!(remaining_configs, (op_name, config))
-                end
+    # Get all the various configurations we want to capture for this run.
+    remaining_configs = Set{Tuple{String, IOConfig}}()
+    for op in ngraph_function
+        keep(op) || continue
+
+        inputs = [
+            data.tensors[nGraph.get_name(t)].locations for t in nGraph.input_descriptors(op)
+        ]
+        outputs = [
+           data.tensors[nGraph.get_name(t)].locations for t in nGraph.output_descriptors(op)
+        ]
+
+        op_name = nGraph.name(op)
+
+        for input_config in Iterators.product(inputs...)
+            for output_config in Iterators.product(outputs...)
+                config = IOConfig(input_config, output_config)
+                push!(remaining_configs, (op_name, config))
             end
         end
     end
@@ -270,7 +248,7 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
 
             # Update the number of configs we've used. If we're over the allowed number of
             # simultaneous configs, exit
-            simultaneous_configs += 1 
+            simultaneous_configs += 1
             simultaneous_configs >= max_simultaneous_configs && break
         end
 
@@ -278,8 +256,7 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
         # Run GC right before to clean up any left over buffers to ensure we have space
         # for the recompilation.
         GC.gc()
-        fex = profile!(fex, args, results, name_to_node, run_count)
-        #tally!(results, fex, name_to_node)
+        fex = profile!(fex, args, data, name_to_node, run_count)
 
         # Get all the configs present in the graph and clear them from the remaining configs
         for op in ngraph_function
@@ -294,29 +271,32 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
 
     @info "Profiling took $loop_counter iterations"
 
-    return results
+    return data
 end
 
-function profile!(fex, args, results, name_to_node, run_count::Ref{Int64}; runtime = Millisecond(5000))
+function profile!(fex, args, data, name_to_node, run_count::Ref{Int64}; runtime = Millisecond(1000))
     fex = nGraph.recompile(nGraph.Backend(), fex)
     time = now()
     while now() < time + runtime
         fex(args...)
         # Update run count
         run_count[] += 1
-        tally!(results, fex, name_to_node, run_count[])
+        tally!(data, fex, name_to_node, run_count[])
     end
     return fex
 end
 
-function tally!(results::Dict{String, ProfileData}, fex, name_to_node, run_count::Int)
+function tally!(data::ProfileData, fex, name_to_node, run_count::Int)
     f = fex.ex.ngraph_function
 
     function_name = nGraph.name(f)
     timings = JSON.parsefile("$function_name.timeline.json")["traceEvents"]
 
     # Slurp up all the results that haven't been seen yet.
-    for (node_name, profile_data) in results
+    for node_data in data.nodes
+        node_name = node_data.name
+        keep(name_to_node[node_name]) || continue
+
         # Record the time for this config.
         config = getconfig(name_to_node[node_name])
 
@@ -325,16 +305,21 @@ function tally!(results::Dict{String, ProfileData}, fex, name_to_node, run_count
         @assert index !== nothing
         time = timings[index]["dur"]
 
-        timing_vec = get!(profile_data.timings, config, TimeData[])
-        push!(timing_vec, TimeData(time, run_count))
+        timing_vec = get!(node_data.timings, config, Float64[])
+        push!(timing_vec, time)
+
+        run_number_vec = get!(node_data.run_numbers, config, Int64[])
+        push!(run_number_vec, run_count)
     end
+
+    return 
 end
 
 function getconfig(n::nGraph.Node)
     f = x -> nGraph.is_persistent(x) ? PMEM : DRAM
     input = map(f, nGraph.input_descriptors(n)) |> Tuple
     output = map(f, nGraph.output_descriptors(n)) |> Tuple
-    return NodeConfig(input, output)
+    return IOConfig(input, output)
 end
 
 reset!(fex) = map(_cleanup!, fex.ex.ngraph_function)
@@ -343,7 +328,7 @@ reset!(fex) = map(_cleanup!, fex.ex.ngraph_function)
 ##### Setup and cleanup code
 #####
 
-function _setup!(node::nGraph.Node, config::NodeConfig)
+function _setup!(node::nGraph.Node, config::IOConfig)
     # Outputs
     for (i, location) in enumerate(config.outputs)
         if location == PMEM
