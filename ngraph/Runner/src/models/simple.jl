@@ -26,10 +26,13 @@ function simple_network()
 
     # Create a nGraph tensor
     X = nGraph.Tensor(backend, rand(Float32, 20, 20, nchannels, batchsize))
+    Y = nGraph.Tensor(backend, rand(Float32, 10))
 
-    f = nGraph.compile(backend, _network, X)
+    g = (x, y) -> Flux.crossentropy(_network(x), y)
+
+    f = nGraph.compile(backend, g, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
 
     # Return the arguments as a tuple so in the future, we can return multiple compiled
     # function arguments and still have downstream code work.
-    return f, (X,)
+    return f, (X,Y)
 end

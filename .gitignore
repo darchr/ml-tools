@@ -6,7 +6,7 @@
 *.jls
 *.png
 *.so
-.DS_Store
+*.DS_Store
 *.pkl
 *.ipynb
 

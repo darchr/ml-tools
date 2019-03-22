@@ -1,4 +1,6 @@
 @recipe function f(profile_data::ProfileData, model)
+    legend := :none
+
     x_coordinate = 1
     for (index, newlist) in enumerate(profile_data.newlist)
         y_start = index
@@ -15,7 +17,8 @@
             found = false
             for location in profile_data.tensors[tensor].locations
                 if value(model[:tensors][tensor, location]) == 1
-                    push!(tensor_indices, (y_start, y_stop, location))
+                    isfixed = in(tensor, profile_data.fixed_tensors)
+                    push!(tensor_indices, (y_start, y_stop, location, isfixed))
                     found = true
                     break
                 end
@@ -30,10 +33,16 @@
         # Plot the tensor indices
         seriestype := :line 
 
-        for (y_start, y_stop, location) in tensor_indices 
+        for (y_start, y_stop, location, isfixed) in tensor_indices 
             @series begin
                 # Determine the color of the line
-                color = location == DRAM ? :blue : :red 
+                if isfixed
+                    color = :green
+                elseif location == PMEM
+                    color = :red
+                else
+                    color = :blue
+                end
                 linecolor := color 
 
                 x = [x_coordinate, x_coordinate]                

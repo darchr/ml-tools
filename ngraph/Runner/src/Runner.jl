@@ -140,6 +140,7 @@ struct ProfileData
     # Liveness Analysis
     newlist::Vector{Vector{String}}
     freelist::Vector{Vector{String}}
+    fixed_tensors::Set{String}
 end
 
 function ProfileData(fn::nGraph.NFunction)
@@ -162,11 +163,15 @@ function ProfileData(fn::nGraph.NFunction)
         tensors,
         nodes,
         liveness.new_list,
-        liveness.free_list
+        liveness.free_list,
+        liveness.fixed_tensors
     )
 end
 
 function liveness_analysis(nodes::Vector{NodeData})
+    # Get the tensors that we can't move yet
+    fixed_tensors = find_fixed_tensors(nodes)
+
     new_list = [String[] for _ in nodes]
     free_list = [String[] for _ in nodes]
 
@@ -186,7 +191,20 @@ function liveness_analysis(nodes::Vector{NodeData})
         end
     end
 
-    return (new_list = new_list, free_list = free_list)
+    return (new_list = new_list, free_list = free_list, fixed_tensors = fixed_tensors)
+end
+
+function find_fixed_tensors(nodes::Vector{NodeData})
+    tensors = Set{String}()
+    for node in nodes
+        if in(node.description, ("Parameter", "Constant", "Result"))
+            for tensor in node.output_tensors
+                @assert !in(tensor, tensors)
+                push!(tensors, tensor)
+            end
+        end
+    end
+    return tensors
 end
 
 """
@@ -202,26 +220,30 @@ Lower bound is determined by the total size of input, output, and constant tenso
 function allocation_bounds(data::ProfileData)
     tensors = data.tensors
 
-    # Compute lower bound
+    # Lower bound should always be zero since we're ignoring fixed tensors
     lower_bound = 0
-    for node_data in data.nodes
-        if in(node_data.description, ("Parameter", "Constant"))
-            lower_bound += sum(tensors[n].bytes for n in node_data.output_tensors)
-        elseif in(node_data.description, ("Result",))
-            lower_bound += sum(tensors[n].bytes for n in node_data.input_tensors)
-        end
-    end
 
     # Compute Upper Bound
     live_tensors = Set{String}()  
     upper_bound = 0
     for (newlist, freelist) in zip(data.newlist, data.freelist)
-        push!(live_tensors, newlist...)
-        upper_bound = max(upper_bound, sum(tensors[n].bytes for n in live_tensors))
+        for tensor in newlist
+            if !in(tensor, data.fixed_tensors)
+                push!(live_tensors, tensor)
+            end
+        end
+
+        # Compute the upper boudn based on the set of live free tensors
+        if !isempty(live_tensors)
+            upper_bound = max(upper_bound, sum(tensors[n].bytes for n in live_tensors))
+        end
+
         for tensor in freelist
             delete!(live_tensors, tensor)
         end
     end
+
+    @show live_tensors
 
     return (upper_bound = upper_bound, lower_bound = lower_bound)
 end
@@ -261,15 +283,10 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
             tensor_name = nGraph.get_name(descriptor)
             # If the op is a Constant or Parameter, then the output tensor can only
             # live in DRAM (for now)
-            if in(nGraph.description(op), ("Constant", "Parameter"))
+            if in(nGraph.description(op), ("Constant", "Parameter", "Result"))
                 push!(data.tensors[tensor_name].locations, DRAM)
 
-            # Likewise, is a user of this output tensor is a `Result` node, the
-            # tensor can only live in DRAM
-            elseif nGraph.Lib.output_is_result(op.ptr, index - 1)
-                push!(data.tensors[tensor_name].locations, DRAM)
-
-            # Finally, generic tensors can live in either DRAM or PMEM
+            # Generic tensors can live in either DRAM or PMEM
             else
                 push!(data.tensors[tensor_name].locations, DRAM, PMEM)
             end
@@ -435,8 +452,14 @@ end
 
 # Set everything back to volatile
 function _cleanup!(node::nGraph.Node)
-    nGraph.make_volatile.(nGraph.output_descriptors(node))
-    nGraph.make_volatile.(nGraph.input_descriptors(node))
+    for descriptor in nGraph.output_descriptors(node)
+        nGraph.make_volatile(descriptor)
+        nGraph.reset_offset(descriptor)
+    end
+    for descriptor in nGraph.input_descriptors(node)
+        nGraph.make_volatile(descriptor)
+        nGraph.reset_offset(descriptor)
+    end
 end
 
 include("visualize.jl")

@@ -6,6 +6,30 @@ struct Hijack{T}
 end
 hijack(x) = Hijack(x)
 
+"""
+Wrapper around a generic nGraph.jl optimizer that allows arbitrary input and output
+tensors to be placed in DRAM or PMEM.
+
+Fields
+------
+
+* `optimizer::T` - The actual optimizer that is being wrapped. In the optimizer, all
+    of the tensors live in DRAM.
+
+* `persistent_inputs::Vector` - Persistent Memory clones of the input tensor in 
+    `optimizer`. These will be substituted in for the DRAM tensor from `optimizer` if
+    the corresponding index in the `input_masks` field is `true`.
+
+* `persistent_outputs::Vector` - Persistent Memory clones of the output tensor in 
+    `optimizer`. These will be substituted in for the DRAM tensor from `optimizer` if
+    the corresponding index in the `output_masks` field is `true`.
+
+* `input_masks::BitVector` - Mask of which input tensors should be in persistent 
+    memory. A `true` value implies PMEM, while `false` implies DRAM.
+
+* `output_masks::BitVector` - Mask of which output tensors should be in persistent 
+    memory. A `true` value implies PMEM, while `false` implies DRAM.
+"""
 struct HijackOptimizer{T, I <: nGraph.Tensor, O <: nGraph.Tensor}
     optimizer::T
     # Shadows the input and outputs of `optimizer`, but resides in persistent memory.
@@ -41,7 +65,7 @@ function nGraph.create(H::Hijack, args...; kw...)
 end
 
 # Extend the rest of the API
-nGraph.update!(::HijackOptimizer) = nothing
+nGraph.update!(H::HijackOptimizer) = nGraph.update!(H.optimizer)
 
 nGraph.getinputs(H::HijackOptimizer) = (
     H.input_masks[i] ? H.persistent_inputs[i] : t

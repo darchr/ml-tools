@@ -117,7 +117,7 @@ function add_nodes!(::Simple, model, profile_data)
         objective_expr = model[:objective_expr] 
         for config in configs
             # For now, just use the Mean
-            coeff = mean(node_data.timings[config])
+            coeff = round(Int64, mean(node_data.timings[config]))
             add_to_expression!(objective_expr, coeff, vars[config])
         end
     end
@@ -128,6 +128,7 @@ function add_constraints!(modeltype::Simple, model, profile_data)
     # Unpack some variables
     dram_limit = modeltype.dram_limit 
     tensor_data = profile_data.tensors
+    fixed_tensors = profile_data.fixed_tensors
     tensors = model[:tensors]
 
     live_tensors = Set{String}()
@@ -142,9 +143,15 @@ function add_constraints!(modeltype::Simple, model, profile_data)
             push!(live_tensors, tensor_name)
         end
 
-        @constraint(model, 
-            sum(tensor_data[n].bytes * tensors[n, DRAM] for n in live_tensors) <= dram_limit
-        )
+        live_free_tensors = filter(!in(fixed_tensors), live_tensors)
+        if !isempty(live_free_tensors)
+            @constraint(model, 
+                sum(
+                    tensor_data[n].bytes * tensors[n, DRAM] 
+                    for n in live_free_tensors 
+                ) <= dram_limit
+            )
+        end
 
         # Free Tensors
         for tensor_name in profile_data.freelist[index]
