@@ -2,6 +2,7 @@ module Runner
 
 using nGraph, Flux, JSON
 using Dates, Statistics
+using RecipesBase
 
 include("setup.jl")
 include("opt/opt.jl")
@@ -10,8 +11,21 @@ include("models/simple.jl")
 keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result"))
 keep(op::nGraph.Node) = keep(nGraph.description(op))
 
+# NOTE: Since we're playing around with ILP formulations, we do NOT want to have to 
+# rerun the memory profiling step every time we restart Julia.
+#
+# Thus, all data structures that end up in the final `ProfileData` MUST NOT contain
+# any ngraph c++ pointers, otherwise serialization and deserialization will not work.
+#
+# Note that this would be even harder if were were just using straight C++ because
+# C++ does not have data structure serialization natively. We could have used something
+# like Goost::serialization, but I think that would be WAY more trouble than its worth.
+
 @enum TensorLocation::UInt8 DRAM PMEM
 
+"""
+Location information for the input and output tensors of a node.
+"""
 struct IOConfig{N, M}
     inputs::NTuple{N, TensorLocation}
     outputs::NTuple{M, TensorLocation}
@@ -24,6 +38,19 @@ function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
     print(io, "(", join(f.(config.outputs), ", "), ")")
 end
 
+"""
+Information about tensors in an ngraph function.
+
+Fields
+------
+* `name` - The unique name for the tensor. NOTE: I'm nGraph makes the guarantee that
+    tensor names are unique, but I have not independently verified that.
+
+* `bytes` - The allocation size of the tensor in bytes
+
+* `locations::Vector{TensorLocation}` - The set of valid memory pool that this tensor
+    can be assigned to.
+"""
 struct TensorData
     name::String
     bytes::Int64
@@ -38,9 +65,29 @@ function TensorData(tensor::nGraph.TensorDescriptor)
     )
 end
 
-# We pull all this information out of nGraph so we can serialize it properly.
-#
-# Serializing anything with nGraph references leads to a really bad time.
+"""
+Meta data about nGraph nodes
+
+Fields
+------
+
+* `name::String` - The unique name of this node.
+
+* `description::String` - Description string for this node. All nodes that perform the
+    exact same operation will have the exact same description.
+
+* `input_tensors::Vector{String}` - **Ordered** names of input tensors.
+
+* `output_tensors::Vector{String}` - **Ordered** names of output tensors.
+
+* `timings::Dict{IOConfig, Vector{Float64}}` - Measurement execution times for this
+    node for a given `IOConfig`.
+
+* `run_numbers::Dict{IOConfig, Vector{Int64}}` - To support future analysis, the run
+    numbers are also recorded and have a similar structure to the timing numbers.
+
+    That is, `run_numbers[config][i]` will be the run number for `timings[config][i]`.
+"""
 struct NodeData
     name::String
     description::String
@@ -63,6 +110,27 @@ function NodeData(node::nGraph.Node)
     )
 end
 
+
+"""
+NOTE: All children of this type should be pure Julia objects and contain no references
+or pointers to ngraph C++ objects - otherwise it won't serialize correctly.
+
+Fields
+------
+
+* `tensors::Dict{String, TensorData}` - All tensors that occur in a ngraph function.
+    Keyed by name for easy lookup.
+
+* `nodes::Vector{NodeData}` - All of the nodes in the ngraph function, **ordered** by
+    their execution time.
+
+* `newlist::Vector{Vector{String}}` - Records the tensors that are newly created
+    at op `i`, indexed by `i`. The following generally holds: 
+    `nodes.output_tensors[i] == newlist[i]`
+
+* `freelist::Vector{Vector{String}}` - Records the tensors that are freed at op `i`,
+    indexed by `i`.
+"""
 struct ProfileData
     tensors::Dict{String, TensorData}
 
@@ -121,20 +189,43 @@ function liveness_analysis(nodes::Vector{NodeData})
     return (new_list = new_list, free_list = free_list)
 end
 
-# Steps
-#
-# - Get all of the op names
-# - Build datastructures:
-#
-#       * Node Names -> Node
-#       * Node Names -> Inputs and Outputs
-#       * Data structure mappint Node Name + I/O PMEM state to times
-#
-#   This last data structure we will use for setting the states of internal variables as
-#   well as selecting the next state to explore.
-#
-# NOTE: We should skip "constants" as we don't yet have the technology to map these into
-# PMEM.
+"""
+    allocation_bounds(data::ProfileData)
+
+Return upper and lower bounds on the amount of DRAM required for input, output, 
+constant, and intermediate tensors.
+
+Upper bound is determined by the maximum tensors concurrently live.
+
+Lower bound is determined by the total size of input, output, and constant tensors.
+"""
+function allocation_bounds(data::ProfileData)
+    tensors = data.tensors
+
+    # Compute lower bound
+    lower_bound = 0
+    for node_data in data.nodes
+        if in(node_data.description, ("Parameter", "Constant"))
+            lower_bound += sum(tensors[n].bytes for n in node_data.output_tensors)
+        elseif in(node_data.description, ("Result",))
+            lower_bound += sum(tensors[n].bytes for n in node_data.input_tensors)
+        end
+    end
+
+    # Compute Upper Bound
+    live_tensors = Set{String}()  
+    upper_bound = 0
+    for (newlist, freelist) in zip(data.newlist, data.freelist)
+        push!(live_tensors, newlist...)
+        upper_bound = max(upper_bound, sum(tensors[n].bytes for n in live_tensors))
+        for tensor in freelist
+            delete!(live_tensors, tensor)
+        end
+    end
+
+    return (upper_bound = upper_bound, lower_bound = lower_bound)
+end
+
 function memory_profile(fex::nGraph.FluxExecutable, args; kw...)
     # I've hacked the compiler chain with an environmental variable to disable running
     # most of the compilation passes.
@@ -146,6 +237,7 @@ function memory_profile(fex::nGraph.FluxExecutable, args; kw...)
     # inserted.
     ENV["NGRAPH_PASS_HACK"] = 1
     setup_profiling()
+    setup_pmem()
     local x
     try
         x = _memory_profile(fex, args; kw...)
@@ -156,7 +248,6 @@ function memory_profile(fex::nGraph.FluxExecutable, args; kw...)
 end
 
 function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_configs = typemax(Int64))
-    setup_pmem()
 
     # Unpack the function
     ngraph_function = fex.ex.ngraph_function
@@ -322,8 +413,6 @@ function getconfig(n::nGraph.Node)
     return IOConfig(input, output)
 end
 
-reset!(fex) = map(_cleanup!, fex.ex.ngraph_function)
-
 #####
 ##### Setup and cleanup code
 #####
@@ -349,5 +438,7 @@ function _cleanup!(node::nGraph.Node)
     nGraph.make_volatile.(nGraph.output_descriptors(node))
     nGraph.make_volatile.(nGraph.input_descriptors(node))
 end
+
+include("visualize.jl")
 
 end # module
