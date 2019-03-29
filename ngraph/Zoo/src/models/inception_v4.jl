@@ -200,24 +200,31 @@ function inception_v4(x)
     # dropout
     
     push!(layers, x -> reshape(x, :, size(x,4)), false)
-    push!(layers, Dense(1536, 1000, relu), false)
+    push!(layers, Dense(1536, 1000), false)
+    push!(layers, x -> log.(max.(x, Float32(1e-9))), false),
     push!(layers, softmax, false)
 
     return Chain(layers.layers...)
 end
 
 function inception_v4_inference(batchsize)
-    x = rand(Float32, 299, 299, 3, batchsize) .- Float32(0.5)
-    backend = Backend()
-    X = Tensor(backend, x)
+    x = rand(Float32, 299, 299, 3, batchsize)
+    x = (x .- mean(x)) ./ std(x)
 
-    f = compile(backend, inception_v4(x), X)
+    backend = nGraph.Backend()
+    X = nGraph.Tensor(backend, x)
+
+    f = nGraph.compile(backend, inception_v4(x), X)
     return f, (X,)
 end
 
 function inception_v4_training(batchsize; kw...)
-    x = rand(Float32, 299, 299, 3, batchsize) .- Float32(0.5)
+    x = rand(Float32, 299, 299, 3, batchsize)
+    x = (x .- mean(x)) ./ std(x)
+
     y = rand(Float32, 1000, batchsize)
+    random_labels!(y) 
+
     backend = nGraph.Backend()
     X = nGraph.Tensor(backend, x)
     Y = nGraph.Tensor(backend, y)
@@ -225,7 +232,7 @@ function inception_v4_training(batchsize; kw...)
     forward = inception_v4(x)
 
     # TODO: Bad loss function for now
-    f(x, y) = sum(forward(x) .- y)
+    f(x, y) = Flux.crossentropy(forward(x), y)
 
     g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)), kw...)
     return g, (X, Y)
@@ -251,10 +258,11 @@ _mnist() = Chain(
         # Reshape 3d tensor into a 2d one, at this point it should be (3, 3, 32, N)
         # which is where we get the 288 in the `Dense` layer below:
         x -> reshape(x, :, size(x, 4)),
-        Dense(288, 10),
+        Dense(288, 10, relu),
 
         # Finally, softmax to get nice probabilities
-        softmax,
+        x -> log.(max.(x, Float32(1e-9))),
+        x -> softmax(x)
     )
 
 function mnist(batchsize = 16)
@@ -271,16 +279,19 @@ end
 # Include an additional modifier to allow modifying the optimizer
 function mnist_train(batchsize = 16, modifier = identity)
     model = _mnist()
-    backend = Backend()
+    backend = nGraph.Backend()
 
     x = rand(Float32, 28, 28, 1, batchsize)
-    y = rand(Float32, 10, batchsize)
+    x = (x .- mean(x)) ./ std(x)
+
+    y = zeros(Float32, 10, batchsize)
+    random_labels!(y)
 
     f(x, y) = Flux.crossentropy(model(x), y)
-    X = Tensor(backend, x)
-    Y = Tensor(backend, y)
+    X = nGraph.Tensor(backend, x)
+    Y = nGraph.Tensor(backend, y)
 
-    g = nGraph.compile(backend, f, X, Y; optimizer = modifier(SGD(Float32(0.001))))
+    g = nGraph.compile(backend, f, X, Y; optimizer = modifier(nGraph.SGD(Float32(0.001))))
     return g, (X, Y)
 end
 
