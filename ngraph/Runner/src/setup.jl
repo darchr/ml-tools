@@ -2,7 +2,7 @@
 ##### PMEM initialization
 #####
 
-function setup_pmem(file = "/mnt/public/file.pmem", size = 2^36)
+function setup_pmem(file = "/mnt/public/file.pmem", size = 2^38)
     ispath(file) && rm(file)
 
     manager = nGraph.Lib.getinstance()
