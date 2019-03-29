@@ -52,6 +52,8 @@ struct Simple <: ModelType
     dram_limit::Int64
 end
 
+include("sync.jl")
+
 function create_model(modeltype::T, profile_data) where {T <: ModelType}
     # Start with an empty model that we will progressively build.
     model = Model(with_optimizer(Gurobi.Optimizer))
@@ -89,7 +91,7 @@ function add_tensors!(::Simple, model, profile_data)
     return
 end
 
-function add_nodes!(::Simple, model, profile_data)
+function add_nodes!(::ModelType, model, profile_data)
     for node_data in profile_data.nodes
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the

@@ -3,8 +3,13 @@ module Runner
 using nGraph, Flux, JSON
 using Dates, Statistics
 using RecipesBase
+using LightGraphs, MetaGraphs
+using IterTools
+
+@enum TensorLocation::UInt8 DRAM PMEM
 
 include("setup.jl")
+include("finder.jl")
 include("opt/opt.jl")
 include("models/simple.jl")
 
@@ -21,7 +26,6 @@ keep(op::nGraph.Node) = keep(nGraph.description(op))
 # C++ does not have data structure serialization natively. We could have used something
 # like Goost::serialization, but I think that would be WAY more trouble than its worth.
 
-@enum TensorLocation::UInt8 DRAM PMEM
 
 """
 Location information for the input and output tensors of a node.
@@ -43,7 +47,7 @@ Information about tensors in an ngraph function.
 
 Fields
 ------
-* `name` - The unique name for the tensor. NOTE: I'm nGraph makes the guarantee that
+* `name` - The unique name for the tensor. NOTE: nGraph makes the guarantee that
     tensor names are unique, but I have not independently verified that.
 
 * `bytes` - The allocation size of the tensor in bytes
@@ -207,6 +211,33 @@ function find_fixed_tensors(nodes::Vector{NodeData})
     return tensors
 end
 
+struct LiveTensorIterator
+    data::ProfileData
+    live_tensors::Set{String}
+end
+
+live_tensors(data::ProfileData) = LiveTensorIterator(data, Set{String}())
+
+Base.length(L::LiveTensorIterator) = length(L.data.newlist)
+function Base.iterate(L::LiveTensorIterator, s = 1)
+    s > length(L) && return nothing
+
+    # Free tensors from the previous iteration
+    if s > 1
+        for tensor in L.data.freelist[s-1]
+            delete!(L.live_tensors, tensor)
+        end
+    end
+
+    # Add new tensors for this iteration
+    for tensor in L.data.newlist[s]
+        push!(L.live_tensors, tensor)
+    end
+
+    return L.live_tensors, s+1
+end
+
+
 """
     allocation_bounds(data::ProfileData)
 
@@ -218,32 +249,17 @@ Upper bound is determined by the maximum tensors concurrently live.
 Lower bound is determined by the total size of input, output, and constant tensors.
 """
 function allocation_bounds(data::ProfileData)
-    tensors = data.tensors
-
     # Lower bound should always be zero since we're ignoring fixed tensors
     lower_bound = 0
 
     # Compute Upper Bound
-    live_tensors = Set{String}()  
     upper_bound = 0
-    for (newlist, freelist) in zip(data.newlist, data.freelist)
-        for tensor in newlist
-            if !in(tensor, data.fixed_tensors)
-                push!(live_tensors, tensor)
-            end
-        end
-
-        # Compute the upper boudn based on the set of live free tensors
-        if !isempty(live_tensors)
-            upper_bound = max(upper_bound, sum(tensors[n].bytes for n in live_tensors))
-        end
-
-        for tensor in freelist
-            delete!(live_tensors, tensor)
+    for tensors in live_tensors(data)
+        free_tensors = filter(!in(data.fixed_tensors), tensors)
+        if !isempty(free_tensors)
+            upper_bound = max(upper_bound, sum(data.tensors[n].bytes for n in free_tensors))
         end
     end
-
-    @show live_tensors
 
     return (upper_bound = upper_bound, lower_bound = lower_bound)
 end

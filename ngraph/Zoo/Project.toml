@@ -1,0 +1,12 @@
+name = "Zoo"
+uuid = "ad488d5b-cec8-5120-91ab-e40a257560e6"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
+nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

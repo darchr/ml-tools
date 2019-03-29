@@ -15,10 +15,11 @@
         
             # Get the tensor assignment from the solved model.
             found = false
+            bytes = tensor.bytes
             for location in profile_data.tensors[tensor].locations
                 if value(model[:tensors][tensor, location]) == 1
                     isfixed = in(tensor, profile_data.fixed_tensors)
-                    push!(tensor_indices, (y_start, y_stop, location, isfixed))
+                    push!(tensor_indices, (y_start, y_stop, location, bytes, isfixed))
                     found = true
                     break
                 end
@@ -33,7 +34,7 @@
         # Plot the tensor indices
         seriestype := :line 
 
-        for (y_start, y_stop, location, isfixed) in tensor_indices 
+        for (y_start, y_stop, location, bytes, isfixed) in tensor_indices 
             @series begin
                 # Determine the color of the line
                 if isfixed
