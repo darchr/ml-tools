@@ -473,6 +473,86 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "workloads/slim/#",
+    "page": "Tensorflow Slim",
+    "title": "Tensorflow Slim",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "workloads/slim/#Tensorflow-Slim-1",
+    "page": "Tensorflow Slim",
+    "title": "Tensorflow Slim",
+    "category": "section",
+    "text": "This is actually a collection of models implemented using using Tensorflow\'s Slim framework. The original repo for these models is  https://github.com/tensorflow/models/tree/master/research/slim.When I benchmarked this against the official tensorflow models for Resnet, this  implementation seemed to train a little faster. Plus, the official models did not have VGG implemented, which is why I ended up using this implementation."
+},
+
+{
+    "location": "workloads/slim/#Using-from-Launcher-1",
+    "page": "Tensorflow Slim",
+    "title": "Using from Launcher",
+    "category": "section",
+    "text": ""
+},
+
+{
+    "location": "workloads/slim/#Launcher.Slim",
+    "page": "Tensorflow Slim",
+    "title": "Launcher.Slim",
+    "category": "type",
+    "text": "Struct representing parameters for launching the Tensorflow Official Resnet Model on the  Imagenet training set. Construct type using a key-word constructor Fields –––\n\nargs::NamedTuple - Arguments passed to the Keras Python script that creates and    trains Resnet.\ninteractive::Bool - Set to true to create a container that does not automatically run   Resnet when launched. Useful for debugging what\'s going on inside the container.\n\ncreate keywords\n\nmemory::Union{Nothing, Int} - The amount of memory to assign to this container. If   this value is nothing, the container will have access to all system memory.   Default: nothing.\ncpuSets = \"\" - The CPU sets on which to run the workload. Defaults to all processors.    Examples: \"0\", \"0-3\", \"1,3\".\n\n\n\n\n\n"
+},
+
+{
+    "location": "workloads/slim/#Training-1",
+    "page": "Tensorflow Slim",
+    "title": "Training",
+    "category": "section",
+    "text": "Launcher.SlimNavigate to the Launcher/ directory, and launch julia with the commandjulia --projectFrom inside Julia, to launch resnet 50 with a batchsize of 32, use the following command:julia> using Launcher\n\njulia> workload = Launcher.Slim(args = (model_name = \"resnet_v1_50\", batchsize = 32))"
+},
+
+{
+    "location": "workloads/slim/#Inference-1",
+    "page": "Tensorflow Slim",
+    "title": "Inference",
+    "category": "section",
+    "text": "In order to run inference throught the Slim models, you first need to obtain  pretrained model from the Slim repo: https://github.com/tensorflow/models/tree/master/research/slimRight click on the checkpoint for the model you want and copy the link. In the terminal, navigate toml-tools/workloads/slim/modelsand download the model withwget <paste-copied-link>Once the .tar file finished downloading, unpack it withtar -xvf <name-of-tarfile>To now run the trained model, you need to use the inference keyword for the Slim type, and pass the name of the checkpoint file you want to use.NOTE: The checkpoint_path path should be the correct path for the model_name model being used.NOTE: You just need to provide the name of the checkpoint file. As long as it live in workloads/slim/models/, Launcher will automatically manage it for you.An example commend for running inference on resnet_v1 is shown belowwork = Launcher.Slim(\n    inference = true, \n    args = (\n        checkpoint_path = \"resnet_v1_50.ckpt\", \n        model_name=\"resnet_v1_50\", \n        max_num_batches= 10\n    ),\n)Valid NetworksThe following is the list of valid inputs for the model_name argument:alexnet_v2\ncifarnet\noverfeat\nvgg_a\nvgg_16\nvgg_19\nvgg_416\ninception_v1\ninception_v2\ninception_v3\ninception_v4\ninception_resnet_v2\nlenet\nresnet_v1_50\nresnet_v1_101\nresnet_v1_152\nresnet_v1_200\nresnet_v2_50\nresnet_v2_101\nresnet_v2_152\nresnet_v2_200\nmobilenet_v1\nmobilenet_v1_075\nmobilenet_v1_050\nmobilenet_v1_025\nmobilenet_v2\nmobilenet_v2_140\nmobilenet_v2_035\nnasnet_cifar\nnasnet_mobile\nnasnet_large\npnasnet_large\npnasnet_mobile"
+},
+
+{
+    "location": "workloads/slim/#Automatically-Applied-Arguments-1",
+    "page": "Tensorflow Slim",
+    "title": "Automatically Applied Arguments",
+    "category": "section",
+    "text": "These are arguments automatically supplied by Launcher.--dataset_dir: Binds the dataset at imagenet_tf_slim into /imagenet in the container.\n--dataset_name: Defaults to imagenet.\nclone_on_cpu: Defaults to true."
+},
+
+{
+    "location": "workloads/slim/#Training-Script-Arguments:-1",
+    "page": "Tensorflow Slim",
+    "title": "Training Script Arguments:",
+    "category": "section",
+    "text": "Generic training script that trains a model using a given dataset.\nflags:\n\n/models/slim/train_image_classifier.py:\n  --adadelta_rho: The decay rate for adadelta.\n    (default: \'0.95\')\n    (a number)\n  --adagrad_initial_accumulator_value: Starting value for the AdaGrad accumulators.\n    (default: \'0.1\')\n    (a number)\n  --adam_beta1: The exponential decay rate for the 1st moment estimates.\n    (default: \'0.9\')\n    (a number)\n  --adam_beta2: The exponential decay rate for the 2nd moment estimates.\n    (default: \'0.999\')\n    (a number)\n  --batch_size: The number of samples in each batch.\n    (default: \'32\')\n    (an integer)\n  --checkpoint_exclude_scopes: Comma-separated list of scopes of variables to exclude when restoring from a checkpoint.\n  --checkpoint_path: The path to a checkpoint from which to fine-tune.\n  --[no]clone_on_cpu: Use CPUs to deploy clones.\n    (default: \'false\')\n  --dataset_dir: The directory where the dataset files are stored.\n  --dataset_name: The name of the dataset to load.\n    (default: \'imagenet\')\n  --dataset_split_name: The name of the train/test split.\n    (default: \'train\')\n  --end_learning_rate: The minimal end learning rate used by a polynomial decay learning rate.\n    (default: \'0.0001\')\n    (a number)\n  --ftrl_initial_accumulator_value: Starting value for the FTRL accumulators.\n    (default: \'0.1\')\n    (a number)\n  --ftrl_l1: The FTRL l1 regularization strength.\n    (default: \'0.0\')\n    (a number)\n  --ftrl_l2: The FTRL l2 regularization strength.\n    (default: \'0.0\')\n    (a number)\n  --ftrl_learning_rate_power: The learning rate power.\n    (default: \'-0.5\')\n    (a number)\n  --[no]ignore_missing_vars: When restoring a checkpoint would ignore missing variables.\n    (default: \'false\')\n  --label_smoothing: The amount of label smoothing.\n    (default: \'0.0\')\n    (a number)\n  --labels_offset: An offset for the labels in the dataset. This flag is primarily used to evaluate the VGG and ResNet architectures which do not use a background class for the ImageNet\n    dataset.\n    (default: \'0\')\n    (an integer)\n  --learning_rate: Initial learning rate.\n    (default: \'0.01\')\n    (a number)\n  --learning_rate_decay_factor: Learning rate decay factor.\n    (default: \'0.94\')\n    (a number)\n  --learning_rate_decay_type: Specifies how the learning rate is decayed. One of \"fixed\", \"exponential\", or \"polynomial\"\n    (default: \'exponential\')\n  --log_every_n_steps: The frequency with which logs are print.\n    (default: \'10\')\n    (an integer)\n  --master: The address of the TensorFlow master to use.\n    (default: \'\')\n  --max_number_of_steps: The maximum number of training steps.\n    (an integer)\n  --model_name: The name of the architecture to train.\n    (default: \'inception_v3\')\n  --momentum: The momentum for the MomentumOptimizer and RMSPropOptimizer.\n    (default: \'0.9\')\n    (a number)\n  --moving_average_decay: The decay to use for the moving average.If left as None, then moving averages are not used.\n    (a number)\n  --num_clones: Number of model clones to deploy. Note For historical reasons loss from all clones averaged out and learning rate decay happen per clone epochs\n    (default: \'1\')\n    (an integer)\n  --num_epochs_per_decay: Number of epochs after which learning rate decays. Note: this flag counts epochs per clone but aggregates per sync replicas. So 1.0 means that each clone will go\n    over full epoch individually, but replicas will go once across all replicas.\n    (default: \'2.0\')\n    (a number)\n  --num_preprocessing_threads: The number of threads used to create the batches.\n    (default: \'4\')\n    (an integer)\n  --num_ps_tasks: The number of parameter servers. If the value is 0, then the parameters are handled locally by the worker.\n    (default: \'0\')\n    (an integer)\n  --num_readers: The number of parallel readers that read data from the dataset.\n    (default: \'4\')\n    (an integer)\n  --opt_epsilon: Epsilon term for the optimizer.\n    (default: \'1.0\')\n    (a number)\n  --optimizer: The name of the optimizer, one of \"adadelta\", \"adagrad\", \"adam\",\"ftrl\", \"momentum\", \"sgd\" or \"rmsprop\".\n    (default: \'rmsprop\')\n  --preprocessing_name: The name of the preprocessing to use. If left as `None`, then the model_name flag is used.\n  --quantize_delay: Number of steps to start quantized training. Set to -1 would disable quantized training.\n    (default: \'-1\')\n    (an integer)\n  --replicas_to_aggregate: The Number of gradients to collect before updating params.\n    (default: \'1\')\n    (an integer)\n  --rmsprop_decay: Decay term for RMSProp.\n    (default: \'0.9\')\n    (a number)\n  --rmsprop_momentum: Momentum.\n    (default: \'0.9\')\n    (a number)\n  --save_interval_secs: The frequency with which the model is saved, in seconds.\n    (default: \'600\')\n    (an integer)\n  --save_summaries_secs: The frequency with which summaries are saved, in seconds.\n    (default: \'600\')\n    (an integer)\n  --[no]sync_replicas: Whether or not to synchronize the replicas during training.\n    (default: \'false\')\n  --task: Task id of the replica running the training.\n    (default: \'0\')\n    (an integer)\n  --train_dir: Directory where checkpoints and event logs are written to.\n    (default: \'/tmp/tfmodel/\')\n  --train_image_size: Train image size\n    (an integer)\n  --trainable_scopes: Comma-separated list of scopes to filter the set of variables to train.By default, None would train all the variables.\n  --weight_decay: The weight decay on the model weights.\n    (default: \'4e-05\')\n    (a number)\n  --worker_replicas: Number of worker replicas.\n    (default: \'1\')\n    (an integer)"
+},
+
+{
+    "location": "workloads/slim/#Dataset-1",
+    "page": "Tensorflow Slim",
+    "title": "Dataset",
+    "category": "section",
+    "text": "This workload uses the Imagenet dataset."
+},
+
+{
+    "location": "workloads/slim/#File-Changes-1",
+    "page": "Tensorflow Slim",
+    "title": "File Changes",
+    "category": "section",
+    "text": "train_image_classifier.pyLine 62: Change default value of log_every_n_steps from 10 to 5."
+},
+
+{
     "location": "datasets/imagenet/#",
     "page": "Imagenet",
     "title": "Imagenet",
