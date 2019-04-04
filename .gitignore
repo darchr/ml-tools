@@ -10,6 +10,8 @@
 *.pkl
 *.ipynb
 
+workloads/slim/models/
+
 cpu_codegen/
 docs/build
 .ipynb_checkpoints

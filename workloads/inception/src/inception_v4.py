@@ -71,7 +71,7 @@ flags.DEFINE_integer(
         'Total batch size for evaluation, use the entire validation set if 0')
 
 flags.DEFINE_integer(
-        'eval_batch_size', 1024,
+        'eval_batch_size', 128,
         'Global (not per-shard) batch size for evaluation')
 
 flags.DEFINE_integer(

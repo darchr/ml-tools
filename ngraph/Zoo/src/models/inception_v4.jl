@@ -268,7 +268,7 @@ _mnist() = Chain(
 function mnist(batchsize = 16)
     model = _mnist()
 
-    backend = Backend()
+    backend = nGraph.Backend()
     x = rand(Float32, 28, 28, 1, batchsize)
     X = nGraph.Tensor(backend, x)
     f = nGraph.compile(backend, model, X)

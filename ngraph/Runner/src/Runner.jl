@@ -12,6 +12,7 @@ include("setup.jl")
 include("finder.jl")
 include("opt/opt.jl")
 include("models/simple.jl")
+include("profiler/profile.jl")
 
 keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result"))
 keep(op::nGraph.Node) = keep(nGraph.description(op))

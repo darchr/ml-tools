@@ -10,6 +10,7 @@ VGG implemented, which is why I ended up using this implementation.
 
 ## Using from Launcher
 
+### Training
 ```@docs
 Launcher.Slim
 ```
@@ -23,6 +24,47 @@ From inside Julia, to launch resnet 50 with a batchsize of 32, use the following
 julia> using Launcher
 
 julia> workload = Launcher.Slim(args = (model_name = "resnet_v1_50", batchsize = 32))
+```
+
+### Inference
+
+In order to run inference throught the Slim models, you first need to obtain 
+pretrained model from the Slim repo:
+<https://github.com/tensorflow/models/tree/master/research/slim>
+
+Right click on the checkpoint for the model you want and copy the link. In the terminal,
+navigate to
+```
+ml-tools/workloads/slim/models
+```
+and download the model with
+```
+wget <paste-copied-link>
+```
+Once the `.tar` file finished downloading, unpack it with
+```
+tar -xvf <name-of-tarfile>
+```
+
+To now run the trained model, you need to use the `inference` keyword for the `Slim`
+type, and pass the name of the checkpoint file you want to use.
+
+**NOTE**: The `checkpoint_path` path should be the correct path for the `model_name`
+model being used.
+
+**NOTE**: You just need to provide the name of the checkpoint file. As long as it live
+in `workloads/slim/models/`, `Launcher` will automatically manage it for you.
+
+An example commend for running inference on `resnet_v1` is shown below
+```
+work = Launcher.Slim(
+    inference = true, 
+    args = (
+        checkpoint_path = "resnet_v1_50.ckpt", 
+        model_name="resnet_v1_50", 
+        max_num_batches= 10
+    ),
+)
 ```
 
 **Valid Networks**
@@ -75,7 +117,7 @@ These are arguments automatically supplied by Launcher.
 * `clone_on_cpu`: Defaults to `true`.
 
 
-## Script Arguments:
+## Training Script Arguments:
 
 ```
 Generic training script that trains a model using a given dataset.

@@ -18,6 +18,7 @@ makedocs(
             "workloads/ngraph.md",
             "workloads/cifarcnn.md",
             "workloads/test.md",
+            "workloads/slim.md",
         ],
         "Datasets" => [
             "datasets/imagenet.md",
