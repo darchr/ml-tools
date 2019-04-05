@@ -478,9 +478,9 @@ version = "0.4.0"
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[NNlib]]
-deps = ["Libdl", "LinearAlgebra", "Requires", "Statistics", "Test", "TimerOutputs"]
-git-tree-sha1 = "24ef32c23136fb67c86807c440a2258d94ad6cbb"
-repo-rev = "master"
+deps = ["Libdl", "LinearAlgebra", "MacroTools", "Requires", "Test"]
+git-tree-sha1 = "51f5cd7567991417e7a9be8230a4a4b18442e05d"
+repo-rev = "f8fe29f6704888fc6b04371da0505bb8e9af853c"
 repo-url = "https://github.com/FluxML/NNlib.jl.git"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 version = "0.5.0+"
@@ -667,12 +667,6 @@ deps = ["OffsetArrays", "Test"]
 git-tree-sha1 = "58f6f07d3b54a363ec283a8f5fc9fb4ecebde656"
 uuid = "06e1c1a7-607b-532d-9fad-de7d9aa2abac"
 version = "0.2.3"
-
-[[TimerOutputs]]
-deps = ["Crayons", "Printf", "Test", "Unicode"]
-git-tree-sha1 = "b80671c06f8f8bae08c55d67b5ce292c5ae2660c"
-uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.0"
 
 [[Tokenize]]
 deps = ["Printf", "Test"]

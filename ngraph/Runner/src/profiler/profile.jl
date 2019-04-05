@@ -8,24 +8,88 @@
 # 2. For each of the ops, we also have to capture the input and output tensor layouts
 #   for the op in order to get accurate timing.
 #
-#   Question: How do we tell the difference between different input and output layouts?
-#   Answer: For now, lets not worry about tracking the format across runs, we'll just
-#       reprofile as needed.
+#   As far as I can tell, if a CPU op is annotated as "use_mkldnn_kernel", then the
+#   input and output layout will always be the same. Thus, to do the correct
+#   input/output layout conversion, we just have to check if the node we are copying is
+#   annotated as mkldnn and make sure we annotate the new node as such.
+
 """
     profile(fex::nGraph.FluxExecutable)
 
 Profile all of the operations in `fex`.
 """
 function profile(fex::nGraph.FluxExecutable; cache = nothing)
+    # Setup stuff
+    setup_profiling()
+    setup_pmem()
+
+    backend = fex.ex.backend
+
     # Go through each node
     # Create new parameters with the same input and outputs sizes
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
-    f = fex.ex.ngraph_function 
+    f = fex.ex.ngraph_function
+    data = ProfileData(f)
 
-    for op in f
-        sub_fn, copied_op = extract(op)
+    # Get all the configurations we are interested in for this run.
+    # Need to make a MOVE node in order to control IO configurations.
+    all_configs = get_configs(data, f)
+    # Convert the configs to a dictionary mapping node name to configs for easier
+    # management
+    config_dict = Dict{String, Vector{IOConfig}}()
+    for config in all_configs
+        v = get!(config_dict, first(config), IOConfig[])
+        push!(v, last(config))
     end
+
+    for (index, op) in enumerate(f)
+        println("Op $index of $(length(f))")
+
+        # Skip unneeded ops
+        keep(op) || continue
+        op_name = nGraph.name(op)
+        op_data = data.nodes[index]
+
+        # Get the configs to run for this node
+        configs = config_dict[op_name]
+
+        ex, inputs, outputs, copied_op = extract(op)
+
+        # Profile the timings
+        for config in configs
+            # setup the config
+            _setup!(copied_op, config)
+
+            # recompile the function to reflect the new config state
+            ex = nGraph.recompile(backend, ex)
+            function_name = nGraph.name(ex.ngraph_function)
+            for _ in 1:10
+                ex(inputs, outputs)
+                record_time!(op_data, function_name, copied_op)
+            end
+
+            _cleanup!(copied_op)
+        end
+    end
+
+    return data
+end
+
+function record_time!(node_data, function_name, op)
+    timings = JSON.parsefile("$function_name.timeline.json")["traceEvents"]
+    # Get the persistence config of this op
+    config = getconfig(op)
+
+    # Extract the timings and record it
+    index = findfirst(x -> x["name"] == nGraph.name(op), timings)
+    if index === nothing
+        println("Op Name: ", nGraph.name(op))
+        println(x["name"] for x in timings)
+        println(function_name)
+    end
+
+    push!(get!(node_data.timings, config, Float64[]), timings[index]["dur"])
 end
 
 function extract(node::nGraph.Node; backend = nGraph.Backend())
@@ -36,17 +100,63 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
         push!(params, nGraph.parameter(A))
     end
 
-    # Do the conversion to the correct inputs
-    converters = nGraph.Node[]  
-    for i in 1:nGraph.get_input_size(node)
-        push!(converters, nGraph.convert_layout_to(params[i], node, i))
+    # Copy the node with the newly created parameters
+    copied_node = nGraph.copy_with_new_args(node, params)
+
+    # Make sure we're using the same version of the node.
+    nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)
+
+    # Compile the new function
+    paramvector = nGraph.ParameterVector(params...)
+
+    outputs = nGraph.Node[]
+    if nGraph.get_output_size(copied_node) > 1
+        for i in 1:nGraph.get_output_size(copied_node)
+            push!(outputs, nGraph.get_output_element(copied_node, i))
+        end
+    else
+        push!(outputs, copied_node)
     end
 
-    # Copy the node with the `converters` arguments
-    copied_node = nGraph.copy_with_new_args(node, converters)
-    
-    # Compile the new function
-    inputs = nGraph.ParameterVector(params) 
-    outputs = nGraph.NodeVector((copied_node,))
-    return nGraph.compile(backend, inputs, outputs), copied_node
+    # Get an result output for each output of the node
+    nodevector = nGraph.NodeVector(outputs)
+
+    # First, we compile the function
+    ex = nGraph.compile(backend, paramvector, nodevector)
+
+    # Then, we have to inspect the graph, find the nodes that do not have converted
+    # inputs, and insert out synchronous move nodes so we can control the input/output
+    # state of the node under test.
+    #
+    # But first, we have to find what happened to the original node and find it in the
+    # new graph.
+    local translated_node
+    found = false
+    for op in ex.ngraph_function
+        # Line it up by description and input/output sizes.
+        if nGraph.description(op) == nGraph.description(copied_node) &&
+            nGraph.get_input_size(op) == nGraph.get_input_size(copied_node) &&
+            nGraph.get_output_size(op) == nGraph.get_output_size(op)
+
+            translated_node = op
+            found = true
+            break
+        end
+    end
+    @assert found
+
+    for input in nGraph.get_inputs(translated_node)
+        if nGraph.description(input) == "Parameter"
+            nGraph.splice(input, translated_node, nGraph.move(input))
+        end
+    end
+
+    # Recompile the function, now with the move nodes.
+    ex = nGraph.recompile(backend, ex)
+
+    # Make these any to make them compatible with the inner call for nGraph.Executable
+    input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in params]
+    output_tensors = Any[nGraph.Tensor(backend, x).ptr for x in outputs]
+
+    return ex, input_tensors, output_tensors, translated_node
 end

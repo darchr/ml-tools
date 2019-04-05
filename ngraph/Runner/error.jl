@@ -4,3 +4,7 @@ Runner.setup_affinities(); Runner.setup_profiling()
 
 println("Compiling Function")
 f, args = Zoo.mnist()
+
+f(args...)
+
+Runner.profile(f)

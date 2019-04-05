@@ -87,11 +87,6 @@ Fields
 
 * `timings::Dict{IOConfig, Vector{Float64}}` - Measurement execution times for this
     node for a given `IOConfig`.
-
-* `run_numbers::Dict{IOConfig, Vector{Int64}}` - To support future analysis, the run
-    numbers are also recorded and have a similar structure to the timing numbers.
-
-    That is, `run_numbers[config][i]` will be the run number for `timings[config][i]`.
 """
 struct NodeData
     name::String
@@ -101,7 +96,6 @@ struct NodeData
 
     # Results from profiling
     timings::Dict{IOConfig, Vector{Float64}}
-    run_numbers ::Dict{IOConfig, Vector{Int64}}
 end
 
 function NodeData(node::nGraph.Node)
@@ -110,7 +104,6 @@ function NodeData(node::nGraph.Node)
         nGraph.description(node),
         nGraph.get_name.(nGraph.input_descriptors(node)),
         nGraph.get_name.(nGraph.output_descriptors(node)),
-        Dict{IOConfig, Vector{Float64}}(),
         Dict{IOConfig, Vector{Float64}}(),
     )
 end
@@ -164,13 +157,15 @@ function ProfileData(fn::nGraph.NFunction)
     # How, perform the liveness analysis on the nodes and tensors data structures
     liveness = liveness_analysis(nodes)
 
-    return ProfileData(
+    PD = ProfileData(
         tensors,
         nodes,
         liveness.new_list,
         liveness.free_list,
         liveness.fixed_tensors
     )
+    set_tensor_locations!(PD, fn)
+    return PD
 end
 
 function liveness_analysis(nodes::Vector{NodeData})
@@ -274,28 +269,15 @@ function memory_profile(fex::nGraph.FluxExecutable, args; kw...)
     #
     # This SHOULD let us recompile a function without a bunch of extra nodes getting
     # inserted.
-    ENV["NGRAPH_PASS_HACK"] = 1
+    #ENV["NGRAPH_PASS_HACK"] = 1
     setup_profiling()
     setup_pmem()
-    local x
-    try
-        x = _memory_profile(fex, args; kw...)
-    finally
-        delete!(ENV, "NGRAPH_PASS_HACK")
-    end
-    return x
+    return _memory_profile(fex, args; kw...)
 end
 
-function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_configs = typemax(Int64))
-
-    # Unpack the function
-    ngraph_function = fex.ex.ngraph_function
-    name_to_node = Dict(nGraph.name(op) => op for op in ngraph_function)
-
-    data = ProfileData(ngraph_function)
-
+function set_tensor_locations!(data::ProfileData, fn::nGraph.NFunction)
     # Determine the possible locations for intermediate tensors
-    for op in ngraph_function
+    for op in fn
         for (index, descriptor) in enumerate(nGraph.output_descriptors(op))
             tensor_name = nGraph.get_name(descriptor)
             # If the op is a Constant or Parameter, then the output tensor can only
@@ -316,10 +298,11 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
         @assert !isempty(locations)
         @assert allunique(locations)
     end
+end
 
-    # Get all the various configurations we want to capture for this run.
-    remaining_configs = Set{Tuple{String, IOConfig}}()
-    for op in ngraph_function
+function get_configs(data::ProfileData, fn::nGraph.NFunction)
+    configs = Set{Tuple{String, IOConfig}}()
+    for op in fn
         keep(op) || continue
 
         inputs = [
@@ -334,10 +317,23 @@ function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_conf
         for input_config in Iterators.product(inputs...)
             for output_config in Iterators.product(outputs...)
                 config = IOConfig(input_config, output_config)
-                push!(remaining_configs, (op_name, config))
+                push!(configs, (op_name, config))
             end
         end
     end
+    return configs
+end
+
+function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_configs = typemax(Int64))
+
+    # Unpack the function
+    ngraph_function = fex.ex.ngraph_function
+    name_to_node = Dict(nGraph.name(op) => op for op in ngraph_function)
+
+    data = ProfileData(ngraph_function)
+
+    # Get all the various configurations we want to capture for this run.
+    remaining_configs = get_configs(data, ngraph_function)
 
     @info "Testing $(length(remaining_configs)) total configurations"
 
@@ -433,8 +429,8 @@ function tally!(data::ProfileData, fex, name_to_node, run_count::Int)
         timing_vec = get!(node_data.timings, config, Float64[])
         push!(timing_vec, time)
 
-        run_number_vec = get!(node_data.run_numbers, config, Int64[])
-        push!(run_number_vec, run_count)
+        #run_number_vec = get!(node_data.run_numbers, config, Int64[])
+        #push!(run_number_vec, run_count)
     end
 
     return 
@@ -444,6 +440,7 @@ function getconfig(n::nGraph.Node)
     f = x -> nGraph.is_persistent(x) ? PMEM : DRAM
     input = map(f, nGraph.input_descriptors(n)) |> Tuple
     output = map(f, nGraph.output_descriptors(n)) |> Tuple
+
     return IOConfig(input, output)
 end
 

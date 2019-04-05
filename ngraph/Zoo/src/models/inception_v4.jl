@@ -273,7 +273,7 @@ function mnist(batchsize = 16)
     X = nGraph.Tensor(backend, x)
     f = nGraph.compile(backend, model, X)
 
-    return f, X
+    return f, (X,)
 end
 
 # Include an additional modifier to allow modifying the optimizer
