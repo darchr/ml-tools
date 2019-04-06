@@ -100,8 +100,18 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
         push!(params, nGraph.parameter(A))
     end
 
+    # Insert layout conversion to match the mkldnn layouts in the original graph.
+    links = nGraph.Node[] 
+    for i in 1:nGraph.get_input_size(node)
+        if nGraph.input_needs_conversion(node, i)
+            push!(links, nGraph.convert_layout_to(params[i], node, i))
+        else
+            push!(links, params[i])
+        end
+    end
+
     # Copy the node with the newly created parameters
-    copied_node = nGraph.copy_with_new_args(node, params)
+    copied_node = nGraph.copy_with_new_args(node, links)
 
     # Make sure we're using the same version of the node.
     nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)

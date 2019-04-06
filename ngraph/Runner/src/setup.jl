@@ -23,7 +23,7 @@ function setup_affinities()
     # See docs/runner/kmp.md for syntax documentation
     ENV["KMP_HW_SUBSET"] = "1s@1,1t"
 
-    # 2 Threads for each cor
+    # 1 Threads for each core
     ENV["OMP_NUM_THREADS"] = 24
 end
 

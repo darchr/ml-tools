@@ -119,7 +119,7 @@ function add_nodes!(::ModelType, model, profile_data)
         objective_expr = model[:objective_expr] 
         for config in configs
             # For now, just use the Mean
-            coeff = round(Int64, mean(node_data.timings[config]))
+            coeff = round(Int64, min(node_data.timings[config]))
             add_to_expression!(objective_expr, coeff, vars[config])
         end
     end
