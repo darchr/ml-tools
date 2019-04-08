@@ -137,6 +137,14 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "launcher/launcher/#Running-Multiple-Simultaneous-Workloads-1",
+    "page": "Tutorial",
+    "title": "Running Multiple Simultaneous Workloads",
+    "category": "section",
+    "text": "To run multiple different workloads simultaneously, use the Bundle and  BundleLogger types.julia> bundle = Bundle(workA, workB, workC)\n\njulia> logger = BundleLogger(bundle)\n\njulia> run(bundle; log = logger)\n\n# After completion, logs can get accessed via\njulia> log1 = logger[1]\n\njulia> log2 = logger[2]\n\njulia> log3 = logger[3]"
+},
+
+{
     "location": "launcher/docstrings/#",
     "page": "Docstrings",
     "title": "Docstrings",
@@ -190,6 +198,30 @@ var documenterSearchIndex = {"docs": [
     "title": "Launcher.AbstractWorkload",
     "category": "type",
     "text": "Abstract supertype for workloads. Concrete subtypes should be implemented for each workload desired for analysis.\n\nRequired Methods\n\ncreate\ngetargs\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher/docstrings/#Launcher.Bundle",
+    "page": "Docstrings",
+    "title": "Launcher.Bundle",
+    "category": "type",
+    "text": "Wrapper type for launching multiple workloads at the same time through the run command.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher/docstrings/#Launcher.Bundle-Tuple",
+    "page": "Docstrings",
+    "title": "Launcher.Bundle",
+    "category": "method",
+    "text": "Bundle(workloads...) -> Bundle\n\nWrap the workloads into a single type the will launch all workloads under run\n\nUsage is as follows:\n\nbundle = Bundle(workloadA, workloadB)\n\nrun(bundle)\n\nAny keywords passed to run will be forwarded to each workload wrapped in bundle.\n\nTo log the output of these workloads, see BundleLogger.\n\n\n\n\n\n"
+},
+
+{
+    "location": "launcher/docstrings/#Launcher.BundleLogger-Tuple{Launcher.Bundle}",
+    "page": "Docstrings",
+    "title": "Launcher.BundleLogger",
+    "category": "method",
+    "text": "BundleLogger(bundle::Bundle) -> BundleLogger\n\nCreate a BundleLogger from bundle to pass to the log keyword argument of  run. This will store the logs for each container in bundle sequentially which can later be accessed by getindex. Example usage is shown below.\n\nbundle = Bundle(workA, workB, workC)\n\nlogger = BundleLogger(bundle)\n\nrun(bundle; log = logger)\n\n# After completion, logs can get accessed via\nlog1 = logger[1]\n\nlog2 = logger[2]\n\nlog3 = logger[3]\n\n\n\n\n\n"
 },
 
 {
