@@ -198,3 +198,23 @@ julia> workload = TFBenchmark(args = (model = "resnet50_v2", batch_size = 32))
 
 julia> run(workload; cpuSets = "0-11,48-59", cpuMems = "0")
 ```
+
+## Running Multiple Simultaneous Workloads
+
+To run multiple different workloads simultaneously, use the [`Bundle`](@ref) and 
+[`BundleLogger`](@ref) types.
+
+```julia
+julia> bundle = Bundle(workA, workB, workC)
+
+julia> logger = BundleLogger(bundle)
+
+julia> run(bundle; log = logger)
+
+# After completion, logs can get accessed via
+julia> log1 = logger[1]
+
+julia> log2 = logger[2]
+
+julia> log3 = logger[3]
+```

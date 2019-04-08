@@ -123,5 +123,73 @@ function _writelog(io::IO, container; kw...)
 end
 _writelog(file::String, container; first = false)  = open(io -> _writelog(io, container), file; write = true, append = !first)
 
+#####
+##### Support for multiple simultaneous workoads
+#####
+
+"""
+Wrapper type for launching multiple workloads at the same time through the [`run`](@ref)
+command.
+"""
+struct Bundle{T <: Tuple} <: AbstractWorkload
+    workloads::T
+end
+
+"""
+    Bundle(workloads...) -> Bundle
+
+Wrap the `workloads` into a single type the will launch all workloads under [`run`](@ref)
+
+Usage is as follows:
+```
+bundle = Bundle(workloadA, workloadB)
+
+run(bundle)
+```
+Any keywords passed to `run` will be forwarded to each workload wrapped in `bundle`.
+
+To log the output of these workloads, see [`BundleLogger`](@ref).
+"""
+Bundle(args...) = Bundle(args)
+
+# Forward create to all the wrapped workloads
+create(bundle::Bundle; kw...) = map(x -> create(x; kw...), bundle.workloads)
+
+mutable struct BundleLogger{N} 
+    # Logs for each container
+    logs::NTuple{N,IOBuffer}
+    # Count which logs have been collected.
+    count::Int
+end
+
+"""
+BundleLogger(bundle::Bundle) -> BundleLogger
+
+Create a `BundleLogger` from `bundle` to pass to the `log` keyword argument of 
+[`run`](@ref). This will store the logs for each container in `bundle` sequentially
+which can later be accessed by `getindex`. Example usage is shown below.
+
+```
+bundle = Bundle(workA, workB, workC)
+
+logger = BundleLogger(bundle)
+
+run(bundle; log = logger)
+
+# After completion, logs can get accessed via
+log1 = logger[1]
+
+log2 = logger[2]
+
+log3 = logger[3]
+```
+"""
+BundleLogger(bundle::Bundle) = BundleLogger(ntuple(x -> IOBuffer(), length(bundle.workloads)), 1)
+function _writelog(logger::BundleLogger, args...; kw...)
+    _writelog(logger.logs[logger.count], args...; kw...)
+    logger.count += 1
+end
+
+Base.getindex(logger::BundleLogger, i) = logger.logs[i]
 
 end # module
