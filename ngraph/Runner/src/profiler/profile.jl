@@ -13,15 +13,17 @@
 #   input/output layout conversion, we just have to check if the node we are copying is
 #   annotated as mkldnn and make sure we annotate the new node as such.
 
+include("cache.jl")
+
 """
     profile(fex::nGraph.FluxExecutable)
 
 Profile all of the operations in `fex`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = nothing)
+function profile(fex::nGraph.FluxExecutable; cache = EmptyCache())
     # Setup stuff
-    setup_profiling()
-    setup_pmem()
+    #setup_profiling()
+    #setup_pmem()
 
     backend = fex.ex.backend
 
@@ -43,9 +45,7 @@ function profile(fex::nGraph.FluxExecutable; cache = nothing)
         push!(v, last(config))
     end
 
-    for (index, op) in enumerate(f)
-        println("Op $index of $(length(f))")
-
+    @showprogress 1 for (index, op) in enumerate(f)
         # Skip unneeded ops
         keep(op) || continue
         op_name = nGraph.name(op)
@@ -54,10 +54,25 @@ function profile(fex::nGraph.FluxExecutable; cache = nothing)
         # Get the configs to run for this node
         configs = config_dict[op_name]
 
+        # Before we build a sub-function, get all of the cached ops.
+
+        cached_configs = IOConfig[]
+        kernel_params = CPUKernelParams(op) 
+        for config in configs 
+            if haskey(cache, (kernel_params, config))
+                op_data.timings[config] = [cache[(kernel_params, config)]]
+                push!(cached_configs, config)
+            end
+        end
+
+        # Abort if everything is cached
+        length(cached_configs) == length(configs) && continue 
+
+        # Extract a subgraph with just this op
         ex, inputs, outputs, copied_op = extract(op)
 
         # Profile the timings
-        for config in configs
+        for config in filter(!in(cached_configs), configs)
             # setup the config
             _setup!(copied_op, config)
 
@@ -70,6 +85,9 @@ function profile(fex::nGraph.FluxExecutable; cache = nothing)
             end
 
             _cleanup!(copied_op)
+
+            # Save the results to the cache.
+            cache[(kernel_params, config)] = minimum(op_data.timings[config])
         end
     end
 

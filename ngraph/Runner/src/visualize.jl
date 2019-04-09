@@ -15,7 +15,7 @@
         
             # Get the tensor assignment from the solved model.
             found = false
-            bytes = tensor.bytes
+            bytes = profile_data.tensors[tensor].bytes
             for location in profile_data.tensors[tensor].locations
                 if value(model[:tensors][tensor, location]) == 1
                     isfixed = in(tensor, profile_data.fixed_tensors)

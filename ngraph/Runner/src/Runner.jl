@@ -5,8 +5,28 @@ using Dates, Statistics
 using RecipesBase
 using LightGraphs, MetaGraphs
 using IterTools
+using ProgressMeter
 
 @enum TensorLocation::UInt8 DRAM PMEM
+
+"""
+Location information for the input and output tensors of a node.
+"""
+struct IOConfig{N, M}
+    inputs::NTuple{N, TensorLocation}
+    outputs::NTuple{M, TensorLocation}
+end
+
+function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
+    f = x -> (x == DRAM) ? "DRAM" : "PMEM"
+    print(io, "IOConfig{$N,$M}: ")
+    print(io, "(", join(f.(config.inputs), ", "), ") -- ")
+    print(io, "(", join(f.(config.outputs), ", "), ")")
+end
+
+#####
+##### Local Includes
+#####
 
 include("setup.jl")
 include("finder.jl")
@@ -27,21 +47,6 @@ keep(op::nGraph.Node) = keep(nGraph.description(op))
 # C++ does not have data structure serialization natively. We could have used something
 # like Goost::serialization, but I think that would be WAY more trouble than its worth.
 
-
-"""
-Location information for the input and output tensors of a node.
-"""
-struct IOConfig{N, M}
-    inputs::NTuple{N, TensorLocation}
-    outputs::NTuple{M, TensorLocation}
-end
-
-function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
-    f = x -> (x == DRAM) ? "DRAM" : "PMEM"
-    print(io, "IOConfig{$N,$M}: ")
-    print(io, "(", join(f.(config.inputs), ", "), ") -- ")
-    print(io, "(", join(f.(config.outputs), ", "), ")")
-end
 
 """
 Information about tensors in an ngraph function.
@@ -324,118 +329,6 @@ function get_configs(data::ProfileData, fn::nGraph.NFunction)
     return configs
 end
 
-function _memory_profile(fex::nGraph.FluxExecutable, args; max_simultaneous_configs = typemax(Int64))
-
-    # Unpack the function
-    ngraph_function = fex.ex.ngraph_function
-    name_to_node = Dict(nGraph.name(op) => op for op in ngraph_function)
-
-    data = ProfileData(ngraph_function)
-
-    # Get all the various configurations we want to capture for this run.
-    remaining_configs = get_configs(data, ngraph_function)
-
-    @info "Testing $(length(remaining_configs)) total configurations"
-
-    loop_counter = 0
-
-    # Keep track of the number of function runs
-    run_count = Ref(0)
-
-    while !isempty(remaining_configs)
-        @info "Configurations Left: $(length(remaining_configs))"
-
-        # Keep track of the nodes that are being tested so we don't overlap
-        seen = Set{String}()
-
-        simultaneous_configs = 0
-        for (name, config) in remaining_configs
-            # Abort if this node is already being tested
-            in(name, seen) && continue
-
-            # Abort if any neighbors of this node are under test
-            inputs = nGraph.get_inputs(name_to_node[name])
-            outputs = Iterators.flatten(nGraph.get_outputs(name_to_node[name]))
-            neighbors = Iterators.flatten((inputs, outputs))
-            any(in(seen), nGraph.name.(neighbors)) && continue
-
-            # Set the config for the parent node and mark tha parent + all neighbors as seen
-            # so the config is not overwritten
-            _setup!(name_to_node[name], config)
-            push!(seen, name)
-            for neighbor in neighbors
-                push!(seen, nGraph.name(neighbor))
-            end
-
-            # Update the number of configs we've used. If we're over the allowed number of
-            # simultaneous configs, exit
-            simultaneous_configs += 1
-            simultaneous_configs >= max_simultaneous_configs && break
-        end
-
-        # Run the profiling
-        # Run GC right before to clean up any left over buffers to ensure we have space
-        # for the recompilation.
-        GC.gc()
-        fex = profile!(fex, args, data, name_to_node, run_count)
-
-        # Get all the configs present in the graph and clear them from the remaining configs
-        for op in ngraph_function
-            config = getconfig(op)
-            name = nGraph.name(op)
-
-            delete!(remaining_configs, (name, config))
-        end
-        map(_cleanup!, ngraph_function)
-        loop_counter += 1
-    end
-
-    @info "Profiling took $loop_counter iterations"
-
-    return data
-end
-
-function profile!(fex, args, data, name_to_node, run_count::Ref{Int64}; runtime = Millisecond(1000))
-    fex = nGraph.recompile(nGraph.Backend(), fex)
-    time = now()
-    while now() < time + runtime
-        fex(args...)
-        # Update run count
-        run_count[] += 1
-        tally!(data, fex, name_to_node, run_count[])
-    end
-    return fex
-end
-
-function tally!(data::ProfileData, fex, name_to_node, run_count::Int)
-    f = fex.ex.ngraph_function
-
-    function_name = nGraph.name(f)
-    timings = JSON.parsefile("$function_name.timeline.json")["traceEvents"]
-
-    # Slurp up all the results that haven't been seen yet.
-    for node_data in data.nodes
-        node_name = node_data.name
-        keep(name_to_node[node_name]) || continue
-
-        # Record the time for this config.
-        config = getconfig(name_to_node[node_name])
-
-        # Get the timing and record it
-        index = findfirst(x -> x["name"] == node_name, timings)
-        @assert index !== nothing
-        time = timings[index]["dur"]
-
-        timing_vec = get!(node_data.timings, config, Float64[])
-        push!(timing_vec, time)
-
-        #run_number_vec = get!(node_data.run_numbers, config, Int64[])
-        #push!(run_number_vec, run_count)
-    end
-
-    return 
-end
-
 function getconfig(n::nGraph.Node)
     f = x -> nGraph.is_persistent(x) ? PMEM : DRAM
     input = map(f, nGraph.input_descriptors(n)) |> Tuple
@@ -465,6 +358,8 @@ function _setup!(node::nGraph.Node, config::IOConfig)
 end
 
 # Set everything back to volatile
+_cleanup!(f::nGraph.NFunction) = map(_cleanup!, f)
+
 function _cleanup!(node::nGraph.Node)
     for descriptor in nGraph.output_descriptors(node)
         nGraph.make_volatile(descriptor)
