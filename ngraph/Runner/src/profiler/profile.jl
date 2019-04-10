@@ -14,13 +14,21 @@
 #   annotated as mkldnn and make sure we annotate the new node as such.
 
 include("cache.jl")
+include("function.jl")
 
 """
-    profile(fex::nGraph.FluxExecutable)
+    profile(fex::nGraph.FluxExecutable; cache, saver)
 
 Profile all of the operations in `fex`.
+
+Keyword Arguments
+-----------------
+* `cache`: A cache to serve running times if a kernel has already been profiled
+
+* `saver`: An optional callable that will save the cache each time it is updated
+    to provide stability against problems. Must be callable as `saver(cache)`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = EmptyCache())
+function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothing)
     # Setup stuff
     #setup_profiling()
     #setup_pmem()
@@ -79,33 +87,34 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache())
             # recompile the function to reflect the new config state
             ex = nGraph.recompile(backend, ex)
             function_name = nGraph.name(ex.ngraph_function)
-            for _ in 1:10
+            for _ in 1:5
                 ex(inputs, outputs)
                 record_time!(op_data, function_name, copied_op)
             end
 
             _cleanup!(copied_op)
 
-            # Save the results to the cache.
+            # Save the results to the cache. If a saver function is provided, call
+            # it to backup the cache.
             cache[(kernel_params, config)] = minimum(op_data.timings[config])
+            saver === nothing || saver(cache)
         end
     end
 
     return data
 end
 
+read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
+read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
+
 function record_time!(node_data, function_name, op)
-    timings = JSON.parsefile("$function_name.timeline.json")["traceEvents"]
+    timings = read_timing_data(function_name)
     # Get the persistence config of this op
     config = getconfig(op)
 
     # Extract the timings and record it
     index = findfirst(x -> x["name"] == nGraph.name(op), timings)
-    if index === nothing
-        println("Op Name: ", nGraph.name(op))
-        println(x["name"] for x in timings)
-        println(function_name)
-    end
+    @assert index !== nothing
 
     push!(get!(node_data.timings, config, Float64[]), timings[index]["dur"])
 end

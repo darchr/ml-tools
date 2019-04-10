@@ -2,11 +2,15 @@
 ##### PMEM initialization
 #####
 
-function setup_pmem(file = "/mnt/public/file.pmem", size = 2^38)
-    ispath(file) && rm(file)
+function setup_pmem(dir = "/mnt/public/")
+    if isdir(dir) 
+        for file in readdir(dir)
+            rm(joinpath(dir, file); recursive = true)
+        end
+    end
 
     manager = nGraph.Lib.getinstance()
-    nGraph.Lib.create_pool(manager, file, convert(UInt, size))
+    nGraph.Lib.set_pool_dir(manager, dir)
     return nothing
 end
 

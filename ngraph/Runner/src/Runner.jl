@@ -65,15 +65,18 @@ struct TensorData
     name::String
     bytes::Int64
     locations::Vector{TensorLocation}
+    parent_name::String
+    parent_index::Int
+    output_index::Int
 end
 
-function TensorData(tensor::nGraph.TensorDescriptor)
-    return TensorData(
-        nGraph.get_name(tensor),
-        sizeof(tensor),
-        TensorLocation[], 
-    )
-end
+# function TensorData(tensor::nGraph.TensorDescriptor)
+#     return TensorData(
+#         nGraph.get_name(tensor),
+#         sizeof(tensor),
+#         TensorLocation[], 
+#     )
+# end
 
 """
 Meta data about nGraph nodes
@@ -102,6 +105,8 @@ struct NodeData
     # Results from profiling
     timings::Dict{IOConfig, Vector{Float64}}
 end
+
+keep(x::NodeData) = keep(x.description)
 
 function NodeData(node::nGraph.Node)
     return NodeData(
@@ -152,9 +157,21 @@ function ProfileData(fn::nGraph.NFunction)
     nodes = NodeData[]
     for op in fn
         push!(nodes, NodeData(op))
-        for tensor in nGraph.output_descriptors(op)
+        for (output_index, tensor) in enumerate(nGraph.output_descriptors(op))
             @assert !haskey(tensors, nGraph.get_name(tensor))
-            tensor_data = TensorData(tensor)
+            #tensor_data = TensorData(tensor)
+            tensor_data = TensorData(
+                nGraph.get_name(tensor),
+                sizeof(tensor),
+
+                # Default to an empty vector of tensor locations. It will be populated
+                # in later passes.
+                TensorLocation[],
+                nGraph.name(op),
+                # The index of the current node.
+                length(nodes),
+                output_index,
+            )
             tensors[tensor_data.name] = tensor_data
         end
     end
