@@ -1,6 +1,6 @@
 # Timing methods for the whole function
 
-function gettime(fex::nGraph.FluxExecutable, args; timeout = Second(15), min_calls = 3)
+function gettime(fex::nGraph.FluxExecutable, args; timeout = Second(10), min_calls = 3)
     start = now()
     mintime = typemax(Float64)
     times = 1
@@ -12,7 +12,7 @@ function gettime(fex::nGraph.FluxExecutable, args; timeout = Second(15), min_cal
     return mintime
 end
 
-function _dram_time(fex, args)
+function all_dram_time(fex, args)
     # Get timing for All DRAM
     backend = fex.ex.backend
     Runner._cleanup!(fex.ex.ngraph_function)
@@ -20,7 +20,7 @@ function _dram_time(fex, args)
     return fex, gettime(fex, args)
 end
 
-function _pmem_time(fex, args, profile_data)
+function all_pmem_time(fex, args, profile_data)
     backend = fex.ex.backend
     
     # Get timing for All PMEM
@@ -42,13 +42,6 @@ function _pmem_time(fex, args, profile_data)
 end
 
 function compare(iter, fex::nGraph.FluxExecutable, args, profile_data)
-    # Do a single call to warm up
-    fex(args...)
-    
-    # Establish baseline DRAM and PMEM times
-    fex, dram_time = _dram_time(fex, args)
-    fex, pmem_time = _pmem_time(fex, args, profile_data)
-    
     # Run each of the test functions
     predicted_runtimes = Float64[]
     actual_runtimes = Float64[]
@@ -63,7 +56,7 @@ function compare(iter, fex::nGraph.FluxExecutable, args, profile_data)
         fex = Runner.configure!(modeltype, fex, profile_data, model)
         
         # Get the predicted run time and then the actual run time
-        push!(predicted_runtimes, Runner.predict(modeltype, model))
+        push!(predicted_runtimes, Runner.predict(modeltype, model, profile_data))
         push!(actual_runtimes, gettime(fex, args))
         push!(kernel_times, read_timing_data(fex.ex.ngraph_function))
 
@@ -75,12 +68,88 @@ function compare(iter, fex::nGraph.FluxExecutable, args, profile_data)
 
     # Prepare the return values
     rettuple = (
-        dram_time = dram_time,
-        pmem_time = pmem_time,
         predicted_runtimes = predicted_runtimes,
         actual_runtimes = actual_runtimes,
         kernel_times = kernel_times,
     )
     
     return fex, rettuple
+end
+
+#####
+##### Intraction methods with the `rettuple` from `compare`
+#####
+
+dc(x) = all(isequal(Runner.DRAM), x)
+pmem_count(x) = count(isequal(Runner.PMEM), x)
+
+function gettimings(data)
+    timings = NamedTuple[]
+
+    for node in data.nodes
+        Runner.keep(node) || continue
+        configs = collect(keys(node.timings))
+
+        dram_config = configs[findfirst(x -> dc(x.inputs) && dc(x.outputs), configs)]
+        input_dram = filter(x -> dc(x.inputs), configs) |> collect
+        output_dram = filter(x -> dc(x.outputs), configs) |> collect
+
+        # Find the configs with the most inputs in PMEM with all outputs in DRAM
+        # and find the config with the most outputs in PMEM with all inputs in DRAM
+        _, i = findmax(map(x -> pmem_count(x.inputs), output_dram))
+        max_input_pmem_config = output_dram[i]
+
+        _, i = findmax(map(x -> pmem_count(x.outputs), input_dram))
+        max_output_pmem_config = input_dram[i]
+
+        # Find the comfig with the most number of PMEM io
+        _, i = findmax(map(x -> pmem_count(x.inputs) + pmem_count(x.outputs), configs))
+        max_pmem_config = configs[i]
+
+        nt = (
+            description = node.description,
+            dram = minimum(node.timings[dram_config]),
+            pmem = minimum(node.timings[max_pmem_config]),
+            input_pmem = minimum(node.timings[max_input_pmem_config]),
+            output_pmem = minimum(node.timings[max_output_pmem_config]),
+        )
+        push!(timings, nt)
+    end
+    return timings
+end
+
+#####
+##### Plotting
+#####
+
+struct PlotDispatch end
+
+@recipe function f(::PlotDispatch, timings, key; legend = nothing)
+    # Sort by key ratio over DRAM
+    sort!(timings; by = x -> getproperty(x, key) / x.dram)
+    
+    # Get all the unique descriptions
+    descriptions = unique(map(x -> x.description, timings))
+
+    seriestype := :scatter
+    legend := legend
+    #yaxis := :log10
+    
+    xlabel := "Kernel Number"
+    ylabel := "Execution time with respect to all DRAM"
+    
+    for d in descriptions
+        x = Int[]
+        y = Float64[]
+        for (i, timing) in enumerate(timings)
+            timing.description == d || continue
+            
+            push!(x, i)
+            push!(y, getproperty(timing, key) ./ timing.dram)
+        end
+        @series begin
+            lab := d
+            x,y
+        end
+    end
 end

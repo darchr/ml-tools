@@ -60,20 +60,16 @@ function create_model(modeltype::Synchronous, profile_data)
     return model
 end
 
-@enum VertexRole SOURCE SINK PRE_OP POST_OP
+@enum VertexLocation  LOC_PMEM LOC_DRAM LOC_PREAD LOC_SOURCE LOC_SINK
 
 # Metadata to assign to each node in the liveness graph for tensors.
 struct VertexMetadata
-    # The role this vertex plays in the graph
-    role::VertexRole
     # The gadget that this vertex belongs to. Used for edge generation.
     gadget::Int
     # The op index that this gadget refers to
     op::Int 
     # Where the vertex lives
-    location::TensorLocation
-    # Switch for the last node
-    islast::Bool 
+    location::VertexLocation
 end
 
 struct EdgeMetadata
@@ -88,11 +84,31 @@ function preprocess!(S::Synchronous, profile_data)
         name  = tensor.name
         locations = tensor.locations
 
+        read_cost = round(Int, tensor.bytes / (S.read_bandwidth * 1E6))
+        write_cost = round(Int, tensor.bytes / (S.write_bandwidth * 1E6))
+
         cost_table = Dict(
-            (DRAM, DRAM) => 0,
-            (DRAM, PMEM) => round(Int, tensor.bytes / S.write_bandwidth * 1E6),
-            (PMEM, DRAM) => round(Int, tensor.bytes / S.read_bandwidth * 1E6),
-            (PMEM, PMEM) => 0,
+            # DRAM source
+            (LOC_DRAM, LOC_DRAM) => 0,
+            (LOC_DRAM, LOC_PREAD) => write_cost + read_cost,
+            (LOC_DRAM, LOC_PMEM) => write_cost,
+
+            # PREAD source
+            (LOC_PREAD, LOC_PREAD) => read_cost,
+            (LOC_PREAD, LOC_PMEM) => 0,
+
+            # PMEM source
+            (LOC_PMEM, LOC_DRAM) => read_cost,
+            (LOC_PMEM, LOC_PREAD) => read_cost,
+            (LOC_PMEM, LOC_PMEM) => 0
+
+            # Source source
+            (LOC_SOURCE, LOC_PMEM) => 0,
+            (LOC_SOURCE, LOC_DRAM) => 0,
+
+            # sinks
+            (LOC_PMEM, LOC_SINK) => 0,
+            (LOC_DRAM, LOC_SINK) => 0
         )
 
         # Get the indices of ops that have this tensor as an input
@@ -107,102 +123,59 @@ function preprocess!(S::Synchronous, profile_data)
         # state right when its allocated.
         pushfirst!(ops_using_tensor, 0)
 
-        # Main idea is that we use a source node with outward flow of 1. It can flow
-        # into either PMEM or DRAM. Tensors in PMEM can flow to both PMEM and DRAM at
-        # the same time, while tensors in DRAM can only flow to one of PMEM or DRAM.
-        #
-        # Every time there is a transfer, it incurs some runtime cost.
         g = MetaDiGraph()
 
-        add_vertex!(g, :metadata, VertexMetadata(SOURCE, 0, 0, DRAM, false))
-        add_vertex!(g, :metadata, VertexMetadata(SINK, 0, 0, DRAM, true))
-
+        add_vertex!(g, :metadata, VertexMetadata(0, 0, LOC_SOURCE))
         # Add nodes for each region
         for (count, index) in enumerate(ops_using_tensor)
+            islast = (index == last(ops_using_tensor))
+
             # Enumerate over locations that this tensor can live.
             #
             # Do it this way because some nodes can only live in DRAM, so iterating 
             # then filtering takes care of that
             for location in locations
-                islast = (index == last(ops_using_tensor))
+                isfirst = count == 1
 
                 if location == DRAM
-                    # Create two nodes - a pre-op node and a post-op node.
-                    pre_op_meta = VertexMetadata(PRE_OP, count, index, location, islast)
-                    add_vertex!(g, :metadata, pre_op_meta)
-
-                    # Add a post op node
-                    post_op_meta = VertexMetadata(POST_OP, count, index, location, islast)
-                    add_vertex!(g, :metadata, post_op_meta)
-
-                elseif location == PMEM
-                    # Just add a single node for the PMEM case
-                    metadata = VertexMetadata(PRE_OP, count, index, location, islast)
+                    metadata = VertexMetadata(count, index, LOC_DRAM)
                     add_vertex!(g, :metadata, metadata)
                 end
+
+                if location == PMEM
+                    metadata = VertexMetadata(count, index, LOC_PMEM)
+                    add_vertex!(g, :metadata, metadata)
+
+                    # Add the intermediate node if we're not on the first or last step
+                    # of this graph
+                    if !isfirst && !islast
+                        metadata = VertexMetadata(count, index, LOC_PREAD)
+                        add_vertex!(g, :metadata, metadata)
+                    end
+                end
+            end
+            if islast
+                # Set the gadget number for the sink to one higher than the last count.
+                add_vertex!(g, :metadata, VertexMetadata(0, count + 1, LOC_SINK))
             end
         end
-        
+
         # Use a quadratic complexity algorithm for doing edge assignment. It's not 
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
         for src in vertices(g), dst in vertices(g)
-            # Source connections
-            if _meta(g, src).role == SOURCE && 
-                _meta(g, dst).role == PRE_OP && 
-                _meta(g, dst).gadget == 1
-
-                add_edge!(g, src, dst, :metadata, EdgeMetadata(0))
-            end
-
-            # Sink Connections
-            if _meta(g, src).islast && _meta(g, dst).role == SINK
-                add_edge!(g, src, dst, :metadata, EdgeMetadata(0))
-            end
 
             # Connections between gadgets
             if _meta(g, src).gadget == _meta(g, dst).gadget + 1 
-                # Connect DRAM pre_op nodes to PMEM nodes.
-                if _meta(g, src).location == DRAM && 
-                    _meta(g, src).role == PRE_OP &&
-                    _meta(g, dst).location == PMEM 
-
-                    add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[(DRAM,PMEM)]))
-                    println("DRAM -> PMEM")
-                end
-
-                # Connect PMEM nodes to DRAM Nodes
-                if _meta(g, src).location == PMEM &&
-                    _meta(g, dst).location == DRAM &&
-                    _meta(g, dst).role == PRE_OP
-
-                    add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[(PMEM,DRAM)]))
-                    println("PMEM -> DRAM")
-                end
-
-                # Connect DRAM post-op and pre-op nodes
-                if _meta(g, src).location == DRAM && _meta(g, src).role == POST_OP &&
-                    _meta(g, dst).location == DRAM && _meta(g, dst).role == PRE_OP
-
-                    add_edge!(g, src, dst, :metadata, EdgeMetadata(0))
-                    println("DRAM POST -> DRAM PRE")
-                end
-
-                # Connect PMEM to PMEM nodes
-                if _meta(g, src).location == PMEM && _meta(g, dst).location == PMEM 
-                    add_edge!(g, src, dst, :metadata, EdgeMetadata(0))
-                    println("PMEM -> PMEM")
+                # Create a tuple of the two locations. If this is a defined key in the
+                # cost table, add an edge with the associated cost.
+                key = (_meta(g, src).location, _meta(g, dst).location) 
+                if haskey(cost_table, key)
+                    println(key)
+                    add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[key]))
                 end
             end
 
-            # Connect pre-op and post-op DRAM nodes
-            if _meta(g, src).gadget == _meta(g, dst).gadget &&
-                _meta(g, src).location == DRAM && _meta(g, src).role == PRE_OP &&
-                _meta(g, dst).location == DRAM && _meta(g, dst).role == POST_OP
-
-                add_edge!(g, src, dst, :metadata, EdgeMetadata(0))
-                println("DRAM PRE -> DRAM POST")
-            end
         end
 
         # Create the descriptor
@@ -225,56 +198,26 @@ function add_tensors!(S::Synchronous, model, profile_data)
 
     for name in names
         g = descriptors[name].graph
-
         # Iterate through nodes in the graph - generating constraints based on the type
         # of node.
         for v in vertices(g)
-
             # Set flow coming out of the source node
-            if _meta(g, v).role == SOURCE
+            if _meta(g, v).location == LOC_SOURCE
                 @constraint(model,
                     sum(tensor_graphs[name, e] for e in outedges(g, v)) == 1
                 )
 
             # Set flow going into the sink node
-            elseif _meta(g, v).role == SINK
+            elseif _meta(g, v).location == LOC_SINK
                 @constraint(model,
                     sum(tensor_graphs[name, e] for e in inedges(g, v)) == 1
                 )
 
-            # Post Op nodes must conserve flow
-            elseif _meta(g, v).role == POST_OP
+            # All other ops must conserve flow
+            else
                @constraint(model,
                    sum(tensor_graphs[name, e] for e in outedges(g, v)) == sum(tensor_graphs[name, e] for e in inedges(g, v))
                )
-
-            # Differentiate between PMEM and DRAM nodes
-            # Pre-op dram nodes can drop flow
-            elseif _meta(g, v).role == PRE_OP && _meta(g, v).location == DRAM 
-                # Total flow through the vertex must be 1
-                @constraint(model,
-                    sum(tensor_graphs[name, e] for e in inedges(g, v)) <= 1
-                )
-
-                @constraint(model,
-                    sum(tensor_graphs[name, e] for e in inedges(g, v)) >=
-                    sum(tensor_graphs[name, e] for e in outedges(g, v))
-                )
-
-            # PMEM nodes can generate flow if they want, but the INCOMING flow must
-            # be at most 1
-            elseif _meta(g, v).role == PRE_OP && _meta(g, v).location == PMEM
-                @constraint(model,
-                    sum(tensor_graphs[name, e] for e in inedges(g, v)) <= 1
-                )
-
-                @constraint(model,
-                    sum(tensor_graphs[name, e] for e in inedges(g, v)) <=
-                    sum(tensor_graphs[name, e] for e in outedges(g, v))
-                )
-            else
-                error()
-            end
         end
     end
 
@@ -310,7 +253,6 @@ function add_tensors!(S::Synchronous, model, profile_data)
             op = _meta(g, v).op
 
             in(role, (SOURCE, SINK)) && continue
-
 
             # Tensors will be live is any incoming edge is taken, and dead if NO 
             # incoming edges are used

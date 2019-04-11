@@ -12,11 +12,21 @@ struct ILPGreedy <: SimpleModel
     dram_limit::Int64
 end
 
+function predict(S::SimpleModel, model, profile_data) 
+    # Base the expected runtime on the configs of all the kernels.
+    runtime = zero(Float64)
+    for node in profile_data.nodes
+        node_name = node.name
+        keep(node.description) || continue
 
-predict(::Simple, model) = objective_value(model)
+        config = getconfig(S, model, profile_data, node_name)
+        runtime += minimum(node.timings[config])
+    end
+    return runtime
+end
 
-# No good way to go straight from the model to a predicted runtime.
-predict(::ILPGreedy, args...) = zero(Float64)
+# Shortcut for simple
+predict(::Simple, model, profile_data) = objective_value(model)
 
 #=
 For each tensor, we generate a binary variable for each location the tensor can reside.
@@ -36,14 +46,13 @@ function create_model(modeltype::T, profile_data) where {T <: SimpleModel}
     add_constraints!(modeltype, model, profile_data)
 
     # Add the objective expression we've built up.
-    if T == Simple
-        @objective(model, Min, model[:objective_expr])
-    else
-        @objective(model, Max, model[:objective_expr])
-    end
+    apply_objective!(modeltype, model)
 
     return model
 end
+
+apply_objective!(::SimpleModel, model) = @objective(model, Min, model[:objective_expr])
+apply_objective!(::ILPGreedy, model) = @objective(model, Max, model[:objective_expr])
 
 function add_tensors!(::SimpleModel, model, profile_data)
     # Get all the tensors in the graph
@@ -102,22 +111,10 @@ function add_constraints!(modeltype::T, model, profile_data) where {T <: SimpleM
     # Unpack some variables
     dram_limit = limit(modeltype)
     tensor_data = profile_data.tensors
-    fixed_tensors = profile_data.fixed_tensors
     tensors = model[:tensors]
 
-    live_tensors = Set{String}()
-    for (index, node_data) in enumerate(profile_data.nodes)
-        # Another sanity check to make sure all the expected tensors are live
-        @assert all(in(live_tensors), node_data.input_tensors)
-
-        # Add Tensors
-        for tensor_name in profile_data.newlist[index]
-            # Sanity Check
-            @assert !in(tensor_name, live_tensors)
-            push!(live_tensors, tensor_name)
-        end
-
-        live_free_tensors = filter(!in(fixed_tensors), live_tensors)
+    for (index, free_tensors) in enumerate(live_tensors(profile_data))
+        live_free_tensors = filter(!in(profile_data.fixed_tensors), free_tensors)
         if !isempty(live_free_tensors)
             @constraint(model,
                 sum(
@@ -139,10 +136,6 @@ function add_constraints!(modeltype::T, model, profile_data) where {T <: SimpleM
             end
         end
 
-        # Free Tensors
-        for tensor_name in profile_data.freelist[index]
-            delete!(live_tensors, tensor_name)
-        end
     end
 
     return
