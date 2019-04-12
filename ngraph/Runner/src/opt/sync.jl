@@ -32,10 +32,13 @@ end
 
 Synchronous(a,b,c) = Synchronous(a,b,c, Dict{String,SynchronousTensor}())
 
+limit(S::Synchronous) = S.dram_limitr
+
 #####
 ##### Helper Functions
 #####
 
+# Why do these not exist in LightGraphs.jl??
 inedges(g, v) = (LightGraphs.SimpleEdge(u, v) for u in inneighbors(g, v))
 outedges(g, v) = (LightGraphs.SimpleEdge(v, u) for u in outneighbors(g, v))
 
@@ -44,7 +47,7 @@ function create_model(modeltype::Synchronous, profile_data)
     preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60))
 
     # Create an empty expression that will be progressively generated to the final
     # objective.
@@ -76,7 +79,6 @@ struct EdgeMetadata
     cost::Int64
 end
 
-
 _meta(g, x) = get_prop(g, x, :metadata)
 
 function preprocess!(S::Synchronous, profile_data)
@@ -84,8 +86,8 @@ function preprocess!(S::Synchronous, profile_data)
         name  = tensor.name
         locations = tensor.locations
 
-        read_cost = round(Int, tensor.bytes / (S.read_bandwidth * 1E6))
-        write_cost = round(Int, tensor.bytes / (S.write_bandwidth * 1E6))
+        read_cost = round(Int, tensor.bytes / (S.read_bandwidth))
+        write_cost = round(Int, tensor.bytes / (S.write_bandwidth))
 
         cost_table = Dict(
             # DRAM source
@@ -100,7 +102,7 @@ function preprocess!(S::Synchronous, profile_data)
             # PMEM source
             (LOC_PMEM, LOC_DRAM) => read_cost,
             (LOC_PMEM, LOC_PREAD) => read_cost,
-            (LOC_PMEM, LOC_PMEM) => 0
+            (LOC_PMEM, LOC_PMEM) => 0,
 
             # Source source
             (LOC_SOURCE, LOC_PMEM) => 0,
@@ -108,7 +110,7 @@ function preprocess!(S::Synchronous, profile_data)
 
             # sinks
             (LOC_PMEM, LOC_SINK) => 0,
-            (LOC_DRAM, LOC_SINK) => 0
+            (LOC_DRAM, LOC_SINK) => 0,
         )
 
         # Get the indices of ops that have this tensor as an input
@@ -119,9 +121,9 @@ function preprocess!(S::Synchronous, profile_data)
         ]
         # When tensors are created, they either have to live in DRAM or PMEM.
         #
-        # By placing a zero index at the front of this vector, we can get the tensor
-        # state right when its allocated.
-        pushfirst!(ops_using_tensor, 0)
+        # We insert the op that creates this tensor at the first of the 
+        # `ops_using_tensor` vector
+        pushfirst!(ops_using_tensor, findfirst(x -> in(name, x.output_tensors), profile_data.nodes))
 
         g = MetaDiGraph()
 
@@ -156,7 +158,7 @@ function preprocess!(S::Synchronous, profile_data)
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                add_vertex!(g, :metadata, VertexMetadata(0, count + 1, LOC_SINK))
+                add_vertex!(g, :metadata, VertexMetadata(count + 1, 0, LOC_SINK))
             end
         end
 
@@ -164,14 +166,14 @@ function preprocess!(S::Synchronous, profile_data)
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
         for src in vertices(g), dst in vertices(g)
+            src == dst && continue
 
             # Connections between gadgets
-            if _meta(g, src).gadget == _meta(g, dst).gadget + 1 
+            if _meta(g, src).gadget + 1 == _meta(g, dst).gadget
                 # Create a tuple of the two locations. If this is a defined key in the
                 # cost table, add an edge with the associated cost.
                 key = (_meta(g, src).location, _meta(g, dst).location) 
                 if haskey(cost_table, key)
-                    println(key)
                     add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[key]))
                 end
             end
@@ -215,9 +217,12 @@ function add_tensors!(S::Synchronous, model, profile_data)
 
             # All other ops must conserve flow
             else
+                oe = collect(outedges(g, v))
+                ie = collect(inedges(g, v))
                @constraint(model,
-                   sum(tensor_graphs[name, e] for e in outedges(g, v)) == sum(tensor_graphs[name, e] for e in inedges(g, v))
+                   sum(tensor_graphs[name, e] for e in oe) - sum(tensor_graphs[name, e] for e in ie) == 0
                )
+           end
         end
     end
 
@@ -238,7 +243,6 @@ function add_tensors!(S::Synchronous, model, profile_data)
         tensor_in_dram[
             name = names,
             op = descriptors[name].ops_using_tensor,
-            position = [PRE_OP, POST_OP]
         ],
         Bin
     )
@@ -247,29 +251,77 @@ function add_tensors!(S::Synchronous, model, profile_data)
     for name in names
         g = descriptors[name].graph
 
-        for v in filter_vertices(g, (g, v) -> _meta(g, v).location == DRAM)
-            # Skip source or sink nodes
-            role = _meta(g, v).role
-            op = _meta(g, v).op
+        for op in descriptors[name].ops_using_tensor
 
-            in(role, (SOURCE, SINK)) && continue
+            # Get the DRAM and PREAD vertices for this op.
+            vertex_iter = filter_vertices(
+                g,
+                (g,v) -> in(_meta(g, v).location, (LOC_DRAM, LOC_PREAD)) && _meta(g, v).op == op
+            )
 
-            # Tensors will be live is any incoming edge is taken, and dead if NO 
-            # incoming edges are used
-            for e in inedges(g, v)
-                @constraint(model, tensor_in_dram[name, op, role] >= tensor_graphs[name, e])
+            # Map `inedges` to `vertex_iter` and iterats over all those edges
+            for e in Iterators.flatten(map(x -> inedges(g, x), vertex_iter))
+                @constraint(model, tensor_in_dram[name, op] >= tensor_graphs[name, e])
             end
 
-            # If all incoming edges are not taken, tensor must not be in DRAM.
+            # If all incoming edges are not taken, tensor MUST not be in DRAM.
+            iter = Iterators.flatten(map(x -> inedges(g, x), vertex_iter)) 
             @constraint(model,
-                sum(tensor_graphs[name, e] for e in inedges(g, v)) >=
-                tensor_in_dram[name, op, role]
+                sum(tensor_graphs[name, e] for e in iter) >= tensor_in_dram[name, op]
             )
-             
         end
     end
 
     return
+end
+
+# There's an issue when trying to reference whether or not a tensor is in DRAM.
+#
+# If we're on an op where the tensor is used, we have to look at the inputs to a
+# graph verted with LOC_DRAM or LOC_PREAD to see if the tensor was fetched or already
+# lived in dram.
+#
+# If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
+# edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
+function tensor_in_dram(S::Synchronous, model, tensor_name, op)
+    # Pull out the descriptor for this tensor - check if this is an op using the tensor.
+    descriptor = S.descriptors[tensor_name] 
+    
+    # Sanity check: Make sure that the op passed is between the range of ops that this
+    # tensor is live.
+    @assert minimum(descriptor.ops_using_tensor) <= op 
+    @assert maximum(descriptor.ops_using_tensor) >= op 
+
+    if in(op, descriptor.ops_using_tensor)
+        return model[:tensor_in_dram][tensor_name, op]
+    else
+        # Get the edge leaving DRAM from this reference op
+        #
+        # The strategy is to get the correct edge from the underlying metagraph
+        ref = reference_op(descriptor, op)
+
+        graph = descriptor.graph
+
+        iter = filter_vertices(
+            graph,
+            (g, v) -> _meta(g, v).op == ref && _meta(g, v).location == LOC_DRAM, 
+        ) |> collect
+
+        # Another debug check, make sure that the above filter only returns one node.
+        @assert length(iter) == 1
+        vertex = first(iter)
+
+        for edge in outedges(graph, vertex)
+            u = dst(edge)
+            if _meta(graph, u).location == LOC_DRAM
+                return model[:tensor_graphs][tensor_name, edge]
+            end
+        end
+    end
+
+    # We should have found an edge in teh above loop. If we haven't, thats definitely
+    # an error
+    error("No edges found for Tensor $tensor_name at op $op") 
 end
 
 function add_nodes!(S::Synchronous, model, profile_data)
@@ -284,10 +336,6 @@ function add_nodes!(S::Synchronous, model, profile_data)
         # Create a variable for each config.
         vars = @variable(model, [config = configs], Bin)
 
-        # Constrain each variable to be active if all of its inputs are active. We refer
-        # to the tensors variables created earlier to generate these constraings.
-        tensor_in_dram = model[:tensor_in_dram]
-
         inputs = node_data.input_tensors
         outputs = node_data.output_tensors
 
@@ -300,18 +348,23 @@ function add_nodes!(S::Synchronous, model, profile_data)
             ))
 
             for (location, name) in iter
-                n = reference_op(S.descriptors[name], op)
+                tensor = tensor_in_dram(S, model, name, op)
                 if location == DRAM
-                    add_to_expression!(expr, tensor_in_dram[name, n, PRE_OP])
+                    add_to_expression!(expr, tensor)
+                    @constraint(model, vars[config] <= tensor)
                 else
                     add_to_expression!(expr, 1)
-                    add_to_expression!(expr, -1, tensor_in_dram[name, n, PRE_OP])
+                    add_to_expression!(expr, -1, tensor_in_dram(S, model, name, op))
+                    @constraint(model, vars[config] <= 1 - tensor)
                 end
             end
 
             @constraint(model, vars[config] + length(config.inputs) + length(config.outputs) >= 
                 1 + expr)
+
         end
+        # here, we're adding a valid contraint to help the solver
+        @constraint(model, sum(vars[config] for config in configs) == 1)
 
         # Mutate the "objective_expr" with these timings
         objective_expr = model[:objective_expr]
@@ -324,13 +377,10 @@ function add_nodes!(S::Synchronous, model, profile_data)
     return
 end
 
-pre_or_post(descriptor, index) = (reference_op(descriptor, index) == index) ? PRE_OP : POST_OP
-
 function add_constraints!(S::Synchronous, model, profile_data)
     # Unpack some variables
-    dram_limit = S.dram_limit
+    dram_limit = limit(S)
     tensor_data = profile_data.tensors
-    tensor_in_dram = model[:tensor_in_dram]
 
     # Constrain the live tensors in DRAM to be below a certain threshold.
     for (index, free_tensors) in enumerate(live_tensors(profile_data))
@@ -339,10 +389,7 @@ function add_constraints!(S::Synchronous, model, profile_data)
 
             @constraint(model,
                 sum(
-                    tensor_data[n].bytes * tensor_in_dram[
-                        n, 
-                        reference_op(S.descriptors[n], index),
-                        pre_or_post(S.descriptors[n], index)]
+                    round(Int, tensor_data[n].bytes / 1E6) * tensor_in_dram(S, model, n, index)
                     for n in live_free_tensors
                 ) <= dram_limit
             )

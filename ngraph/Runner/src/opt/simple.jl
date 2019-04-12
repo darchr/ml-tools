@@ -6,11 +6,17 @@ limit(x::SimpleModel) = x.dram_limit
 struct Simple <: SimpleModel
     dram_limit::Int64
 end
+default_tolerance(::Simple) = 0.001
 
 # Maximize DRAM usage with a DRAM Limit
+#
+# NOTE: When running, it might be baset to set MIP tolerance to 1% because the solver
+# really struggles to get below about 0.6-0.7%
 struct ILPGreedy <: SimpleModel
     dram_limit::Int64
 end
+default_tolerance(::ILPGreedy) = 0.01
+
 
 function predict(S::SimpleModel, model, profile_data) 
     # Base the expected runtime on the configs of all the kernels.
@@ -33,9 +39,16 @@ For each tensor, we generate a binary variable for each location the tensor can 
 and constrain that one of these locations must be active.
 =#
 
-function create_model(modeltype::T, profile_data) where {T <: SimpleModel}
+function create_model(
+        modeltype::T, 
+        profile_data; 
+        tolerance = default_tolerance(modeltype)
+    ) where {T <: SimpleModel}
+
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer))
+    #
+    # Slightly loosen the gap to .1% because at that point, who cares anyways?
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 120, MIPGap = tolerance))
 
     # Create an empty expression that will be progressively generated to the final
     # objective.
@@ -84,7 +97,7 @@ function add_nodes!(::ModelType, model, profile_data)
         vars = @variable(model, [config = configs], Bin)
 
         # Constrain each variable to be active if all of its inputs are active. We refer
-        # to the tensors variables created earlier to generate these constraings.
+        # to the tensors variables created earlier to generate these constrainrs.
         tensors = model[:tensors]
 
         @constraint(model,
@@ -94,6 +107,24 @@ function add_nodes!(::ModelType, model, profile_data)
                 - sum(tensors[n, config.outputs[i]] for (i,n) in enumerate(node_data.output_tensors))
             >= 1 - length(config.inputs) - length(config.outputs)
         )
+
+        # This constraint basically forces vars[config] to be zero if any of its inputs
+        # are zero.
+        #
+        # It is not strictly necessary but are helpful to the solver.
+        for config in configs
+            config_iter = Iterators.flatten((config.inputs, config.outputs))
+            name_iter = Iterators.flatten((node_data.input_tensors, node_data.output_tensors))
+            for (loc, nm) in zip(config_iter, name_iter)
+                @constraint(model, vars[config] <= tensors[nm, loc])
+            end
+        end
+
+        # One of these configs must be active
+        #
+        # While this constraint pops out from the objective, it really helps the solver
+        # so include it.
+        @constraint(model, sum(vars[config] for config in configs) == 1)
 
         # Mutate the "objective_expr" with these timings
         objective_expr = model[:objective_expr]

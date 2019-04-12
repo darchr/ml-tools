@@ -487,9 +487,11 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[NNlib]]
 deps = ["Libdl", "LinearAlgebra", "MacroTools", "Requires", "Test"]
-git-tree-sha1 = "9ac5cd21484189339b27840818c4882d1b6df7fd"
+git-tree-sha1 = "51f5cd7567991417e7a9be8230a4a4b18442e05d"
+repo-rev = "f8fe29f6704888fc6b04371da0505bb8e9af853c"
+repo-url = "https://github.com/FluxML/NNlib.jl.git"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.5.0"
+version = "0.5.0+"
 
 [[NaNMath]]
 deps = ["Compat"]

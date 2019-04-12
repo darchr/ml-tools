@@ -53,7 +53,19 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothi
         push!(v, last(config))
     end
 
-    @showprogress 1 for (index, op) in enumerate(f)
+    progress_bar = Progress(length(f), 1)
+    for (index, op) in enumerate(f)
+        # Update the progress bar
+        ProgressMeter.next!(
+            progress_bar; 
+            valuecolor = :white,
+            showvalues = [
+                (:iter, index),
+                (:total, length(f)),
+                (:op, nGraph.name(op)),
+            ]
+        )
+
         # Skip unneeded ops
         keep(op) || continue
         op_name = nGraph.name(op)
@@ -87,6 +99,7 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothi
             # recompile the function to reflect the new config state
             ex = nGraph.recompile(backend, ex)
             function_name = nGraph.name(ex.ngraph_function)
+
             for _ in 1:5
                 ex(inputs, outputs)
                 record_time!(op_data, function_name, copied_op)
