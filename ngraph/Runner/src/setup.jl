@@ -37,3 +37,7 @@ function setup_profiling()
     nGraph.enable_codegen()
     nGraph.enable_timing()
 end
+
+function setup_passes()
+    nGraph.set_pass_attributes(nGraph.ReuseMemory())
+end

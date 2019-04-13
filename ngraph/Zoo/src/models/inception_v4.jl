@@ -15,8 +15,13 @@ function (block::InceptionBlock)(x)
     return cat(results...; dims = 3)
 end
 
+const A_SIZE = (35, 35, 384)
+const B_SIZE = (17, 17, 1024)
+const C_SIZE = (8, 8, 1536)
+
+
 # We're gonna be REALLY mean to type inference. Sorry Julia!
-function stem(input)
+function stem()
     println("Stem")
 
     return Chain(
@@ -53,7 +58,7 @@ function stem(input)
     )
 end
 
-function inception_a(x)
+function inception_a()
     println("A Block")
     return InceptionBlock(
         Chain(
@@ -73,9 +78,9 @@ function inception_a(x)
     )   
 end
 
-function inception_b(x)
+function inception_b()
     println("B Block")
-    S = size(x, 3)
+    S = B_SIZE[3]
     return InceptionBlock(
         Chain(
             x -> meanpool(x, (3,3); pad = 1, stride = 1),
@@ -97,9 +102,9 @@ function inception_b(x)
     )
 end
 
-function inception_c(x)
+function inception_c()
     println("C Block")
-    S = size(x, 3)
+    S = C_SIZE[3]
     return InceptionBlock(
         Chain(
             x -> meanpool(x, (3,3); pad = 1, stride = 1),
@@ -125,9 +130,10 @@ function inception_c(x)
     )
 end
 
-function inception_ra(x, k, l, m, n)
+function inception_ra(k, l, m, n)
     println("A Reduction")
-    S = size(x, 3)
+    S = A_SIZE[3]
+
     return InceptionBlock(
         x -> maxpool(x, (3,3); pad = 0, stride = 2),
         Conv((3,3), S => n, relu; pad = 0, stride = 2),
@@ -139,9 +145,10 @@ function inception_ra(x, k, l, m, n)
     )
 end
 
-function inception_rb(x)
+function inception_rb()
     println("B Reduction")
-    S = size(x, 3)
+    S = B_SIZE[3]
+
     return InceptionBlock(
         x -> maxpool(x, (3,3); pad = 0, stride = 2),
 
@@ -159,6 +166,10 @@ function inception_rb(x)
     )
 end
 
+# Legacy from when I didn't know the sizes of the intermediate layers.
+#
+# Removed the automatic size tracking because it took FOREVER to run the functions
+# in the basic NNlib implementations.
 mutable struct SizeTracker
     layers::Vector{Any}
     array::Any
@@ -170,12 +181,10 @@ function Base.push!(S::SizeTracker, f, call = true)
     # We call the provided function to get another function that we append onto the
     # layers. Then, we call that generated function to get the new array size.
     if call
-        push!(S.layers, f(S.array))
+        push!(S.layers, f())
     else
         push!(S.layers, f)
     end
-
-    S.array = last(S.layers)(S.array)
 end
 
 function inception_v4(x)
@@ -184,7 +193,7 @@ function inception_v4(x)
     for _ in 1:4
         push!(layers, inception_a)
     end
-    push!(layers, x -> inception_ra(x, 192, 224, 256, 384))
+    push!(layers, () -> inception_ra(192, 224, 256, 384))
 
     for _ in 1:7
         push!(layers, inception_b)
@@ -195,7 +204,8 @@ function inception_v4(x)
         push!(layers, inception_c)
     end
 
-    kernel_size = size.(Ref(layers.array), (1, 2))
+    #kernel_size = size.(Ref(layers.array), (1, 2))
+    kernel_size = (C_SIZE[1], C_SIZE[2])
     push!(layers, x -> meanpool(x, kernel_size; pad = 0, stride = 1), false)
     # dropout
     

@@ -16,7 +16,7 @@ function all_dram_time(fex, args)
     # Get timing for All DRAM
     backend = fex.ex.backend
     Runner._cleanup!(fex.ex.ngraph_function)
-    fex = nGraph.recompile(backend, fex)
+    fex = nGraph.recompile(fex)
     return fex, gettime(fex, args)
 end
 
@@ -35,7 +35,7 @@ function all_pmem_time(fex, args, profile_data)
             end
         end
     end
-    fex = nGraph.recompile(backend, fex)
+    fex = nGraph.recompile(fex)
     pmem_time = gettime(fex, args)
     
     return fex, pmem_time

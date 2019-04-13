@@ -219,8 +219,6 @@ function configure!(S::SimpleModel, fex::nGraph.FluxExecutable, profile_data, mo
     # Extract the function and set everything back to volatile to make sure we don't
     # have any carry-over from previous runs.
     fn = fex.ex.ngraph_function
-    backend = fex.ex.backend
-
     _cleanup!(fn)
 
     # Just look for the tensors that have been assigned to PMEM
@@ -246,5 +244,5 @@ function configure!(S::SimpleModel, fex::nGraph.FluxExecutable, profile_data, mo
     end
 
     # Recompile the flux executable
-    return nGraph.recompile(backend, fex)
+    return nGraph.recompile(fex)
 end

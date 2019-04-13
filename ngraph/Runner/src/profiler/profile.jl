@@ -29,10 +29,6 @@ Keyword Arguments
     to provide stability against problems. Must be callable as `saver(cache)`.
 """
 function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothing)
-    # Setup stuff
-    #setup_profiling()
-    #setup_pmem()
-
     backend = fex.ex.backend
 
     # Go through each node
@@ -45,6 +41,7 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothi
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
     all_configs = get_configs(data, f)
+
     # Convert the configs to a dictionary mapping node name to configs for easier
     # management
     config_dict = Dict{String, Vector{IOConfig}}()
@@ -92,12 +89,14 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothi
         ex, inputs, outputs, copied_op = extract(op)
 
         # Profile the timings
+        @show op_name
         for config in filter(!in(cached_configs), configs)
+            @show config
             # setup the config
             _setup!(copied_op, config)
 
             # recompile the function to reflect the new config state
-            ex = nGraph.recompile(backend, ex)
+            ex = nGraph.recompile(ex)
             function_name = nGraph.name(ex.ngraph_function)
 
             for _ in 1:5
@@ -202,7 +201,7 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     end
 
     # Recompile the function, now with the move nodes.
-    ex = nGraph.recompile(backend, ex)
+    ex = nGraph.recompile(ex)
 
     # Make these any to make them compatible with the inner call for nGraph.Executable
     input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in params]
