@@ -32,7 +32,8 @@ end
 
 Synchronous(a,b,c) = Synchronous(a,b,c, Dict{String,SynchronousTensor}())
 
-limit(S::Synchronous) = S.dram_limitr
+limit(S::Synchronous) = S.dram_limit
+predict(S::Synchronous, model, profile_data) = objective_value(model)
 
 #####
 ##### Helper Functions
@@ -47,7 +48,7 @@ function create_model(modeltype::Synchronous, profile_data)
     preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60, MIPGap = 0.0003))
 
     # Create an empty expression that will be progressively generated to the final
     # objective.
@@ -70,7 +71,7 @@ struct VertexMetadata
     # The gadget that this vertex belongs to. Used for edge generation.
     gadget::Int
     # The op index that this gadget refers to
-    op::Int 
+    op::Int
     # Where the vertex lives
     location::VertexLocation
 end
@@ -121,7 +122,7 @@ function preprocess!(S::Synchronous, profile_data)
         ]
         # When tensors are created, they either have to live in DRAM or PMEM.
         #
-        # We insert the op that creates this tensor at the first of the 
+        # We insert the op that creates this tensor at the first of the
         # `ops_using_tensor` vector
         pushfirst!(ops_using_tensor, findfirst(x -> in(name, x.output_tensors), profile_data.nodes))
 
@@ -134,7 +135,7 @@ function preprocess!(S::Synchronous, profile_data)
 
             # Enumerate over locations that this tensor can live.
             #
-            # Do it this way because some nodes can only live in DRAM, so iterating 
+            # Do it this way because some nodes can only live in DRAM, so iterating
             # then filtering takes care of that
             for location in locations
                 isfirst = count == 1
@@ -162,7 +163,7 @@ function preprocess!(S::Synchronous, profile_data)
             end
         end
 
-        # Use a quadratic complexity algorithm for doing edge assignment. It's not 
+        # Use a quadratic complexity algorithm for doing edge assignment. It's not
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
         for src in vertices(g), dst in vertices(g)
@@ -172,7 +173,7 @@ function preprocess!(S::Synchronous, profile_data)
             if _meta(g, src).gadget + 1 == _meta(g, dst).gadget
                 # Create a tuple of the two locations. If this is a defined key in the
                 # cost table, add an edge with the associated cost.
-                key = (_meta(g, src).location, _meta(g, dst).location) 
+                key = (_meta(g, src).location, _meta(g, dst).location)
                 if haskey(cost_table, key)
                     add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[key]))
                 end
@@ -265,7 +266,7 @@ function add_tensors!(S::Synchronous, model, profile_data)
             end
 
             # If all incoming edges are not taken, tensor MUST not be in DRAM.
-            iter = Iterators.flatten(map(x -> inedges(g, x), vertex_iter)) 
+            iter = Iterators.flatten(map(x -> inedges(g, x), vertex_iter))
             @constraint(model,
                 sum(tensor_graphs[name, e] for e in iter) >= tensor_in_dram[name, op]
             )
@@ -285,12 +286,12 @@ end
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
 function tensor_in_dram(S::Synchronous, model, tensor_name, op)
     # Pull out the descriptor for this tensor - check if this is an op using the tensor.
-    descriptor = S.descriptors[tensor_name] 
-    
+    descriptor = S.descriptors[tensor_name]
+
     # Sanity check: Make sure that the op passed is between the range of ops that this
     # tensor is live.
-    @assert minimum(descriptor.ops_using_tensor) <= op 
-    @assert maximum(descriptor.ops_using_tensor) >= op 
+    @assert minimum(descriptor.ops_using_tensor) <= op
+    @assert maximum(descriptor.ops_using_tensor) >= op
 
     if in(op, descriptor.ops_using_tensor)
         return model[:tensor_in_dram][tensor_name, op]
@@ -302,14 +303,10 @@ function tensor_in_dram(S::Synchronous, model, tensor_name, op)
 
         graph = descriptor.graph
 
-        iter = filter_vertices(
+        vertex = find_vertex(
             graph,
-            (g, v) -> _meta(g, v).op == ref && _meta(g, v).location == LOC_DRAM, 
-        ) |> collect
-
-        # Another debug check, make sure that the above filter only returns one node.
-        @assert length(iter) == 1
-        vertex = first(iter)
+            (g, v) -> _meta(g, v).op == ref && _meta(g, v).location == LOC_DRAM,
+        )
 
         for edge in outedges(graph, vertex)
             u = dst(edge)
@@ -321,7 +318,7 @@ function tensor_in_dram(S::Synchronous, model, tensor_name, op)
 
     # We should have found an edge in teh above loop. If we haven't, thats definitely
     # an error
-    error("No edges found for Tensor $tensor_name at op $op") 
+    error("No edges found for Tensor $tensor_name at op $op")
 end
 
 function add_nodes!(S::Synchronous, model, profile_data)
@@ -341,7 +338,7 @@ function add_nodes!(S::Synchronous, model, profile_data)
 
         for config in configs
             # Create an expression for the input and output locations
-            expr = AffExpr() 
+            expr = AffExpr()
             iter = Iterators.flatten((
                 zip(config.inputs, inputs),
                 zip(config.outputs, outputs)
@@ -359,7 +356,7 @@ function add_nodes!(S::Synchronous, model, profile_data)
                 end
             end
 
-            @constraint(model, vars[config] + length(config.inputs) + length(config.outputs) >= 
+            @constraint(model, vars[config] + length(config.inputs) + length(config.outputs) >=
                 1 + expr)
 
         end
@@ -398,3 +395,69 @@ function add_constraints!(S::Synchronous, model, profile_data)
 
     return
 end
+
+#####
+##### Conifiguration
+#####
+
+function get_schedule(S::Synchronous, profile_data, model::JuMP.Model)
+    tensor_names = collect(keys(profile_data.tensors))
+    model_graphs = model[:tensor_graphs]
+
+    schedule = Dict{String, Vector{VertexMetadata}}()
+
+    for tensor_name in tensor_names
+        descriptor = S.descriptors[tensor_name]
+        graph = descriptor.graph
+
+        # Trace the route taken through the graph
+        v = find_vertex(graph, (g, v) -> _meta(g, v).location == LOC_SOURCE)
+
+        path = [_meta(graph, v)]
+        while _meta(graph, v).location != LOC_SINK
+            for e in outedges(graph, v)
+                if isapprox(value(model_graphs[tensor_name, e]), 1.0; atol = 1e-3)
+                    v = dst(e)
+                    break
+                end
+            end
+            push!(path, _meta(graph, v))
+        end
+
+        schedule[tensor_name] = path
+    end
+
+    return schedule
+end
+
+# Dummy function for now
+configure!(S::Synchronous, fex, profile_data, model) = fex
+
+# Every time we create a move node, we have to potentially replace all downstream
+# users of that node to reference the new node.
+#=
+function configure!(S::Synchronous, fex::nGraph.FluxExecutable, profile_data, model::JuMP.Model)
+    fn = fex.ex.ngraph_function
+    _cleanup!(fn)
+
+    # Get the names of all tensors
+    tensor_names = collect(keys(profile_data.tensors))
+
+    node_dict = Dict(nGraph.name(op) => op for op in fn)
+    moves_to_persistent = Set{String}()
+
+    for tensor_name in tensor_names
+        # Find some information about the origin of this tensor.
+        tensor_data = profile_data.tensors[tensor_name]
+
+        parent_name = tensor_data.parent_name
+        output_index = tensor_data.output_index
+
+        # Setup some variables that will be used throughout the move node insertion process.
+        incumbent = node_dict[parent_name]
+        remaining_users = [n.name for n in profile_data.nodes if in(tensor_name, n.input_tensors)]
+
+    end
+end
+=#
+

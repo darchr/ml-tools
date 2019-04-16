@@ -48,6 +48,7 @@ using JuMP, Gurobi
 # For dispatch purposes
 abstract type ModelType end
 
+include("util.jl")
 include("simple.jl")
 include("sync.jl")
 

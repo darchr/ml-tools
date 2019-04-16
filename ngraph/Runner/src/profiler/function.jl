@@ -41,18 +41,26 @@ function all_pmem_time(fex, args, profile_data)
     return fex, pmem_time
 end
 
-function compare(iter, fex::nGraph.FluxExecutable, args, profile_data)
+function compare(iter, fex::nGraph.FluxExecutable, args, profile_data; 
+        cb = (x...) -> nothing,
+        save = (x...) -> nothing
+    )
     # Run each of the test functions
     predicted_runtimes = Float64[]
     actual_runtimes = Float64[]
 
     # Keep the parsed JSON of kernel timings for comparison with the predicted value
     kernel_times = Vector{Any}[]
+    local rettuple
     
     for (index, modeltype) in enumerate(iter)
         println("Processing $index of $(length(iter))")
         model = Runner.create_model(modeltype, profile_data)
         optimize!(model)
+
+        # Do callback
+        cb(model, profile_data, index)
+
         fex = Runner.configure!(modeltype, fex, profile_data, model)
         
         # Get the predicted run time and then the actual run time
@@ -64,14 +72,17 @@ function compare(iter, fex::nGraph.FluxExecutable, args, profile_data)
         Predicted Run Time: $(last(predicted_runtimes))
         Actual Run Time: $(last(actual_runtimes))
         """
+        
+        # Prepare the return values
+        rettuple = (
+            predicted_runtimes = predicted_runtimes,
+            actual_runtimes = actual_runtimes,
+            kernel_times = kernel_times,
+        )
+
+        save(rettuple, index)
     end
 
-    # Prepare the return values
-    rettuple = (
-        predicted_runtimes = predicted_runtimes,
-        actual_runtimes = actual_runtimes,
-        kernel_times = kernel_times,
-    )
     
     return fex, rettuple
 end

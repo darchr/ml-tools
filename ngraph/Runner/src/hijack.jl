@@ -1,10 +1,17 @@
 # Create a wrapper for the general Optimizers defined in nGraph.jl to swap in and out
 # various inputs and outputs from DRAM and PMEM.
 
-struct Hijack{T}
+struct Hijack{U,T}
+    update::U
     x::T
 end
-hijack(x) = Hijack(x)
+
+# Allow the hijacked optimizer to opt ouf of updating for verification purposes.
+struct WithUpdate end
+struct WithoutUpdate end
+
+hijack(u::U, x::T) where {U <: Union{WithUpdate,WithoutUpdate}, T} = Hijack(u, x)
+hijack(x::T) where {T} = hijack(WithUpdate(), x)
 
 """
 Wrapper around a generic nGraph.jl optimizer that allows arbitrary input and output
@@ -30,7 +37,8 @@ Fields
 * `output_masks::BitVector` - Mask of which output tensors should be in persistent 
     memory. A `true` value implies PMEM, while `false` implies DRAM.
 """
-struct HijackOptimizer{T, I <: nGraph.Tensor, O <: nGraph.Tensor}
+struct HijackOptimizer{U, T, I <: nGraph.Tensor, O <: nGraph.Tensor}
+    update::U
     optimizer::T
     # Shadows the input and outputs of `optimizer`, but resides in persistent memory.
     persistent_inputs::Vector{I}
@@ -54,6 +62,7 @@ function nGraph.create(H::Hijack, args...; kw...)
     output_masks = falses(length(persistent_outputs))
 
     hijack_optimizer = HijackOptimizer(
+        H.update,
         opt,
         persistent_inputs,
         persistent_outputs,
@@ -65,6 +74,7 @@ function nGraph.create(H::Hijack, args...; kw...)
 end
 
 # Extend the rest of the API
+nGraph.update!(H::HijackOptimizer{WithoutUpdate}) = nothing
 nGraph.update!(H::HijackOptimizer) = nGraph.update!(H.optimizer)
 
 nGraph.getinputs(H::HijackOptimizer) = (
