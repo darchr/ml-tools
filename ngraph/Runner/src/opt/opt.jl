@@ -48,6 +48,16 @@ using JuMP, Gurobi
 # For dispatch purposes
 abstract type ModelType end
 
+# Struct to be passed around since all these items are generally used together anyways.
+mutable struct Frame{T <: ModelType}
+    modeltype::T
+    model::JuMP.Model
+    profile_data::ProfileData
+    #config::Dict{String, TensorLocation}
+end
+
+JuMP.optimize!(F::Frame) = optimize!(F.model)
+
 include("util.jl")
 include("simple.jl")
 include("sync.jl")

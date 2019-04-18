@@ -141,6 +141,8 @@ end
                         color = :red
                     elseif meta.location == LOC_PREAD
                         color = :cyan
+                    elseif meta.location == LOC_PKEEP
+                        color = :black
                     end
 
                     # Create a box around the op

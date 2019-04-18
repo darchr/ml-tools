@@ -5,6 +5,7 @@ Runner.setup_profiling()
 Runner.setup_pmem()
 Runner.setup_passes()
 
+#=
 cache_path = "./timing_cache.jls"
 
 save_cache(cache) = serialize(cache_path, cache)
@@ -29,6 +30,7 @@ bounds = Runner.allocation_bounds(data)
 nsteps = 15
 # Convert dram sizes to MB
 sizes = round.(Int, range(bounds.lower_bound, bounds.upper_bound / 2; length = nsteps) ./ 1E6)
+#=
 special_sizes = [i for i in 100:100:1000]
 sizes = sort(vcat(sizes, special_sizes))
 
@@ -52,6 +54,15 @@ function save(rettuple, index)
     serialize("inception_v4_training_$(batchsize)_compare_data.jls", compare_data)
 end
 
-fex, compare_data_simple = Runner.compare(simple_iter, fex, args, data; cb = makeplot, save = save)
+fex, compare_data_simple = Runner.compare(
+    simple_iter,
+    fex, 
+    args, 
+    data; 
+    cb = makeplot, 
+    save = save
+)
 
 # No need to do anything with `compare_data_simple` because it will already have been saved.
+=#
+=#

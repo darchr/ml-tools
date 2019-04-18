@@ -18,21 +18,21 @@ end
 default_tolerance(::ILPGreedy) = 0.01
 
 
-function predict(S::SimpleModel, model, profile_data) 
+function predict(F::Frame{<:SimpleModel}) 
     # Base the expected runtime on the configs of all the kernels.
     runtime = zero(Float64)
-    for node in profile_data.nodes
+    for node in F.profile_data.nodes
         node_name = node.name
         keep(node.description) || continue
 
-        config = getconfig(S, model, profile_data, node_name)
+        config = getconfig(F, node_name)
         runtime += minimum(node.timings[config])
     end
     return runtime
 end
 
 # Shortcut for simple
-predict(::Simple, model, profile_data) = objective_value(model)
+predict(F::Frame{Simple}) = objective_value(F.model)
 
 #=
 For each tensor, we generate a binary variable for each location the tensor can reside.
@@ -49,32 +49,36 @@ function create_model(
     #
     # Slightly loosen the gap to .1% because at that point, who cares anyways?
     model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 120, MIPGap = tolerance))
+    frame = Frame(modeltype, model, profile_data)
 
     # Create an empty expression that will be progressively generated to the final
     # objective.
     model[:objective_expr] = AffExpr()
 
-    add_tensors!(modeltype, model, profile_data)
-    add_nodes!(modeltype, model, profile_data)
-    add_constraints!(modeltype, model, profile_data)
+    add_tensors!(frame)
+    add_nodes!(frame)
+    add_constraints!(frame)
 
     # Add the objective expression we've built up.
-    apply_objective!(modeltype, model)
+    apply_objective!(frame)
 
-    return model
+    return frame
 end
 
-apply_objective!(::SimpleModel, model) = @objective(model, Min, model[:objective_expr])
-apply_objective!(::ILPGreedy, model) = @objective(model, Max, model[:objective_expr])
+apply_objective!(F::Frame{<:SimpleModel}) = 
+    @objective(F.model, Min, F.model[:objective_expr])
 
-function add_tensors!(::SimpleModel, model, profile_data)
+apply_objective!(F::Frame{ILPGreedy}) = 
+    @objective(F.model, Max, F.model[:objective_expr])
+
+function add_tensors!(F::Frame{<:SimpleModel})
     # Get all the tensors in the graph
-    names = collect(keys(profile_data.tensors))
-    locations = Dict(name => profile_data.tensors[name].locations for name in names)
+    names = collect(keys(F.profile_data.tensors))
+    locations = Dict(name => F.profile_data.tensors[name].locations for name in names)
 
-    @variable(model, tensors[name = names, location = locations[name]], Bin)
+    @variable(F.model, tensors[name = names, location = locations[name]], Bin)
 
-    @constraint(model,
+    @constraint(F.model,
         [name in names],
         sum(tensors[name, location] for location in locations[name]) == 1
     )
@@ -84,8 +88,8 @@ end
 
 # Node Configs
 add_nodes!(::ILPGreedy, args...) = nothing
-function add_nodes!(::ModelType, model, profile_data)
-    for node_data in profile_data.nodes
+function add_nodes!(F::Frame{<:SimpleModel})
+    for node_data in F.profile_data.nodes
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
@@ -94,13 +98,13 @@ function add_nodes!(::ModelType, model, profile_data)
         configs = collect(keys(node_data.timings))
 
         # Create a variable for each config.
-        vars = @variable(model, [config = configs], Bin)
+        vars = @variable(F.model, [config = configs], Bin)
 
         # Constrain each variable to be active if all of its inputs are active. We refer
         # to the tensors variables created earlier to generate these constrainrs.
-        tensors = model[:tensors]
+        tensors = F.model[:tensors]
 
-        @constraint(model,
+        @constraint(F.model,
             [config = configs],
             vars[config]
                 - sum(tensors[n, config.inputs[i]] for (i,n) in enumerate(node_data.input_tensors))
@@ -116,7 +120,7 @@ function add_nodes!(::ModelType, model, profile_data)
             config_iter = Iterators.flatten((config.inputs, config.outputs))
             name_iter = Iterators.flatten((node_data.input_tensors, node_data.output_tensors))
             for (loc, nm) in zip(config_iter, name_iter)
-                @constraint(model, vars[config] <= tensors[nm, loc])
+                @constraint(F.model, vars[config] <= tensors[nm, loc])
             end
         end
 
@@ -124,10 +128,10 @@ function add_nodes!(::ModelType, model, profile_data)
         #
         # While this constraint pops out from the objective, it really helps the solver
         # so include it.
-        @constraint(model, sum(vars[config] for config in configs) == 1)
+        @constraint(F.model, sum(vars[config] for config in configs) == 1)
 
         # Mutate the "objective_expr" with these timings
-        objective_expr = model[:objective_expr]
+        objective_expr = F.model[:objective_expr]
         for config in configs
             # For now, just use the Mean
             coeff = round(Int64, minimum(node_data.timings[config]))
@@ -138,16 +142,16 @@ function add_nodes!(::ModelType, model, profile_data)
 end
 
 # Constrain
-function add_constraints!(modeltype::T, model, profile_data) where {T <: SimpleModel}
+function add_constraints!(F::Frame{T}) where {T <: SimpleModel}
     # Unpack some variables
-    dram_limit = limit(modeltype)
-    tensor_data = profile_data.tensors
-    tensors = model[:tensors]
+    dram_limit = limit(F.modeltype)
+    tensor_data = F.profile_data.tensors
+    tensors = F.model[:tensors]
 
-    for (index, free_tensors) in enumerate(live_tensors(profile_data))
-        live_free_tensors = filter(!in(profile_data.fixed_tensors), free_tensors)
+    for (index, free_tensors) in enumerate(live_tensors(F.profile_data))
+        live_free_tensors = filter(!in(F.profile_data.fixed_tensors), free_tensors)
         if !isempty(live_free_tensors)
-            @constraint(model,
+            @constraint(F.model,
                 sum(
                     round(Int, tensor_data[n].bytes / 1E6) * tensors[n, DRAM]
                     for n in live_free_tensors
@@ -156,7 +160,7 @@ function add_constraints!(modeltype::T, model, profile_data) where {T <: SimpleM
 
             # Insert the objective for the greedy formulation
             if T == ILPGreedy
-                objective_expr = model[:objective_expr]
+                objective_expr = F.model[:objective_expr]
                 for tensor in live_free_tensors
                     add_to_expression!(
                         objective_expr,
@@ -176,9 +180,9 @@ end
 ##### Configure nGraph
 #####
 
-function tensor_location(::SimpleModel, model::JuMP.Model, profile_data, tensor_name)
-    locations = profile_data.tensors[tensor_name].locations
-    model_tensors = model[:tensors]
+function tensor_location(F::Frame{<:SimpleModel}, tensor_name)
+    locations = F.profile_data.tensors[tensor_name].locations
+    model_tensors = F.model[:tensors]
 
     location_values = Tuple{TensorLocation,Float64}[]
     for location in locations
@@ -199,31 +203,31 @@ function tensor_location(::SimpleModel, model::JuMP.Model, profile_data, tensor_
     error()
 end
 
-function getconfig(S::SimpleModel, model::JuMP.Model, profile_data, node_name)
+function getconfig(F::Frame{<:SimpleModel}, node_name)
     # Find this node name in the profile data.
-    pd_node = profile_data.nodes[findfirst(x -> x.name == node_name, profile_data.nodes)]
+    pd_node = F.profile_data.nodes[findfirst(x -> x.name == node_name, F.profile_data.nodes)]
 
     inputs = ntuple(
-        x -> tensor_location(S, model, profile_data, pd_node.input_tensors[x]),
+        x -> tensor_location(F, pd_node.input_tensors[x]),
         length(pd_node.input_tensors)
     )
     outputs = ntuple(
-        x -> tensor_location(S, model, profile_data, pd_node.output_tensors[x]),
+        x -> tensor_location(F, pd_node.output_tensors[x]),
         length(pd_node.output_tensors)
     )
 
     return IOConfig(inputs, outputs)
 end
 
-function configure!(S::SimpleModel, fex::nGraph.FluxExecutable, profile_data, model::JuMP.Model)
+function configure!(fex::nGraph.FluxExecutable, F::Frame{<:SimpleModel}) 
     # Extract the function and set everything back to volatile to make sure we don't
     # have any carry-over from previous runs.
     fn = fex.ex.ngraph_function
     _cleanup!(fn)
 
     # Just look for the tensors that have been assigned to PMEM
-    names = collect(keys(profile_data.tensors))
-    tensors = profile_data.tensors
+    names = collect(keys(F.profile_data.tensors))
+    tensors = F.profile_data.tensors
 
     # Make a dictionary so we can find the nGraph.Nodes by name.
     node_dict = Dict(nGraph.name(op) => op for op in fn)
@@ -231,7 +235,7 @@ function configure!(S::SimpleModel, fex::nGraph.FluxExecutable, profile_data, mo
     # Assign appropriate tensors to PMEM.
     for name in names
         # Check if this tensor can even live in DRAM
-        if tensor_location(S, model, profile_data, name) == PMEM
+        if tensor_location(F, name) == PMEM
             # Get the op that made this tensor
             op = node_dict[tensors[name].parent_name]
 
