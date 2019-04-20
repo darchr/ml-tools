@@ -467,7 +467,7 @@ function get_schedule(F::Frame{Synchronous})
             push!(path, _meta(graph, v))
         end
         # Drop the first source element and last sink element
-        popfirst!(path) 
+        popfirst!(path)
         pop!(path)
 
         schedule[tensor_name] = path
@@ -493,6 +493,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
 
     # Process the move node chains
     schedule = get_schedule(F)
+    move_nodes_created = Dict{String, NamedTuple}()
     for (tensor_name, vertices) in schedule
 
         initial_location = first(vertices).location
@@ -520,7 +521,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         incumbent_tensor = tensor_name
         for action in actions
             @show action
-            # Translate consumers into nodes.    
+            # Translate consumers into nodes.
             #
             # We go:
             # consumers -> op_indices
@@ -536,6 +537,12 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             @show consumer_inputs
             move_node = insert_move_node!(producer, incumbent_index, consumers, consumer_inputs)
 
+            # Record this move node and the size of the tensor for bandwidth debugging
+            move_nodes_created[nGraph.name(move_node)] = (
+                bytes = profile_data.tensors[tensor_name].bytes,
+                write_to_pmem = action.location == PMEM,
+            )
+
             # Add this move node to `node_dict` and assign its output tensor to the config.
             output_tensor_name = nGraph.get_name(nGraph.output_descriptor(move_node, 1))
             config[output_tensor_name] = action.location
@@ -550,7 +557,56 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             end
         end
     end
-    return config
+
+    #####
+    ##### Apply the config
+    #####
+
+    # TODO: Make this its own function
+    nGraph.get_ordered_ops!(fn)
+
+    # Iterate over each node and each output tensor for each node. Each output tensor should
+    # have an assigned location
+    for node in fn, output in nGraph.output_descriptors(node)
+        if config[nGraph.get_name(output)] == PMEM
+            nGraph.make_persistent(output)
+        end
+    end
+
+    return nGraph.recompile(fex), move_nodes_created
+end
+
+function profile_moves(fex, args, move_nodes::Dict)
+    #fex(args...)
+    #fex(args...)
+
+    timing_data = read_timing_data(fex.ex.ngraph_function)
+    computed_stats = Dict{String, NamedTuple}()
+    for (node_name, stats) in move_nodes
+        time = timing_data[findfirst(x -> x["name"] == node_name, timing_data)]["dur"]
+        # Convert bytes to GB, time from μs to s
+        bandwidth = (stats.bytes / 1E9) / (time / 1E6)
+        computed_stats[node_name] = merge(stats, (bandwidth = bandwidth, )) 
+    end
+
+    # Summarize read and write bandwidth
+    println("Read Bandwidths") 
+    for (node_name, stats) in computed_stats
+        if stats.write_to_pmem == false
+            println("$node_name => $(stats.bandwidth) GB/s")
+            println("    size: $(stats.bytes) B")
+        end
+    end
+    println()
+    println("Write Bandwidths") 
+    for (node_name, stats) in computed_stats
+        if stats.write_to_pmem == true
+            println("$node_name => $(stats.bandwidth) GB/s")
+            println("    size: $(stats.bytes) B")
+        end
+    end
+
+    return computed_stats
 end
 
 #=
@@ -574,7 +630,7 @@ function getkeeps(vertices::Vector{VertexMetadata}, index)
     return keeps
 end
 
-# Return `true` if there is an implied write to 
+# Return `true` if there is an implied write to
 write_to_pmem(a, b) = (a == LOC_DRAM) && in(b, (LOC_PMEM, LOC_PREAD, LOC_PKEEP))
 read_from_pmem(a, b) = (b == LOC_PREAD) || (in(a, (LOC_PMEM, LOC_DRAM)) && b == LOC_PKEEP)
 
@@ -591,7 +647,7 @@ function getactions(vertices::Vector{VertexMetadata})
 
         if read_from_pmem(a, b)
             # Check what kind of read it is and populate consumers appropriately.
-            if b == LOC_PREAD 
+            if b == LOC_PREAD
                 consumers = [i]
             else
                 consumers = getkeeps(vertices, i)

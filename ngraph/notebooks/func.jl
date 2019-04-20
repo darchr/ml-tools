@@ -1,14 +1,18 @@
 function test()
+    nGraph.codegen_debug()
     cache = deserialize("./timing_cache.jls")
     batchsize = 128
-    fex, args = Zoo.vgg19_training(batchsize)
+    fex, args = Zoo.inception_v4_training(batchsize)
+    #fex, args = Zoo.inception_v4_training(batchsize) 
     data = Runner.profile(fex, cache = cache)
     bounds = Runner.allocation_bounds(data)
 
     x = round(Int, bounds.upper_bound / (1E6 * 10))
-    S = Runner.Synchronous(x, 100000, 100000)
+    #x = 180000 
+    @show x
+    S = Runner.Synchronous(x, 23000, 3000)
     frame = Runner.create_model(S, data)
     optimize!(frame)
-    config = Runner.configure!(fex, frame)
-    return config
+    fex, move_nodes_created = Runner.configure!(fex, frame)
+    return fex, args, move_nodes_created
 end

@@ -1,5 +1,6 @@
 using Runner, Zoo, Serialization, nGraph, JuMP, Plots
 
+#nGraph.codegen_debug()
 Runner.setup_affinities()
 Runner.setup_profiling()
 Runner.setup_pmem()
