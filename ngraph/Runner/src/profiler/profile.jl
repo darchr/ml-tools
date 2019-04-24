@@ -17,7 +17,7 @@ include("cache.jl")
 include("function.jl")
 
 """
-    profile(fex::nGraph.FluxExecutable; cache, saver)
+    profile(fex::nGraph.FluxExecutable; cache, save)
 
 Profile all of the operations in `fex`.
 
@@ -25,10 +25,10 @@ Keyword Arguments
 -----------------
 * `cache`: A cache to serve running times if a kernel has already been profiled
 
-* `saver`: An optional callable that will save the cache each time it is updated
-    to provide stability against problems. Must be callable as `saver(cache)`.
+* `save`: An optional callable that will save the cache each time it is updated
+    to provide stability against problems. Must be callable as `save(cache)`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothing)
+function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), save = nothing)
     backend = fex.ex.backend
 
     # Go through each node
@@ -106,11 +106,14 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), saver = nothi
 
             _cleanup!(copied_op)
 
-            # Save the results to the cache. If a saver function is provided, call
+            # Save the results to the cache. If a save function is provided, call
             # it to backup the cache.
             cache[(kernel_params, config)] = minimum(op_data.timings[config])
-            saver === nothing || saver(cache)
+            save === nothing || save(cache)
         end
+
+        # Clean up the last function
+        nGraph._cleanup(ex)
     end
 
     return data
@@ -196,7 +199,8 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
 
     for input in nGraph.get_inputs(translated_node)
         if nGraph.description(input) == "Parameter"
-            nGraph.splice(input, translated_node, nGraph.move(input))
+            println("Inserting Move Node")
+            nGraph.splice(input, 1, translated_node, 1, nGraph.move(input))
         end
     end
 

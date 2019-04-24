@@ -62,3 +62,19 @@ include("util.jl")
 include("simple.jl")
 include("sync.jl")
 
+"""
+- `f`: Function `() -> fex, args`: Return `FluxExecutable` and args.
+
+- `opt`: Function `ProfileData -> modeltype <: ModelType`.
+"""
+function factory(f, opt; cache = CPUKernelCache(), save = (x...) -> nothing)
+    fex, args = f()
+    data = profile(fex; cache = cache, save = save)
+
+    modeltype = opt(data)
+    frame = create_model(modeltype, data)
+    optimize!(frame)
+    fex, _metadata = configure!(fex, frame) 
+    
+    return fex, args, frame, _metadata
+end

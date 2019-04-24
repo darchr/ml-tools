@@ -22,11 +22,11 @@ end
 
 function all_pmem_time(fex, args, profile_data)
     backend = fex.ex.backend
-    
+
     # Get timing for All PMEM
     for fn_node in fex.ex.ngraph_function
         Runner.keep(fn_node) || continue
-        
+
         # Check the output tensors of this node can live in PMEM. If so, assign them there
         for tensor in nGraph.output_descriptors(fn_node)
             tensor_name = nGraph.get_name(tensor)
@@ -37,54 +37,57 @@ function all_pmem_time(fex, args, profile_data)
     end
     fex = nGraph.recompile(fex)
     pmem_time = gettime(fex, args)
-    
+
     return fex, pmem_time
 end
 
-function compare(iter, fex::nGraph.FluxExecutable, args, profile_data; 
+#function compare(iter, fex::nGraph.FluxExecutable, args, profile_data;
+function compare(f, opt_iter;
         cb = (x...) -> nothing,
-        save = (x...) -> nothing
+        save = (x...) -> nothing,
+        cache = CPUKernelCache(),
     )
+
     # Run each of the test functions
     predicted_runtimes = Float64[]
     actual_runtimes = Float64[]
+    dram_limits = Int64[] 
 
     # Keep the parsed JSON of kernel timings for comparison with the predicted value
     kernel_times = Vector{Any}[]
     local rettuple
-    
-    for (index, modeltype) in enumerate(iter)
-        println("Processing $index of $(length(iter))")
-        model = Runner.create_model(modeltype, profile_data)
-        optimize!(model)
 
-        # Do callback
-        cb(model, profile_data, index)
+    for (index, opt) in enumerate(opt_iter)
+        println("Processing $index of $(length(opt_iter))")
+        fex, args, frame, _metadata = factory(f, opt; cache = cache, save = save)
 
-        fex = Runner.configure!(modeltype, fex, profile_data, model)
-        
         # Get the predicted run time and then the actual run time
-        push!(predicted_runtimes, Runner.predict(modeltype, model, profile_data))
+        push!(predicted_runtimes, Runner.predict(frame))
         push!(actual_runtimes, gettime(fex, args))
+        push!(dram_limits, limit(frame.modeltype))
         push!(kernel_times, read_timing_data(fex.ex.ngraph_function))
 
         @info """
         Predicted Run Time: $(last(predicted_runtimes))
         Actual Run Time: $(last(actual_runtimes))
         """
-        
+
         # Prepare the return values
         rettuple = (
             predicted_runtimes = predicted_runtimes,
             actual_runtimes = actual_runtimes,
+            dram_limits = dram_limits,
             kernel_times = kernel_times,
         )
 
-        save(rettuple, index)
+        # Do this for GC purposes
+        #
+        # Sometimes the nGraph executable can be very large. Call the GC here to clean it
+        # up before the next round.
+        nGraph._cleanup(fex.ex)
     end
 
-    
-    return fex, rettuple
+    return rettuple
 end
 
 #####
@@ -138,23 +141,23 @@ struct PlotDispatch end
 @recipe function f(::PlotDispatch, timings, key; legend = nothing)
     # Sort by key ratio over DRAM
     sort!(timings; by = x -> getproperty(x, key) / x.dram)
-    
+
     # Get all the unique descriptions
     descriptions = unique(map(x -> x.description, timings))
 
     seriestype := :scatter
     legend := legend
     #yaxis := :log10
-    
+
     xlabel := "Kernel Number"
     ylabel := "Execution time with respect to all DRAM"
-    
+
     for d in descriptions
         x = Int[]
         y = Float64[]
         for (i, timing) in enumerate(timings)
             timing.description == d || continue
-            
+
             push!(x, i)
             push!(y, getproperty(timing, key) ./ timing.dram)
         end

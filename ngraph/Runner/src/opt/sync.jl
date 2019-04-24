@@ -476,9 +476,6 @@ function get_schedule(F::Frame{Synchronous})
     return schedule
 end
 
-# Dummy function for now
-#configure!(fex, F::Frame{Synchronous}) = fex
-
 function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     # Unpack args
     profile_data = F.profile_data

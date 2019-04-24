@@ -248,5 +248,5 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{<:SimpleModel})
     end
 
     # Recompile the flux executable
-    return nGraph.recompile(fex)
+    return nGraph.recompile(fex), nothing
 end

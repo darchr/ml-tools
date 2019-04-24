@@ -1,7 +1,17 @@
 module Runner
 
+function __init__()
+    Runner.setup_affinities()
+    Runner.setup_profiling()
+    Runner.setup_pmem()
+    Runner.setup_passes()
+end
+
+# stdlibs
+using Dates, Statistics, Random
+
+# deps
 using nGraph, Flux, JSON
-using Dates, Statistics
 using RecipesBase
 using LightGraphs, MetaGraphs
 using IterTools
@@ -35,6 +45,7 @@ include("opt/opt.jl")
 include("models/simple.jl")
 include("profiler/profile.jl")
 include("visualize.jl")
+include("verifier.jl")
 
 keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result"))
 keep(op::nGraph.Node) = keep(nGraph.description(op))
