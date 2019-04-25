@@ -13,22 +13,22 @@
 #   input/output layout conversion, we just have to check if the node we are copying is
 #   annotated as mkldnn and make sure we annotate the new node as such.
 
+const BASE_CACHE_PATH = joinpath(@__DIR__, ".cache", "timing_cache.jls")
+
 include("cache.jl")
 include("function.jl")
 
 """
-    profile(fex::nGraph.FluxExecutable; cache, save)
+    profile(fex::nGraph.FluxExecutable; cache)
 
 Profile all of the operations in `fex`.
 
 Keyword Arguments
 -----------------
-* `cache`: A cache to serve running times if a kernel has already been profiled
-
-* `save`: An optional callable that will save the cache each time it is updated
-    to provide stability against problems. Must be callable as `save(cache)`.
+* `cache`: A cache to serve running times if a kernel has already been profiled. The cache
+    must implement the function `save`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), save = nothing)
+function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_PATH))
     backend = fex.ex.backend
 
     # Go through each node
@@ -106,10 +106,9 @@ function profile(fex::nGraph.FluxExecutable; cache = EmptyCache(), save = nothin
 
             _cleanup!(copied_op)
 
-            # Save the results to the cache. If a save function is provided, call
-            # it to backup the cache.
+            # Save the results to the cache, and then save the cache
             cache[(kernel_params, config)] = minimum(op_data.timings[config])
-            save === nothing || save(cache)
+            save(cache)
         end
 
         # Clean up the last function
@@ -199,7 +198,6 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
 
     for input in nGraph.get_inputs(translated_node)
         if nGraph.description(input) == "Parameter"
-            println("Inserting Move Node")
             nGraph.splice(input, 1, translated_node, 1, nGraph.move(input))
         end
     end

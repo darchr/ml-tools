@@ -67,9 +67,9 @@ include("sync.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt; cache = CPUKernelCache(), save = (x...) -> nothing)
+function factory(f, opt; cache = CPUKernelCache())
     fex, args = f()
-    data = profile(fex; cache = cache, save = save)
+    data = profile(fex; cache = cache)
 
     modeltype = opt(data)
     frame = create_model(modeltype, data)

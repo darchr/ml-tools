@@ -41,53 +41,71 @@ function all_pmem_time(fex, args, profile_data)
     return fex, pmem_time
 end
 
-#function compare(iter, fex::nGraph.FluxExecutable, args, profile_data;
-function compare(f, opt_iter;
-        cb = (x...) -> nothing,
-        save = (x...) -> nothing,
-        cache = CPUKernelCache(),
-    )
+_base_stats() = (
+    predicted_runtimes = Float64[],
+    actual_runtimes = Float64[],
+    dram_limits = Int64[],
+    kernel_times = Vector{Any}[],
+)
 
-    # Run each of the test functions
-    predicted_runtimes = Float64[]
-    actual_runtimes = Float64[]
-    dram_limits = Int64[] 
+"""
+    compare(f, opt_iter; kw...)
 
-    # Keep the parsed JSON of kernel timings for comparison with the predicted value
-    kernel_times = Vector{Any}[]
-    local rettuple
+* `f`: A constructor function `f() -> fex, args` returning a `FluxExecutable` and a tuple
+    of arguments to be passed to the executable.
+
+* `opt_iter`: An iterator returning optimization arguments that will be passed to `factory`.
+
+Keywords
+--------
+
+* `cache`: A cache for kernel timings. Defaults to `CPUKernelCache(BASE_CACHE_PATH)`. That
+    is, the default cache.
+
+* `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
+    already in the cached stats will be skipped on this profiling run.
+"""
+function compare(f, opt_iter; cache = CPUKernelCache(BASE_CACHE_PATH), statspath = nothing)
+    stats = (isnothing(statspath) || !ispath(statspath)) ? _base_stats() : deserialize(statspath)
 
     for (index, opt) in enumerate(opt_iter)
         println("Processing $index of $(length(opt_iter))")
-        fex, args, frame, _metadata = factory(f, opt; cache = cache, save = save)
 
-        # Get the predicted run time and then the actual run time
-        push!(predicted_runtimes, Runner.predict(frame))
-        push!(actual_runtimes, gettime(fex, args))
-        push!(dram_limits, limit(frame.modeltype))
-        push!(kernel_times, read_timing_data(fex.ex.ngraph_function))
+        # Use an inner function so that the FluxExecutable (and thus ngraph executable)
+        # go out of scope and are thus elegible for garbage collection.
+        #
+        # Further, invoke the GC before calling this function.
+        #
+        # This will hopefully cleanup any previous Executables and the large memory buffers
+        # associated with them.
+        GC.gc()
+        _compare!(stats, f, opt; cache = cache)
+        isnothing(statspath) || serialize(statspath, stats)
 
         @info """
-        Predicted Run Time: $(last(predicted_runtimes))
-        Actual Run Time: $(last(actual_runtimes))
+        Predicted Run Time: $(last(stats.predicted_runtimes))
+        Actual Run Time: $(last(stats.actual_runtimes))
         """
-
-        # Prepare the return values
-        rettuple = (
-            predicted_runtimes = predicted_runtimes,
-            actual_runtimes = actual_runtimes,
-            dram_limits = dram_limits,
-            kernel_times = kernel_times,
-        )
-
-        # Do this for GC purposes
-        #
-        # Sometimes the nGraph executable can be very large. Call the GC here to clean it
-        # up before the next round.
-        nGraph._cleanup(fex.ex)
     end
 
-    return rettuple
+    return stats
+end
+
+function _compare!(stats, f, opt; kw...)
+    fex, args, frame, _metadata = factory(f, opt; kw...)
+
+    skip = in(limit(frame.modeltype), stats.dram_limits)
+
+    # Get the predicted run time and then the actual run time
+    if !skip 
+        push!(stats.predicted_runtimes, Runner.predict(frame))
+        push!(stats.actual_runtimes, gettime(fex, args))
+        push!(stats.dram_limits, limit(frame.modeltype))
+        push!(stats.kernel_times, read_timing_data(fex.ex.ngraph_function))
+    end
+
+    nGraph._cleanup(fex.ex)
+    return nothing
 end
 
 #####

@@ -2,6 +2,7 @@ struct EmptyCache end
 
 Base.haskey(::EmptyCache, args...) = false
 Base.setindex!(::EmptyCache, args...) = nothing
+save(::EmptyCache) = nothing
 
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
@@ -53,10 +54,36 @@ end
 
 # The cache itself
 struct CPUKernelCache
+    file::String
     cache::Dict{Tuple{CPUKernelParams, IOConfig}, Float64}
 end
-CPUKernelCache() = CPUKernelCache(Dict{Tuple{CPUKernelParams, IOConfig},Float64}())
+function CPUKernelCache(file)::CPUKernelCache
+    # If the cache path already exists, just return the existing object.
+    # The type assertion for the function will make sure we don't return something weird.
+    if ispath(file) 
+        println("Returning cache")
+        deserialize(file)
+    end
+
+    # Otherwise, create the object.
+    return CPUKernelCache(
+        file, 
+        Dict{Tuple{CPUKernelParams, IOConfig},Float64}()
+    )
+end
 
 Base.getindex(cache::CPUKernelCache, args...) = getindex(cache.cache, args...)
 Base.setindex!(cache::CPUKernelCache, args...) = setindex!(cache.cache, args...)
 Base.haskey(cache::CPUKernelCache, args...) = haskey(cache.cache, args...)
+
+function save(cache::CPUKernelCache) 
+    # Make the directory for this cache if needed.
+    ispath(cache.file) || mkdir(dirname(cache.file))
+    serialize(cache.file, cache)
+end
+
+#####
+##### Function Caches
+#####
+
+

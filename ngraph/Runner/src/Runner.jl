@@ -8,7 +8,7 @@ function __init__()
 end
 
 # stdlibs
-using Dates, Statistics, Random
+using Dates, Random, Serialization, Statistics
 
 # deps
 using nGraph, Flux, JSON
