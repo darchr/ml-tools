@@ -58,10 +58,10 @@ uuid = "9e28174c-4ba2-5203-b857-d8d62c4213ee"
 version = "0.8.10"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Pkg", "SHA", "Test"]
-git-tree-sha1 = "055eb2690182ebc31087859c3dd8598371d3ef9e"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.3"
+version = "0.5.4"
 
 [[CSTParser]]
 deps = ["LibGit2", "Test", "Tokenize"]
@@ -160,10 +160,10 @@ uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
 version = "0.2.0"
 
 [[CxxWrap]]
-deps = ["BinaryProvider", "Libdl", "Test"]
-git-tree-sha1 = "8da57ef9a68690903b0fc625e935b49f53ba58f9"
+deps = ["BinaryProvider", "Libdl"]
+git-tree-sha1 = "c7865f82d1ccfd98d11bba256bd22c27b5ca2864"
 uuid = "1f15a43c-97ca-5a2a-ae31-89f07a497df4"
-version = "0.8.1"
+version = "0.8.2"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections", "Random", "Serialization", "Test"]
@@ -226,10 +226,12 @@ uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.5.3"
 
 [[Flux]]
-deps = ["AbstractTrees", "Adapt", "CodecZlib", "Colors", "DelimitedFiles", "Juno", "LinearAlgebra", "MacroTools", "NNlib", "Pkg", "Random", "Reexport", "Requires", "SHA", "Statistics", "StatsBase", "Test", "Tracker", "ZipFile"]
+deps = ["AbstractTrees", "Adapt", "CodecZlib", "Colors", "DelimitedFiles", "Juno", "LinearAlgebra", "MacroTools", "NNlib", "Pkg", "Printf", "Random", "Reexport", "Requires", "SHA", "Statistics", "StatsBase", "Tracker", "ZipFile"]
 git-tree-sha1 = "75e5a6850ad9d6129773171d9ba66be899a515ec"
+repo-rev = "75e5a6850ad9d6129773171d9ba66be899a515ec"
+repo-url = "https://github.com/FluxML/Flux.jl.git"
 uuid = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-version = "0.8.2"
+version = "0.8.2+"
 
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "InteractiveUtils", "LinearAlgebra", "NaNMath", "Random", "SparseArrays", "SpecialFunctions", "StaticArrays", "Test"]
@@ -263,9 +265,9 @@ version = "0.6.0"
 
 [[IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
-git-tree-sha1 = "a5a47cba5f8d9a56ff683789cdd6d20ce1cb9d53"
+git-tree-sha1 = "c13132944350119d1b94f1698d603566654bf57a"
 uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.1.2"
+version = "0.2.0"
 
 [[IdentityRanges]]
 deps = ["OffsetArrays", "Test"]
@@ -274,10 +276,10 @@ uuid = "bbac6d45-d8f3-5730-bfe4-7a449cd117ca"
 version = "0.3.0"
 
 [[ImageAxes]]
-deps = ["AxisArrays", "Colors", "FixedPointNumbers", "ImageCore", "MappedArrays", "Reexport", "SimpleTraits", "Test"]
-git-tree-sha1 = "5735ec90843acaa67a4624611921c686cdf4efbf"
+deps = ["AxisArrays", "Colors", "FixedPointNumbers", "ImageCore", "MappedArrays", "Reexport", "SimpleTraits"]
+git-tree-sha1 = "8109bb9a28deca29a5b938ebfa7d0a75319d8776"
 uuid = "2803e5a7-5153-5ecf-9a86-9b4c37f5f5ac"
-version = "0.5.0"
+version = "0.6.0"
 
 [[ImageCore]]
 deps = ["ColorTypes", "Colors", "FFTW", "FixedPointNumbers", "Graphics", "MappedArrays", "OffsetArrays", "PaddedViews", "Random", "Statistics", "Test"]
@@ -310,16 +312,16 @@ uuid = "787d08f9-d448-5407-9aad-5290dd7ab264"
 version = "0.1.1"
 
 [[ImageShow]]
-deps = ["Base64", "ColorTypes", "Colors", "FileIO", "FixedPointNumbers", "ImageCore", "OffsetArrays", "Requires", "Test"]
-git-tree-sha1 = "98eb96a852fd2d6f0905cbe4d215ec2113805b46"
+deps = ["Base64", "ColorTypes", "Colors", "FileIO", "FixedPointNumbers", "ImageCore", "OffsetArrays", "Requires"]
+git-tree-sha1 = "c23323afc82b6b553e6b2244d531e50858ea392c"
 uuid = "4e3cecfd-b093-5904-9786-8bbb286a6a31"
-version = "0.1.2"
+version = "0.2.0"
 
 [[ImageTransformations]]
-deps = ["AxisAlgorithms", "ColorTypes", "ColorVectorSpace", "Colors", "CoordinateTransformations", "FixedPointNumbers", "IdentityRanges", "ImageCore", "Interpolations", "LinearAlgebra", "OffsetArrays", "StaticArrays", "Test"]
-git-tree-sha1 = "e32d38356febdd2ab2cca6a3d14b5e5ffcbfb74c"
+deps = ["AxisAlgorithms", "ColorTypes", "ColorVectorSpace", "Colors", "CoordinateTransformations", "FixedPointNumbers", "IdentityRanges", "ImageCore", "Interpolations", "OffsetArrays", "StaticArrays"]
+git-tree-sha1 = "4cf03fc72d8877d5e58c1c72d176340ad4e28fda"
 uuid = "02fcd773-0e25-5acc-982a-7f6622650795"
-version = "0.7.2"
+version = "0.8.0"
 
 [[Images]]
 deps = ["AxisArrays", "Base64", "ColorTypes", "ColorVectorSpace", "Colors", "FileIO", "FixedPointNumbers", "Graphics", "ImageAxes", "ImageCore", "ImageDistances", "ImageFiltering", "ImageMetadata", "ImageMorphology", "ImageShow", "ImageTransformations", "IndirectArrays", "LinearAlgebra", "MappedArrays", "OffsetArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "Test", "TiledIteration"]
@@ -480,10 +482,10 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 [[NNlib]]
 deps = ["Libdl", "LinearAlgebra", "MacroTools", "Requires", "Test"]
 git-tree-sha1 = "51f5cd7567991417e7a9be8230a4a4b18442e05d"
-repo-rev = "f8fe29f6704888fc6b04371da0505bb8e9af853c"
+repo-rev = "51f5cd7567991417e7a9be8230a4a4b18442e05d"
 repo-url = "https://github.com/FluxML/NNlib.jl.git"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.5.0+"
+version = "0.6.0+"
 
 [[NaNMath]]
 deps = ["Compat"]
@@ -653,10 +655,10 @@ deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[StatsBase]]
-deps = ["DataStructures", "DelimitedFiles", "LinearAlgebra", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "Test"]
-git-tree-sha1 = "435707791dc85a67d98d671c1c3fcf1b20b00f94"
+deps = ["DataStructures", "LinearAlgebra", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics"]
+git-tree-sha1 = "8a0f4b09c7426478ab677245ab2b0b68552143c7"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.29.0"
+version = "0.30.0"
 
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
@@ -677,8 +679,10 @@ version = "0.5.3"
 [[Tracker]]
 deps = ["Adapt", "DiffRules", "ForwardDiff", "LinearAlgebra", "MacroTools", "NNlib", "NaNMath", "Printf", "Random", "Requires", "SpecialFunctions", "Statistics", "Test"]
 git-tree-sha1 = "4eeea9f0ef9b8c7d1c5c5b1f8f68cb9b7f45d7df"
+repo-rev = "4eeea9f0ef9b8c7d1c5c5b1f8f68cb9b7f45d7df"
+repo-url = "https://github.com/FluxML/Tracker.jl.git"
 uuid = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-version = "0.1.0"
+version = "0.2.0+"
 
 [[TranscodingStreams]]
 deps = ["Random", "Test"]
@@ -724,7 +728,7 @@ uuid = "ad488d5b-cec8-5120-91ab-e40a257560e6"
 version = "0.1.0"
 
 [[nGraph]]
-deps = ["BenchmarkTools", "Cassette", "CxxWrap", "Dates", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter"]
+deps = ["BenchmarkTools", "Cassette", "CxxWrap", "Dates", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter", "Tracker"]
 path = "/home/mark/projects/nGraph"
 uuid = "96f067b3-e350-5ae7-90f2-8283c539009d"
 version = "0.1.0"

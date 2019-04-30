@@ -11,6 +11,7 @@
 struct SynchronousTensor
     # Possible locations this tensor can live.
     locations::Vector{TensorLocation}
+    bytes::Int64
     graph::MetaDiGraph{Int64, Float64}
 
     # Vector of indices where this tensor is an input
@@ -46,8 +47,6 @@ function move_time(F::Frame{Synchronous})
         for e in edges(graph)
             cost = _meta(graph, e).cost
             if !iszero(cost) && isapprox(value(tensor_graphs[name, e]), 1.0; atol = 1e-3)
-                @show name
-                @show cost
                 total += cost
             end
         end
@@ -85,7 +84,8 @@ function create_model(modeltype::Synchronous, profile_data)
     return frame
 end
 
-@enum VertexLocation  LOC_PMEM LOC_DRAM LOC_PREAD LOC_PKEEP LOC_SOURCE LOC_SINK
+@enum VertexLocation LOC_PMEM LOC_DRAM LOC_SOURCE LOC_SINK
+@enum EdgeType EDGE_READ EDGE_WRITE EDGE_NONE
 
 # Metadata to assign to each node in the liveness graph for tensors.
 struct VertexMetadata
@@ -98,7 +98,7 @@ struct VertexMetadata
 end
 
 struct EdgeMetadata
-    cost::Int64
+    edgetype::EdgeType
 end
 
 _meta(g, x) = get_prop(g, x, :metadata)
@@ -109,41 +109,6 @@ function preprocess!(S::Synchronous, profile_data)
         name  = tensor.name
         locations = tensor.locations
 
-        read_cost = round(Int, tensor.bytes / (S.read_bandwidth))
-        write_cost = round(Int, tensor.bytes / (S.write_bandwidth))
-
-        cost_table = Dict(
-            # DRAM source
-            (LOC_DRAM, LOC_DRAM)  => 0,
-            (LOC_DRAM, LOC_PREAD) => write_cost + read_cost,
-            (LOC_DRAM, LOC_PKEEP) => write_cost + read_cost,
-            (LOC_DRAM, LOC_PMEM)  => write_cost,
-
-            # PREAD source
-            (LOC_PREAD, LOC_PREAD) => read_cost,
-            (LOC_PREAD, LOC_PKEEP) => read_cost,
-            (LOC_PREAD, LOC_PMEM) => 0,
-
-            # PMEM source
-            (LOC_PMEM, LOC_PREAD) => read_cost,
-            (LOC_PMEM, LOC_PKEEP) => read_cost,
-            (LOC_PMEM, LOC_PMEM) => 0,
-
-            # PKEEP source
-            (LOC_PKEEP, LOC_PKEEP) => 0,
-            (LOC_PKEEP, LOC_PREAD) => read_cost,
-            (LOC_PKEEP, LOC_PMEM) => 0,
-
-            # Source source
-            (LOC_SOURCE, LOC_PMEM) => 0,
-            (LOC_SOURCE, LOC_DRAM) => 0,
-
-            # sinks
-            (LOC_PMEM, LOC_SINK) => 0,
-            (LOC_DRAM, LOC_SINK) => 0,
-            (LOC_PREAD, LOC_SINK) => 0,
-            (LOC_PKEEP, LOC_SINK) => 0,
-        )
 
         # Get the indices of ops that have this tensor as an input
         ops_using_tensor = [
@@ -172,22 +137,13 @@ function preprocess!(S::Synchronous, profile_data)
                 isfirst = count == 1
 
                 if location == DRAM
-                    metadata = VertexMetadata(count, index, LOC_DRAM)
-                    add_vertex!(g, :metadata, metadata)
+                    # Add DRAM node
+                    add_vertex!(g, :metadata, VertexMetadata(count, index, LOC_DRAM))
                 end
 
                 if location == PMEM
-                    metadata = VertexMetadata(count, index, LOC_PMEM)
-                    add_vertex!(g, :metadata, metadata)
-
-                    # Add the intermediate node if we're not on the first step of this graph
-                    if !isfirst
-                        metadata = VertexMetadata(count, index, LOC_PREAD)
-                        add_vertex!(g, :metadata, metadata)
-
-                        metadata = VertexMetadata(count, index, LOC_PKEEP)
-                        add_vertex!(g, :metadata, metadata)
-                    end
+                    # Add pre and post PMEM nodes
+                    add_vertex!(g, :metadata, VertexMetadata(count, index, LOC_PMEM))
                 end
             end
             if islast
@@ -196,26 +152,54 @@ function preprocess!(S::Synchronous, profile_data)
             end
         end
 
+        # Create a dictionary mapping source and destination locations to a function.
+        #
+        # That function will take the gadget numbers of the source and destination. If
+        # there should be an edge, return the appropriate metadata. Otherwise, return 
+        # `nothing`.
+        metadata_map = Dict(
+            (LOC_SOURCE, LOC_DRAM) => (s,d) -> isone(d) ? EdgeMetadata(EDGE_NONE) : nothing,
+            (LOC_SOURCE, LOC_PMEM) => (s,d) -> isone(d) ? EdgeMetadata(EDGE_NONE) : nothing,
+
+            # LOC_DRAM as source
+            (LOC_DRAM, LOC_DRAM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
+            (LOC_DRAM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_WRITE) : nothing,
+            (LOC_DRAM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
+
+            # LOC_PMEM_PRE as the source
+            #
+            # Don't connect the pre-node to DRAM for the first gadget.
+            (LOC_PMEM, LOC_DRAM) => (s,d) -> (s == d) && !isone(s) ? EdgeMetadata(EDGE_READ) : nothing,
+            (LOC_PMEM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
+            (LOC_PMEM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
+        )
+
         # Use a quadratic complexity algorithm for doing edge assignment. It's not
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
         for src in vertices(g), dst in vertices(g)
             src == dst && continue
 
-            # Connections between gadgets
-            if _meta(g, src).gadget + 1 == _meta(g, dst).gadget
-                # Create a tuple of the two locations. If this is a defined key in the
-                # cost table, add an edge with the associated cost.
-                key = (_meta(g, src).location, _meta(g, dst).location)
-                if haskey(cost_table, key)
-                    add_edge!(g, src, dst, :metadata, EdgeMetadata(cost_table[key]))
-                end
-            end
+            src_meta = _meta(g, src)
+            dst_meta = _meta(g, dst)
 
+            # Create a key from the source and destination pairs
+            key = (src_meta.location, dst_meta.location) 
+
+            # Get the metadata function from `metadata_map` and pass the source and 
+            # destination gadget numbers to the function.
+            #
+            # If the result is `nothing`, no edge should be created. Otherwise, create
+            # an edge with the given metadata.
+            fn = get(metadata_map, key, (args...) -> nothing)
+            metadata = fn(src_meta.gadget, dst_meta.gadget)
+            isnothing(metadata) && continue
+
+            add_edge!(g, src, dst, :metadata, metadata) 
         end
 
         # Create the descriptor
-        S.descriptors[name] = SynchronousTensor(locations, g, ops_using_tensor)
+        S.descriptors[name] = SynchronousTensor(locations, tensor.bytes, g, ops_using_tensor)
     end
 end
 
@@ -260,16 +244,60 @@ function add_tensors!(F::Frame{Synchronous})
         end
     end
 
-    # Add costs for edges
-    objective_expr = F.model[:objective_expr]
+    #####
+    ##### Add objective penalty for moving data
+    #####
+
+    objective_expr = F.model[:objective_expr] 
+    read_bandwidth = F.modeltype.read_bandwidth
+    write_bandwidth = F.modeltype.write_bandwidth
+
+    # A tensor is written to dram if:
+    # - It was not created into PMEM
+    # - Any edge from DRAM to PMEM is taken
+    #
+    # NOTE: We only pay the write cost once.
+    @variable(F.model, tensor_write[name = names], Bin)
+
+    # Add objective terms for all read ops
     for name in names
-        g = descriptors[name].graph
-        for e in edges(g)
-            cost = _meta(g, e).cost
-            if !iszero(cost)
-                add_to_expression!(objective_expr, cost, tensor_graphs[name, e])
-            end
+        descriptor = descriptors[name]
+
+        # Skip if this tensor can never be assigned to PMEM
+        in(PMEM, descriptor.locations) || continue
+
+        g = descriptor.graph
+        bytes = descriptor.bytes
+        
+        read_cost = round(Int, bytes / read_bandwidth)
+        write_cost = round(Int, bytes / write_bandwidth)
+
+        # Objective terms for read ops
+        for e in filter_edges(g, (g,e) -> _meta(g, e).edgetype == EDGE_READ)
+            add_to_expression!(objective_expr, read_cost, tensor_graphs[name, e])
         end
+
+        # objbetive terns for write ops
+        first_pmem_edge = find_edge(g,
+            (g,e) -> 
+                _meta(g, src(e)).location == LOC_SOURCE && 
+                _meta(g, dst(e)).location == LOC_PMEM
+        )
+
+        edge_var = tensor_graphs[name, first_pmem_edge]
+
+        # If the tensor is created into PMEM, we never write
+        @constraint(F.model, tensor_write[name] <= 1 - edge_var)
+
+        # `tensor_write` must be 1 if `edge_var == 1` and any write edge is taken
+        edge_iter = filter_edges(g, (g,e) -> _meta(g, e).edgetype == EDGE_WRITE)
+        for e in edge_iter
+            @constraint(F.model, tensor_write[name] >= tensor_graphs[name, e] - edge_var)
+        end
+
+        # If all write edges are not taken, tensor_write must be zero
+        @constraint(F.model, tensor_write[name] <= sum(tensor_graphs[name, e] for e in edge_iter))
+        add_to_expression!(objective_expr, write_cost, tensor_write[name])
     end
 
     @variable(F.model,
@@ -287,51 +315,19 @@ function add_tensors!(F::Frame{Synchronous})
         #for op in descriptors[name].ops_using_tensor
         for op in descriptors[name].ops_using_tensor
             # Get the DRAM and PREAD vertices for this op.
-            dram_locations = (LOC_DRAM, LOC_PREAD, LOC_PKEEP)
-            vertex_iter = filter_vertices(
+            vertex = find_vertex(
                 g,
-                (g,v) -> in(_meta(g, v).location, dram_locations) && _meta(g, v).op == op
+                (g,v) -> _meta(g, v).location == LOC_DRAM && _meta(g, v).op == op
             )
 
             # Map `inedges` to `vertex_iter` and iterats over all those edges
-            for e in Iterators.flatten(map(x -> inedges(g, x), vertex_iter))
+            for e in inedges(g, vertex) 
                 @constraint(F.model, tensor_in_dram[name, op] >= tensor_graphs[name, e])
             end
 
             # If all incoming edges are not taken, tensor MUST not be in DRAM.
-            iter = Iterators.flatten(map(x -> inedges(g, x), vertex_iter))
             @constraint(F.model,
-                sum(tensor_graphs[name, e] for e in iter) >= tensor_in_dram[name, op]
-            )
-        end
-    end
-
-    @variable(F.model,
-        tensor_in_dram_between[
-            name = names,
-            op = droplast(descriptors[name].ops_using_tensor)
-        ],
-        Bin
-    )
-
-    for name in names
-        g = descriptors[name].graph
-        for op in droplast(descriptors[name].ops_using_tensor)
-            locations = (LOC_DRAM, LOC_PKEEP)
-            edge_iter = filter_edges(
-                g,
-                # Source vertex must be in one of the "keep-in-dram" locations
-                # and outgoing edge must map to the same location.
-                (g,e) -> in(_meta(g, src(e)).location, locations) &&
-                    _meta(g, src(e)).op == op &&
-                    _meta(g, src(e)).location == _meta(g, dst(e)).location
-            )
-
-            for e in edge_iter
-                @constraint(F.model, tensor_in_dram_between[name, op] >= tensor_graphs[name, e])
-            end
-            @constraint(F.model,
-                sum(tensor_graphs[name, e] for e in edge_iter) >= tensor_in_dram_between[name, op]
+                sum(tensor_graphs[name, e] for e in inedges(g, vertex)) >= tensor_in_dram[name, op]
             )
         end
     end
@@ -359,7 +355,18 @@ function tensor_in_dram(F::Frame{Synchronous}, tensor_name, op)
     if in(op, descriptor.ops_using_tensor)
         return F.model[:tensor_in_dram][tensor_name, op]
     else
-        return F.model[:tensor_in_dram_between][tensor_name, reference_op(descriptor, op)]
+        ref = reference_op(descriptor, op)
+        edge = find_edge(
+            descriptor.graph,
+            # Source vertex must be in one of the "keep-in-dram" locations
+            # and outgoing edge must map to the same location.
+            (g,e) -> _meta(g, src(e)).location == LOC_DRAM &&
+                _meta(g, src(e)).op == ref &&
+                _meta(g, dst(e)).location == LOC_DRAM
+        )
+
+        # Return the edge in question
+        return F.model[:tensor_graphs][tensor_name, edge]
     end
 end
 
@@ -459,7 +466,7 @@ function get_schedule(F::Frame{Synchronous})
         path = [_meta(graph, v)]
         while _meta(graph, v).location != LOC_SINK
             for e in outedges(graph, v)
-                if isapprox(value(model_graphs[tensor_name, e]), 1.0; atol = 1e-3)
+                if approx_one(value(model_graphs[tensor_name, e]))
                     v = dst(e)
                     break
                 end
@@ -499,7 +506,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         elseif initial_location == LOC_DRAM
             config[tensor_name] = DRAM
         else
-            error("$(initial_location)")
+            error("$(initial_location)???")
         end
 
         @show tensor_name
@@ -508,7 +515,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         # Some preliminary assertions to make sure nothing has gone too far off the rails
         # yet.
         ops_using_tensor = descriptors[tensor_name].ops_using_tensor
-        @assert length(vertices) == length(ops_using_tensor)
+        @assert length(vertices) >= length(ops_using_tensor)
 
         # Get a list of move actions that we will have to perform.
         actions = getactions(vertices)
@@ -521,18 +528,42 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             # Translate consumers into nodes.
             #
             # We go:
-            # consumers -> op_indices
-            # op_indices -> node_names
+            # consumers -> node_names
             # node_names -> nodes
-            op_indices = [ops_using_tensor[v] for v in action.consumers]
-            node_names = [profile_data.nodes[i].name for i in op_indices]
+            @show action.consumers
+            node_names = [profile_data.nodes[i].name for i in action.consumers]
             consumers = [node_dict[n] for n in node_names]
 
             producer = node_dict[incumbent_name]
-            consumer_inputs = [findfirst(x -> nGraph.get_name(x) == incumbent_tensor, nGraph.input_descriptors(n)) for n in consumers]
+            consumer_inputs = [
+                findfirst(
+                    x -> nGraph.get_name(x) == incumbent_tensor, 
+                    nGraph.input_descriptors(n)
+                ) for n in consumers
+            ]
 
             @show consumer_inputs
             move_node = insert_move_node!(producer, incumbent_index, consumers, consumer_inputs)
+
+            # Determine associate from the action location.
+            #
+            # If moving to PMEM, perform this action as soon as possible after the node
+            # generating the argument.
+            if action.location == PMEM
+                nGraph.set_input_affinity(move_node)
+                nGraph.add_associate(move_node, incumbent_name)
+
+            # Otherwise, make this happen as late as possible. Add all of the output 
+            # associates to this list because scheduling may be reordered after inserting
+            # the move nodes.
+            elseif action.location == DRAM
+                nGraph.set_output_affinity(move_node)
+                for nn in node_names
+                    nGraph.add_associate(move_node, nn)
+                end
+            else
+                error()
+            end
 
             # Record this move node and the size of the tensor for bandwidth debugging
             move_nodes_created[nGraph.name(move_node)] = (
@@ -573,6 +604,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     return nGraph.recompile(fex), move_nodes_created
 end
 
+# your moves are weak
 function profile_moves(fex, args, move_nodes::Dict)
     #fex(args...)
     #fex(args...)
@@ -620,38 +652,57 @@ end
 # Consume all of the PKEEP nodes.
 function getkeeps(vertices::Vector{VertexMetadata}, index)
     keeps = Int[]
-    while checkbounds(Bool, vertices, index) && vertices[index].location == LOC_PKEEP
-        push!(keeps, index)
+    while checkbounds(Bool, vertices, index) && vertices[index].location == LOC_DRAM
+        push!(keeps, vertices[index].op)
         index += 1
     end
-    return keeps
+    return unique(keeps)
 end
 
 # Return `true` if there is an implied write to
-write_to_pmem(a, b) = (a == LOC_DRAM) && in(b, (LOC_PMEM, LOC_PREAD, LOC_PKEEP))
-read_from_pmem(a, b) = (b == LOC_PREAD) || (in(a, (LOC_PMEM, LOC_DRAM)) && b == LOC_PKEEP)
+write_to_pmem(a, b) = a == LOC_DRAM && b == LOC_PMEM
+read_from_pmem(a, b) = a == LOC_PMEM && b == LOC_DRAM
 
 function getactions(vertices::Vector{VertexMetadata})
     actions = MoveAction[]
 
+    data_in_pmem = false
+    isfirst = true
+
     for i in Iterators.drop(eachindex(vertices), 1)
         a, b = vertices[i-1].location, vertices[i].location
-        if write_to_pmem(a, b)
+
+        # If we're on the first iteration and the location of `b` is PMEM_PRE, then we
+        # will never write to PMEM
+        if isfirst
+            if a == LOC_PMEM 
+                data_in_pmem = true
+            end
+            println("Started in PMEM")
+            isfirst = false
+        end
+
+        @show data_in_pmem
+        if !data_in_pmem && write_to_pmem(a, b)
+            println("Moving to PMEM")
             # All downstream users are consumers
-            consumers = collect(i:length(vertices))
+            consumers = unique(vertices[i].op for i in i:length(vertices))
             push!(actions, MoveAction(consumers, PMEM, true))
+            data_in_pmem = true
         end
 
         if read_from_pmem(a, b)
-            # Check what kind of read it is and populate consumers appropriately.
-            if b == LOC_PREAD
-                consumers = [i]
-            else
-                consumers = getkeeps(vertices, i)
-            end
+            consumers = getkeeps(vertices, i)
             push!(actions, MoveAction(consumers, DRAM, false))
         end
     end
+
+    # Need to filter out the first op from showing up in the actions because the first op
+    # doesn't actually use the tensor - it produces it.
+    producing_op = first(vertices).op 
+
+    for action in actions
+        filter!(!isequal(producing_op), action.consumers)
+    end
     return actions
 end
-

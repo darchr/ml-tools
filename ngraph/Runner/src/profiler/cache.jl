@@ -61,8 +61,11 @@ function CPUKernelCache(file)::CPUKernelCache
     # If the cache path already exists, just return the existing object.
     # The type assertion for the function will make sure we don't return something weird.
     if ispath(file) 
-        println("Returning cache")
-        deserialize(file)
+        cache = deserialize(file)::CPUKernelCache
+        if cache.file == file
+            return cache
+        end
+        error("Cache Corruption.")
     end
 
     # Otherwise, create the object.
@@ -78,7 +81,8 @@ Base.haskey(cache::CPUKernelCache, args...) = haskey(cache.cache, args...)
 
 function save(cache::CPUKernelCache) 
     # Make the directory for this cache if needed.
-    ispath(cache.file) || mkdir(dirname(cache.file))
+    dir = dirname(cache.file) 
+    ispath(dir) || mkdir(dir)
     serialize(cache.file, cache)
 end
 

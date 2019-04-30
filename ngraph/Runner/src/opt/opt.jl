@@ -56,6 +56,8 @@ mutable struct Frame{T <: ModelType}
     #config::Dict{String, TensorLocation}
 end
 
+limit(F::Frame) = limit(F.modeltype)
+
 JuMP.optimize!(F::Frame) = optimize!(F.model)
 
 include("util.jl")
@@ -67,7 +69,7 @@ include("sync.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt; cache = CPUKernelCache())
+function factory(f, opt; cache = CPUKernelCache(BASE_CACHE_PATH))
     fex, args = f()
     data = profile(fex; cache = cache)
 

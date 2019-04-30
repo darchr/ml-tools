@@ -28,7 +28,7 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_PATH))
+function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_PATH))
     backend = fex.ex.backend
 
     # Go through each node
@@ -50,21 +50,33 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_
         push!(v, last(config))
     end
 
-    progress_bar = Progress(length(f), 1)
-    for (index, op) in enumerate(f)
-        # Update the progress bar
+    num_configs = sum(length(config_dict[nGraph.name(op)]) for op in f if keep(op))
+    progress_bar = Progress(num_configs, 1)
+
+    # Setup a little update function for all configurations
+    # This gives a more fine-grained information than updating for each op
+    serviced = Ref(0)
+    function _update!(p, op, config, ncached) 
+        serviced[] += 1
         ProgressMeter.next!(
-            progress_bar; 
+            p; 
             valuecolor = :white,
             showvalues = [
-                (:iter, index),
-                (:total, length(f)),
+                (:iter, serviced[]),
+                (:total, num_configs),
                 (:op, nGraph.name(op)),
+                (:config, config),
+                (:ncached, ncached),
             ]
         )
+    end
 
+    ncached = 0
+
+    for (index, op) in enumerate(f)
         # Skip unneeded ops
         keep(op) || continue
+
         op_name = nGraph.name(op)
         op_data = data.nodes[index]
 
@@ -72,11 +84,14 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_
         configs = config_dict[op_name]
 
         # Before we build a sub-function, get all of the cached ops.
-
         cached_configs = IOConfig[]
         kernel_params = CPUKernelParams(op) 
         for config in configs 
             if haskey(cache, (kernel_params, config))
+                # Update the number of timings serviced from cached ops
+                ncached += 1 
+                _update!(progress_bar, op, config, ncached)
+
                 op_data.timings[config] = [cache[(kernel_params, config)]]
                 push!(cached_configs, config)
             end
@@ -89,9 +104,8 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_
         ex, inputs, outputs, copied_op = extract(op)
 
         # Profile the timings
-        @show op_name
         for config in filter(!in(cached_configs), configs)
-            @show config
+            _update!(progress_bar, op, config, ncached)
             # setup the config
             _setup!(copied_op, config)
 
@@ -99,7 +113,7 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelParams(BASE_CACHE_
             ex = nGraph.recompile(ex)
             function_name = nGraph.name(ex.ngraph_function)
 
-            for _ in 1:5
+            for i in 1:5
                 ex(inputs, outputs)
                 record_time!(op_data, function_name, copied_op)
             end
@@ -196,9 +210,9 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     end
     @assert found
 
-    for input in nGraph.get_inputs(translated_node)
+    for (index, input) in enumerate(nGraph.get_inputs(translated_node))
         if nGraph.description(input) == "Parameter"
-            nGraph.splice(input, 1, translated_node, 1, nGraph.move(input))
+            nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
         end
     end
 
