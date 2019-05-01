@@ -163,3 +163,81 @@ end
         end
     end
 end
+
+#####
+##### Plot the DRAM allocation of a graph
+#####
+
+struct AllocationView end
+@recipe function f(::AllocationView, fn::nGraph.NFunction)
+    profile_data = ProfileData(fn)
+
+    tensor_map = Dict{String, nGraph.TensorDescriptor}() 
+    for op in fn
+        for t in nGraph.output_descriptors(op)
+            tensor_map[nGraph.get_name(t)] = t
+        end
+    end
+
+    seriestype := :shape
+    legend := :none
+    linecolor := :white
+
+    tensor_set = Set{String}()    
+    starts = Dict{String, Int64}()
+
+    count = 0
+    for (index, tensor_names) in enumerate(live_tensors(profile_data))
+        filtered_names = filter(!in(profile_data.fixed_tensors), tensor_names)
+        for tensor_name in filtered_names
+            in(tensor_name, profile_data.fixed_tensors) && continue
+
+            # Find tensors that are no longer live 
+            for n in tensor_set
+                if !in(n, filtered_names)
+                    delete!(tensor_set, n)
+                    count += 1
+
+                    tensor = tensor_map[n]
+                    nGraph.is_persistent(tensor) && continue
+                    @series begin
+                        x = starts[n]
+                        width = index - x
+
+
+                        y = nGraph.get_pool_offset(tensor) / 1E6
+                        height = sizeof(tensor) / 1E6
+
+                        if width > 500
+                            @show n
+                            @show x
+                            @show width
+                            @show y
+                            @show height
+                            println()
+                        end
+
+                        if startswith(nGraph.get_name(tensor), "Move")
+                            c := :red
+                        else
+                            c := :black
+                        end
+
+                        x, y = rectangle(x, y, width, height)
+                        x = Float64.(x)
+                        y = Float64.(y)
+
+                        x, y
+                    end
+                end
+            end
+
+            for n in filtered_names
+                if !in(n, tensor_set)
+                    starts[n] = index
+                    push!(tensor_set, n)
+                end
+            end
+        end
+    end
+end

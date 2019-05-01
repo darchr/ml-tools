@@ -36,31 +36,13 @@ Synchronous(a,b,c) = Synchronous(a,b,c, Dict{String,SynchronousTensor}())
 limit(S::Synchronous) = S.dram_limit
 predict(F::Frame{Synchronous}) = objective_value(F.model)
 
-function move_time(F::Frame{Synchronous})
-    total = zero(Float64)
-    descriptors = F.modeltype.descriptors
-    names = collect(keys(descriptors))
-    tensor_graphs = F.model[:tensor_graphs]
-
-    for name in names
-        graph = descriptors[name].graph
-        for e in edges(graph)
-            cost = _meta(graph, e).cost
-            if !iszero(cost) && isapprox(value(tensor_graphs[name, e]), 1.0; atol = 1e-3)
-                total += cost
-            end
-        end
-    end
-    return total
-end
-
 #####
 ##### Helper Functions
 #####
 
 # Why do these not exist in LightGraphs.jl??
-inedges(g, v) = (LightGraphs.SimpleEdge(u, v) for u in inneighbors(g, v))
-outedges(g, v) = (LightGraphs.SimpleEdge(v, u) for u in outneighbors(g, v))
+inedges(g, v) = (edgetype(g)(u, v) for u in inneighbors(g, v))
+outedges(g, v) = (edgetype(g)(v, u) for u in outneighbors(g, v))
 
 function create_model(modeltype::Synchronous, profile_data)
 
@@ -346,19 +328,20 @@ end
 function tensor_in_dram(F::Frame{Synchronous}, tensor_name, op)
     # Pull out the descriptor for this tensor - check if this is an op using the tensor.
     descriptor = F.modeltype.descriptors[tensor_name]
+    ops_using_tensor = descriptor.ops_using_tensor
 
     # Sanity check: Make sure that the op passed is between the range of ops that this
     # tensor is live.
-    @assert minimum(descriptor.ops_using_tensor) <= op
-    @assert maximum(descriptor.ops_using_tensor) >= op
+    @assert minimum(ops_using_tensor) <= op
+    @assert maximum(ops_using_tensor) >= op
 
-    if in(op, descriptor.ops_using_tensor)
+    if in(op, ops_using_tensor)
         return F.model[:tensor_in_dram][tensor_name, op]
     else
         ref = reference_op(descriptor, op)
         edge = find_edge(
             descriptor.graph,
-            # Source vertex must be in one of the "keep-in-dram" locations
+            # Source vertex must be in one of the dram locations
             # and outgoing edge must map to the same location.
             (g,e) -> _meta(g, src(e)).location == LOC_DRAM &&
                 _meta(g, src(e)).op == ref &&
@@ -424,6 +407,13 @@ function add_nodes!(F::Frame{Synchronous})
     return
 end
 
+# Allocations in ngraph happen on 4096 bytes boundaries. For better accuracty, round
+# up to the nearest multiple of 4096 before figuring out the number of bytes.
+#
+# Take the floor to introduce more zeros into the ILP formulation. This shouldn't really
+# make much of a difference.
+tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
+
 function add_constraints!(F::Frame{Synchronous})
     # Unpack some variables
     dram_limit = limit(F.modeltype)
@@ -433,12 +423,11 @@ function add_constraints!(F::Frame{Synchronous})
     for (index, free_tensors) in enumerate(live_tensors(F.profile_data))
         live_free_tensors = filter(!in(F.profile_data.fixed_tensors), free_tensors)
         if !isempty(live_free_tensors)
-
             @constraint(F.model,
                 sum(
-                    round(Int, tensor_data[n].bytes / 1E6) * tensor_in_dram(F, n, index)
-                    for n in live_free_tensors
-                ) <= dram_limit
+                    tensor_size(tensor_data[n].bytes) * 
+                    tensor_in_dram(F, n, index) for n in live_free_tensors 
+                    if !iszero(tensor_size(tensor_data[n].bytes))) <= dram_limit
             )
         end
     end
@@ -483,6 +472,15 @@ function get_schedule(F::Frame{Synchronous})
     return schedule
 end
 
+# Simple struct for keeping track of move nodes that have been inserted for verification
+struct InsertedMoveNode
+    name::String
+    producer::String
+    users::Vector{String}
+    bytes::Int
+    write_to_pmem::Bool
+end
+
 function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     # Unpack args
     profile_data = F.profile_data
@@ -497,7 +495,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
 
     # Process the move node chains
     schedule = get_schedule(F)
-    move_nodes_created = Dict{String, NamedTuple}()
+    move_nodes_created = Dict{String, InsertedMoveNode}()
     for (tensor_name, vertices) in schedule
 
         initial_location = first(vertices).location
@@ -509,8 +507,6 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             error("$(initial_location)???")
         end
 
-        @show tensor_name
-        @show initial_location
 
         # Some preliminary assertions to make sure nothing has gone too far off the rails
         # yet.
@@ -524,13 +520,11 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         incumbent_index = profile_data.tensors[tensor_name].output_index
         incumbent_tensor = tensor_name
         for action in actions
-            @show action
             # Translate consumers into nodes.
             #
             # We go:
             # consumers -> node_names
             # node_names -> nodes
-            @show action.consumers
             node_names = [profile_data.nodes[i].name for i in action.consumers]
             consumers = [node_dict[n] for n in node_names]
 
@@ -541,8 +535,6 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
                     nGraph.input_descriptors(n)
                 ) for n in consumers
             ]
-
-            @show consumer_inputs
             move_node = insert_move_node!(producer, incumbent_index, consumers, consumer_inputs)
 
             # Determine associate from the action location.
@@ -552,6 +544,13 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             if action.location == PMEM
                 nGraph.set_input_affinity(move_node)
                 nGraph.add_associate(move_node, incumbent_name)
+
+                #@show nGraph.name(move_node)
+                #@show incumbent_name
+
+                # Perform a sanity check. Should not move data to PMEM if it already 
+                # started in PMEM.
+                @assert initial_location == LOC_DRAM
 
             # Otherwise, make this happen as late as possible. Add all of the output 
             # associates to this list because scheduling may be reordered after inserting
@@ -566,9 +565,12 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             end
 
             # Record this move node and the size of the tensor for bandwidth debugging
-            move_nodes_created[nGraph.name(move_node)] = (
-                bytes = profile_data.tensors[tensor_name].bytes,
-                write_to_pmem = action.location == PMEM,
+            move_nodes_created[nGraph.name(move_node)] = InsertedMoveNode(
+                nGraph.name(move_node),
+                incumbent_name,
+                node_names,
+                profile_data.tensors[tensor_name].bytes,
+                action.location == PMEM,
             )
 
             # Add this move node to `node_dict` and assign its output tensor to the config.
@@ -590,7 +592,6 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     ##### Apply the config
     #####
 
-    # TODO: Make this its own function
     nGraph.get_ordered_ops!(fn)
 
     # Iterate over each node and each output tensor for each node. Each output tensor should
@@ -601,14 +602,51 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         end
     end
 
-    return nGraph.recompile(fex), move_nodes_created
+    fex = nGraph.recompile(fex)
+
+    #####
+    ##### Now, we do some checking to make sure everything is scheduled correctly
+    #####
+    #verify_moves(fex, move_nodes_created)
+
+    return fex, move_nodes_created
+end
+
+function verify_moves(fex::nGraph.FluxExecutable, move_nodes)
+    fn = fex.ex.ngraph_function 
+
+    # Iterate through each op, keeping track of the previous op.
+    #
+    # Every time we get to a "Move" node, check if it is a write to PMEM or read from PMEM.
+    # - If write, make sure it immediately follows its producer.
+    # - If read, make sure the next op is one of its consumers.
+    previous_op = first(fn)
+    display_next = false
+    for op in Iterators.drop(fn, 1)
+        op_name = nGraph.name(op)
+        if display_next
+            #@show op_name
+            display_next = false
+        end
+        #println()
+
+        if startswith(op_name, "Move")
+            metadata = move_nodes[op_name]
+            if metadata.write_to_pmem
+                @show metadata.producer
+                @show nGraph.name(previous_op)
+            else
+                @show metadata.users
+                display_next = true
+            end
+        end
+        previous_op = op
+    end
+    return nothing
 end
 
 # your moves are weak
 function profile_moves(fex, args, move_nodes::Dict)
-    #fex(args...)
-    #fex(args...)
-
     timing_data = read_timing_data(fex.ex.ngraph_function)
     computed_stats = Dict{String, NamedTuple}()
     for (node_name, stats) in move_nodes
@@ -672,19 +710,16 @@ function getactions(vertices::Vector{VertexMetadata})
     for i in Iterators.drop(eachindex(vertices), 1)
         a, b = vertices[i-1].location, vertices[i].location
 
-        # If we're on the first iteration and the location of `b` is PMEM_PRE, then we
+        # If we're on the first iteration and the location of `b` is PMEM, then we
         # will never write to PMEM
         if isfirst
             if a == LOC_PMEM 
                 data_in_pmem = true
             end
-            println("Started in PMEM")
             isfirst = false
         end
 
-        @show data_in_pmem
         if !data_in_pmem && write_to_pmem(a, b)
-            println("Moving to PMEM")
             # All downstream users are consumers
             consumers = unique(vertices[i].op for i in i:length(vertices))
             push!(actions, MoveAction(consumers, PMEM, true))

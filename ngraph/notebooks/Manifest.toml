@@ -58,10 +58,10 @@ uuid = "9e28174c-4ba2-5203-b857-d8d62c4213ee"
 version = "0.8.10"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Pkg", "SHA", "Test"]
-git-tree-sha1 = "055eb2690182ebc31087859c3dd8598371d3ef9e"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.3"
+version = "0.5.4"
 
 [[CSTParser]]
 deps = ["LibGit2", "Test", "Tokenize"]
@@ -168,10 +168,10 @@ uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
 version = "0.2.0"
 
 [[CxxWrap]]
-deps = ["BinaryProvider", "Libdl", "Test"]
-git-tree-sha1 = "8da57ef9a68690903b0fc625e935b49f53ba58f9"
+deps = ["BinaryProvider", "Libdl"]
+git-tree-sha1 = "c7865f82d1ccfd98d11bba256bd22c27b5ca2864"
 uuid = "1f15a43c-97ca-5a2a-ae31-89f07a497df4"
-version = "0.8.1"
+version = "0.8.2"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections", "Random", "Serialization", "Test"]
@@ -239,7 +239,7 @@ git-tree-sha1 = "75e5a6850ad9d6129773171d9ba66be899a515ec"
 repo-rev = "75e5a6850ad9d6129773171d9ba66be899a515ec"
 repo-url = "https://github.com/FluxML/Flux.jl.git"
 uuid = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-version = "0.8.2+"
+version = "0.8.3+"
 
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "InteractiveUtils", "LinearAlgebra", "NaNMath", "Random", "SparseArrays", "SpecialFunctions", "StaticArrays", "Test"]
@@ -273,9 +273,9 @@ version = "0.6.0"
 
 [[IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
-git-tree-sha1 = "a5a47cba5f8d9a56ff683789cdd6d20ce1cb9d53"
+git-tree-sha1 = "c13132944350119d1b94f1698d603566654bf57a"
 uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.1.2"
+version = "0.2.0"
 
 [[IdentityRanges]]
 deps = ["OffsetArrays", "Test"]
@@ -284,10 +284,10 @@ uuid = "bbac6d45-d8f3-5730-bfe4-7a449cd117ca"
 version = "0.3.0"
 
 [[ImageAxes]]
-deps = ["AxisArrays", "Colors", "FixedPointNumbers", "ImageCore", "MappedArrays", "Reexport", "SimpleTraits", "Test"]
-git-tree-sha1 = "5735ec90843acaa67a4624611921c686cdf4efbf"
+deps = ["AxisArrays", "Colors", "FixedPointNumbers", "ImageCore", "MappedArrays", "Reexport", "SimpleTraits"]
+git-tree-sha1 = "8109bb9a28deca29a5b938ebfa7d0a75319d8776"
 uuid = "2803e5a7-5153-5ecf-9a86-9b4c37f5f5ac"
-version = "0.5.0"
+version = "0.6.0"
 
 [[ImageCore]]
 deps = ["ColorTypes", "Colors", "FFTW", "FixedPointNumbers", "Graphics", "MappedArrays", "OffsetArrays", "PaddedViews", "Random", "Statistics", "Test"]
@@ -320,16 +320,16 @@ uuid = "787d08f9-d448-5407-9aad-5290dd7ab264"
 version = "0.1.1"
 
 [[ImageShow]]
-deps = ["Base64", "ColorTypes", "Colors", "FileIO", "FixedPointNumbers", "ImageCore", "OffsetArrays", "Requires", "Test"]
-git-tree-sha1 = "98eb96a852fd2d6f0905cbe4d215ec2113805b46"
+deps = ["Base64", "ColorTypes", "Colors", "FileIO", "FixedPointNumbers", "ImageCore", "OffsetArrays", "Requires"]
+git-tree-sha1 = "c23323afc82b6b553e6b2244d531e50858ea392c"
 uuid = "4e3cecfd-b093-5904-9786-8bbb286a6a31"
-version = "0.1.2"
+version = "0.2.0"
 
 [[ImageTransformations]]
-deps = ["AxisAlgorithms", "ColorTypes", "ColorVectorSpace", "Colors", "CoordinateTransformations", "FixedPointNumbers", "IdentityRanges", "ImageCore", "Interpolations", "LinearAlgebra", "OffsetArrays", "StaticArrays", "Test"]
-git-tree-sha1 = "e32d38356febdd2ab2cca6a3d14b5e5ffcbfb74c"
+deps = ["AxisAlgorithms", "ColorTypes", "ColorVectorSpace", "Colors", "CoordinateTransformations", "FixedPointNumbers", "IdentityRanges", "ImageCore", "Interpolations", "OffsetArrays", "StaticArrays"]
+git-tree-sha1 = "4cf03fc72d8877d5e58c1c72d176340ad4e28fda"
 uuid = "02fcd773-0e25-5acc-982a-7f6622650795"
-version = "0.7.2"
+version = "0.8.0"
 
 [[Images]]
 deps = ["AxisArrays", "Base64", "ColorTypes", "ColorVectorSpace", "Colors", "FileIO", "FixedPointNumbers", "Graphics", "ImageAxes", "ImageCore", "ImageDistances", "ImageFiltering", "ImageMetadata", "ImageMorphology", "ImageShow", "ImageTransformations", "IndirectArrays", "LinearAlgebra", "MappedArrays", "OffsetArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "Test", "TiledIteration"]
@@ -612,7 +612,7 @@ uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 version = "0.11.1"
 
 [[Runner]]
-deps = ["Crayons", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "Plots", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Statistics", "Zoo", "nGraph"]
+deps = ["Crayons", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "Plots", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Serialization", "Statistics", "Tracker", "Zoo", "nGraph"]
 path = "../Runner"
 uuid = "4a6e9825-ed04-540b-82d3-f33d0e8d45fb"
 version = "0.1.0"

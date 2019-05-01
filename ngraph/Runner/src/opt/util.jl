@@ -25,5 +25,13 @@ function insert_move_node!(producer, index, consumers, consumer_inputs)
     for (consumer, input) in zip(consumers, consumer_inputs)
         nGraph.splice(producer, index, consumer, input, move_node)
     end
+    
+    # Do some verification to make sure the move node was spliced in correctly.
+    tensor_name = nGraph.get_name(nGraph.output_descriptor(move_node, 1))
+    for (consumer, input) in zip(consumers, consumer_inputs)
+        input_name = nGraph.get_name(nGraph.input_descriptor(consumer, input))
+        @assert tensor_name == input_name
+    end
+
     return move_node
 end
