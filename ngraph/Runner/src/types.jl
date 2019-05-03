@@ -76,11 +76,9 @@ function ProfileData(fex::nGraph.FluxExecutable)
     io_tensors = Set(t for t in tensors if isparam(fex, t) || isresult(fex, t))
     constant_tensors = Set(t for t in tensors if isconstant(_producer(t, nodes)))
 
-    @show name.(io_tensors)
     @show length(io_tensors)
-    @show name.(constant_tensors)
 
-    liveness = liveness_analysis(nodes)
+    liveness = liveness_analysis(nodes, io_tensors, constant_tensors)
 
     PD = ProfileData(
         tensors,
@@ -94,20 +92,22 @@ function ProfileData(fex::nGraph.FluxExecutable)
     return PD
 end
 
-function liveness_analysis(nodes::Vector{NodeWrapper})
+function liveness_analysis(nodes::Vector{NodeWrapper}, io_tensors, constant_tensors)
     new_list = [TensorWrapper[] for _ in nodes]
     free_list = [TensorWrapper[] for _ in nodes]
 
+    new_list[1] = vcat(collect(io_tensors), collect(constant_tensors))
+
     # Forward Pass
-    for (index, op) in enumerate(nodes)
-        new_list[index] = outputs(op)
+    for (index, op) in Iterators.drop(enumerate(nodes), 1)
+        new_list[index] = filter(x -> !in(x, io_tensors) && !in(x, constant_tensors), outputs(op))
     end
 
     # Backward Pass
     freed_tensors = Set{TensorWrapper}() 
     for (index, op) in enumerate(reverse(nodes))
         for tensor in inputs(op)
-            if !in(tensor, freed_tensors)
+            if !any(x -> in(tensor, x), (freed_tensors, io_tensors, constant_tensors))
                 push!(free_list[end + 1 - index], tensor)
                 push!(freed_tensors, tensor)
             end
@@ -166,8 +166,8 @@ function allocation_bounds(data::ProfileData)
     # Compute Upper Bound
     upper_bound = 0
     for tensors in live_tensors(data)
-        if !isempty(free_tensors)
-            upper_bound = max(upper_bound, sum(sizeof(n) for n in free_tensors))
+        if !isempty(tensors)
+            upper_bound = max(upper_bound, sum(sizeof(n) for n in tensors))
         end
     end
 

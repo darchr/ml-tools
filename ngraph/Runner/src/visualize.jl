@@ -1,14 +1,16 @@
 rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
 
-@recipe function f(S::SimpleModel, profile_data::ProfileData, model)
+@recipe function f(frame::Frame)
     # Pre processing
     legend := :none
     xlabel := "Runtime (s)"
     ylabel := "Total Memory Allocated (MiB)"
 
+    data = frame.profile_data
+
     # Get the execution times for the intermediate ops
-    node_times = map(profile_data.nodes) do node
-        config = getconfig(S, model, profile_data, node.name)
+    node_times = map(nodes(data)) do node
+        config = getconfig(frame, node)
 
         # Nodes we didn't profile have no timing information, so just return a default
         # zero time for those nodes
@@ -16,7 +18,7 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
     end |> cumsum |> x -> x ./ 1E6
 
     y_coordinate = 0.0
-    for (index, newlist) in enumerate(profile_data.newlist)
+    for (index, newlist) in enumerate(data.newlist)
         x_start = node_times[index]
 
         isempty(newlist) && continue
@@ -24,7 +26,7 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
         tensor_indices = []
         for tensor in newlist
             # Find the index where the tensor is freed.
-            j = findfirst(x -> in(tensor, x), profile_data.freelist)
+            j = findfirst(x -> in(tensor, x), data.freelist)
             if j === nothing
                 x_stop = last(node_times)
             else
@@ -33,11 +35,10 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
 
             # Get the tensor assignment from the solved model.
             found = false
-            bytes = profile_data.tensors[tensor].bytes
-            for location in profile_data.tensors[tensor].locations
-                if value(model[:tensors][tensor, location]) == 1
-                    isfixed = in(tensor, profile_data.fixed_tensors)
-                    push!(tensor_indices, (x_start, x_stop, location, bytes, isfixed))
+            bytes = sizeof(tensor)
+            for location in locations(data, tensor)
+                if approx_one(value(frame.model[:var_tensors][tensor, location]))
+                    push!(tensor_indices, (x_start, x_stop, location, bytes))
                     found = true
                     break
                 end
@@ -52,12 +53,10 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
         # Plot the tensor indices
         seriestype := :shape
 
-        for (x_start, x_stop, location, bytes, isfixed) in tensor_indices
+        for (x_start, x_stop, location, bytes) in tensor_indices
             @series begin
                 # Determine the color of the line
-                if isfixed
-                    color = :green
-                elseif location == PMEM
+                if location == PMEM
                     color = :red
                 else
                     color = :blue

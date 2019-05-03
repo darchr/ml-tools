@@ -61,14 +61,26 @@ function findpair(fex::nGraph.FluxExecutable, t::TensorWrapper)
     return first(outputs(pair_node))
 end
 
-function get_exe_input(fex::nGraph.FluxExecutable, t::TensorWrapper)
+function get_exe_input(fex::nGraph.FluxExecutable, tensor::TensorWrapper)
     input_nodes = NodeWrapper.(nGraph.get_parameters(fex.ex.ngraph_function))
     idx = _find(x -> in(tensor, outputs(x)), input_nodes)
-    return collect(nGraph._splat_inputs(fex.optimizer))[idx]
+    return collect(nGraph._splat_inputs(fex))[idx]
 end
 
-function get_exe_output(fex::nGraph.FluxExecutable, t::TensorWrapper)
+function get_exe_output(fex::nGraph.FluxExecutable, tensor::TensorWrapper)
     output_nodes = NodeWrapper.(nGraph.get_results(fex.ex.ngraph_function))
     idx = _find(x -> in(tensor, outputs(x)), output_nodes)
-    return collect(nGraph._splat_outputs(fex.optimizer))[idx]
+    return collect(nGraph._splat_outputs(fex))[idx]
+end
+
+function make_persistent(fex::nGraph.FluxExecutable, data::ProfileData, tensor::TensorWrapper)
+    # Check if this is an IO tensor, need to take an extra step if that is the case.
+    if isparam(fex, tensor)
+        nGraph.make_persistent!(get_exe_input(fex, tensor))
+    end 
+
+    if isresult(fex, tensor)
+        nGraph.make_persistent!(get_exe_output(fex, tensor))
+    end
+    nGraph.make_persistent(unwrap(tensor))
 end
