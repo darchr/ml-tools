@@ -40,7 +40,7 @@ end
 
 include("setup.jl")
 include("types.jl")
-include("finder.jl")
+include("util.jl")
 include("opt/opt.jl")
 include("models/simple.jl")
 include("profiler/profile.jl")
