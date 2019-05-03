@@ -1,3 +1,14 @@
+function _find(f, itr)
+    idx = findfirst(f, itr)
+    isnothing(idx) && error()
+    return idx
+end
+
+function _producer(tensor::TensorWrapper, nodes::Vector{NodeWrapper})
+    idx = _find(x -> in(tensor, outputs(x)), nodes)
+    return nodes[idx]
+end
+
 """
     isarg(fex::nGraph.FluxExecutable, t::TensorWrapper) -> Bool
 
@@ -7,6 +18,15 @@ function isarg(fex::nGraph.FluxExecutable, t::TensorWrapper)
     input_nodes = NodeWrapper.(nGraph.get_parameters(fex.ex.ngraph_function))
 
     for node in Iterators.take(input_nodes, length(fex.inputs))
+        in(t, outputs(node)) && return true
+    end
+    return false
+end
+
+function isresult(fex::nGraph.FluxExecutable, t::TensorWrapper)
+    output_nodes = NodeWrapper.(nGraph.get_results(fex.ex.ngraph_function))
+
+    for node in output_nodes
         in(t, outputs(node)) && return true
     end
     return false

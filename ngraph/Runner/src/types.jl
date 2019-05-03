@@ -1,135 +1,85 @@
-# NOTE: Since we're playing around with ILP formulations, we do NOT want to have to 
-# rerun the memory profiling step every time we restart Julia.
-#
-# Thus, all data structures that end up in the final `ProfileData` MUST NOT contain
-# any ngraph c++ pointers, otherwise serialization and deserialization will not work.
-#
-# Note that this would be even harder if were were just using straight C++ because
-# C++ does not have data structure serialization natively. We could have used something
-# like Goost::serialization, but I think that would be WAY more trouble than its worth.
+#####
+##### TensorWrapper
+#####
 
-
-"""
-Information about tensors in an ngraph function.
-
-Fields
-------
-* `name` - The unique name for the tensor. NOTE: nGraph makes the guarantee that
-    tensor names are unique, but I have not independently verified that.
-
-* `bytes` - The allocation size of the tensor in bytes
-
-* `locations::Vector{TensorLocation}` - The set of valid memory pool that this tensor
-    can be assigned to.
-"""
-struct TensorData
-    name::String
-    bytes::Int64
-    locations::Vector{TensorLocation}
-    parent_name::String
-    parent_index::Int
-    output_index::Int
+struct TensorWrapper
+    tensor::nGraph.TensorDescriptor
 end
+unwrap(a::TensorWrapper) = a.tensor
 
-"""
-Meta data about nGraph nodes
+JuMP.name(a::TensorWrapper) = nGraph.get_name(unwrap(a))
+Base.:(==)(a::TensorWrapper, b::TensorWrapper) = name(a) == name(b)
+Base.hash(a::TensorWrapper, h::UInt = convert(UInt, 0x23089234)) = hash(name(a), h)
 
-Fields
-------
+Base.sizeof(a::TensorWrapper) = sizeof(unwrap(a))
 
-* `name::String` - The unique name of this node.
+#####
+##### Node Wrapper
+#####
 
-* `description::String` - Description string for this node. All nodes that perform the
-    exact same operation will have the exact same description.
-
-* `input_tensors::Vector{String}` - **Ordered** names of input tensors.
-
-* `output_tensors::Vector{String}` - **Ordered** names of output tensors.
-
-* `timings::Dict{IOConfig, Vector{Float64}}` - Measurement execution times for this
-    node for a given `IOConfig`.
-"""
-struct NodeData
-    name::String
-    description::String
-    input_tensors::Vector{String}
-    output_tensors::Vector{String}
-
-    # Results from profiling
+struct NodeWrapper
+    node::nGraph.Node
     timings::Dict{IOConfig, Vector{Float64}}
 end
 
-keep(x::NodeData) = keep(x.description)
+NodeWrapper(n::nGraph.Node) = NodeWrapper(n, Dict{IOConfig, Vector{Float64}}())
 
-function NodeData(node::nGraph.Node)
-    return NodeData(
-        nGraph.name(node),
-        nGraph.description(node),
-        nGraph.get_name.(nGraph.input_descriptors(node)),
-        nGraph.get_name.(nGraph.output_descriptors(node)),
-        Dict{IOConfig, Vector{Float64}}(),
-    )
-end
+unwrap(n::NodeWrapper) = n.node
 
+JuMP.name(n::NodeWrapper) = nGraph.name(unwrap(n))
+description(n::NodeWrapper) = nGraph.description(unwrap(n))
+isconstant(n::NodeWrapper) = description(n) == "Constant"
 
-"""
-NOTE: All children of this type should be pure Julia objects and contain no references
-or pointers to ngraph C++ objects - otherwise it won't serialize correctly.
+Base.:(==)(n::NodeWrapper, m::NodeWrapper) = (name(m) == name(n))
+Base.hash(n::NodeWrapper, h::UInt = UInt(0x4029388)) = hash(name(n), h)
 
-Fields
-------
+outputs(n::NodeWrapper) = TensorWrapper.(nGraph.output_descriptors(unwrap(n)))
+inputs(n::NodeWrapper) = TensorWrapper.(nGraph.input_descriptors(unwrap(n)))
 
-* `tensors::Dict{String, TensorData}` - All tensors that occur in a ngraph function.
-    Keyed by name for easy lookup.
+keep(x::NodeWrapper) = keep(description(x))
 
-* `nodes::Vector{NodeData}` - All of the nodes in the ngraph function, **ordered** by
-    their execution time.
+#####
+##### Profile Data
+#####
 
-* `newlist::Vector{Vector{String}}` - Records the tensors that are newly created
-    at op `i`, indexed by `i`. The following generally holds: 
-    `nodes.output_tensors[i] == newlist[i]`
-
-* `freelist::Vector{Vector{String}}` - Records the tensors that are freed at op `i`,
-    indexed by `i`.
-"""
 struct ProfileData
-    tensors::Dict{String, TensorData}
+    tensors::Vector{TensorWrapper}
 
     # Stored in program order.
-    nodes::Vector{NodeData}
+    nodes::Vector{NodeWrapper}
 
     # Liveness Analysis
-    newlist::Vector{Vector{String}}
-    freelist::Vector{Vector{String}}
-    fixed_tensors::Set{String}
+    newlist::Vector{Vector{TensorWrapper}}
+    freelist::Vector{Vector{TensorWrapper}}
+    io_tensors::Set{TensorWrapper}
+    constant_tensors::Set{TensorWrapper}
 end
 
-function ProfileData(fn::nGraph.NFunction)
-    # Construct the tensors and nodes fields
-    tensors = Dict{String, TensorData}()
-    nodes = NodeData[]
-    for op in fn
-        push!(nodes, NodeData(op))
-        for (output_index, tensor) in enumerate(nGraph.output_descriptors(op))
-            @assert !haskey(tensors, nGraph.get_name(tensor))
-            #tensor_data = TensorData(tensor)
-            tensor_data = TensorData(
-                nGraph.get_name(tensor),
-                sizeof(tensor),
+nodes(P::ProfileData) = P.nodes
+tensors(P::ProfileData) = P.tensors
 
-                # Default to an empty vector of tensor locations. It will be populated
-                # in later passes.
-                TensorLocation[],
-                nGraph.name(op),
-                # The index of the current node.
-                length(nodes),
-                output_index,
-            )
-            tensors[tensor_data.name] = tensor_data
+function ProfileData(fex::nGraph.FluxExecutable)
+    fn = fex.ex.ngraph_function
+
+    # Construct the tensors and nodes fields
+    tensors = TensorWrapper[]
+    nodes = NodeWrapper[]
+    for op in fn
+        wrapped = NodeWrapper(op)
+        push!(nodes, wrapped)
+        for tensor in outputs(wrapped)
+            push!(tensors, tensor)
         end
     end
 
     # How, perform the liveness analysis on the nodes and tensors data structures
+    io_tensors = Set(t for t in tensors if isparam(fex, t) || isresult(fex, t))
+    constant_tensors = Set(t for t in tensors if isconstant(_producer(t, nodes)))
+
+    @show name.(io_tensors)
+    @show length(io_tensors)
+    @show name.(constant_tensors)
+
     liveness = liveness_analysis(nodes)
 
     PD = ProfileData(
@@ -137,28 +87,26 @@ function ProfileData(fn::nGraph.NFunction)
         nodes,
         liveness.new_list,
         liveness.free_list,
-        liveness.fixed_tensors
+        io_tensors,
+        constant_tensors
     )
-    set_tensor_locations!(PD, fn)
+    #set_tensor_locations!(PD, fn)
     return PD
 end
 
-function liveness_analysis(nodes::Vector{NodeData})
-    # Get the tensors that we can't move yet
-    fixed_tensors = find_fixed_tensors(nodes)
-
-    new_list = [String[] for _ in nodes]
-    free_list = [String[] for _ in nodes]
+function liveness_analysis(nodes::Vector{NodeWrapper})
+    new_list = [TensorWrapper[] for _ in nodes]
+    free_list = [TensorWrapper[] for _ in nodes]
 
     # Forward Pass
     for (index, op) in enumerate(nodes)
-        new_list[index] = op.output_tensors
+        new_list[index] = outputs(op)
     end
 
     # Backward Pass
-    freed_tensors = Set{String}() 
+    freed_tensors = Set{TensorWrapper}() 
     for (index, op) in enumerate(reverse(nodes))
-        for tensor in op.input_tensors
+        for tensor in inputs(op)
             if !in(tensor, freed_tensors)
                 push!(free_list[end + 1 - index], tensor)
                 push!(freed_tensors, tensor)
@@ -166,28 +114,18 @@ function liveness_analysis(nodes::Vector{NodeData})
         end
     end
 
-    return (new_list = new_list, free_list = free_list, fixed_tensors = fixed_tensors)
-end
-
-function find_fixed_tensors(nodes::Vector{NodeData})
-    tensors = Set{String}()
-    for node in nodes
-        if in(node.description, ("Parameter", "Constant", "Result"))
-            for tensor in node.output_tensors
-                @assert !in(tensor, tensors)
-                push!(tensors, tensor)
-            end
-        end
-    end
-    return tensors
+    return (new_list = new_list, free_list = free_list)
 end
 
 struct LiveTensorIterator
     data::ProfileData
-    live_tensors::Set{String}
+    live_tensors::Set{TensorWrapper}
 end
 
-live_tensors(data::ProfileData) = LiveTensorIterator(data, Set{String}())
+function live_tensors(data::ProfileData) 
+    init = Set(Iterators.flatten((data.io_tensors, data.constant_tensors)))
+    LiveTensorIterator(data, init)
+end
 
 Base.length(L::LiveTensorIterator) = length(L.data.newlist)
 function Base.iterate(L::LiveTensorIterator, s = 1)
@@ -196,7 +134,9 @@ function Base.iterate(L::LiveTensorIterator, s = 1)
     # Free tensors from the previous iteration
     if s > 1
         for tensor in L.data.freelist[s-1]
-            delete!(L.live_tensors, tensor)
+            if !in(tensor, L.data.io_tensors) && !in(tensor, L.data.constant_tensors)
+                delete!(L.live_tensors, tensor)
+            end
         end
     end
 
@@ -221,63 +161,40 @@ Lower bound is determined by the total size of input, output, and constant tenso
 """
 function allocation_bounds(data::ProfileData)
     # Lower bound should always be zero since we're ignoring fixed tensors
-    lower_bound = 0
+    lower_bound = sum(sizeof.(data.constant_tensors))
 
     # Compute Upper Bound
     upper_bound = 0
     for tensors in live_tensors(data)
-        free_tensors = filter(!in(data.fixed_tensors), tensors)
         if !isempty(free_tensors)
-            upper_bound = max(upper_bound, sum(data.tensors[n].bytes for n in free_tensors))
+            upper_bound = max(upper_bound, sum(sizeof(n) for n in free_tensors))
         end
     end
 
     return (upper_bound = upper_bound, lower_bound = lower_bound)
 end
 
-function set_tensor_locations!(data::ProfileData, fn::nGraph.NFunction)
-    # Determine the possible locations for intermediate tensors
-    for op in fn
-        for (index, descriptor) in enumerate(nGraph.output_descriptors(op))
-            tensor_name = nGraph.get_name(descriptor)
-            # If the op is a Constant or Parameter, then the output tensor can only
-            # live in DRAM (for now)
-            if in(nGraph.description(op), ("Constant", "Parameter", "Result"))
-                push!(data.tensors[tensor_name].locations, DRAM)
-
-            # Generic tensors can live in either DRAM or PMEM
-            else
-                push!(data.tensors[tensor_name].locations, DRAM, PMEM)
-            end
-        end
-    end
-
-    # Sanity checks
-    for tensor_data in values(data.tensors)
-        locations = tensor_data.locations
-        @assert !isempty(locations)
-        @assert allunique(locations)
+function locations(data::ProfileData, tensor::TensorWrapper)
+    # Now, constants are the only items that are fixed.
+    if isconstant(_producer(tensor, nodes(data)))
+        return [DRAM]
+    else
+        return [DRAM, PMEM]
     end
 end
 
-function get_configs(data::ProfileData, fn::nGraph.NFunction)
-    configs = Set{Tuple{String, IOConfig}}()
-    for op in fn
-        keep(op) || continue
+function get_configs(data::ProfileData)
+    configs = Set{Tuple{NodeWrapper, IOConfig}}()
+    for node in nodes(data)
+        keep(node) || continue
 
-        inputs = [
-            data.tensors[nGraph.get_name(t)].locations for t in nGraph.input_descriptors(op)
-        ]
-        outputs = [
-           data.tensors[nGraph.get_name(t)].locations for t in nGraph.output_descriptors(op)
-        ]
+        config_inputs = [locations(data, t) for t in inputs(node)]
+        config_outputs = [locations(data, t) for t in outputs(node)]
 
-        op_name = nGraph.name(op)
-
-        for input_config in Iterators.product(inputs...)
-            for output_config in Iterators.product(outputs...)
+        for input_config in Iterators.product(config_inputs...)
+            for output_config in Iterators.product(config_outputs...)
                 config = IOConfig(input_config, output_config)
-                push!(configs, (op_name, config))
+                push!(configs, (node, config))
             end
         end
     end

@@ -36,21 +36,21 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
     f = fex.ex.ngraph_function
-    data = ProfileData(f)
+    data = ProfileData(fex)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
-    all_configs = get_configs(data, f)
+    all_configs = get_configs(data)
 
     # Convert the configs to a dictionary mapping node name to configs for easier
     # management
-    config_dict = Dict{String, Vector{IOConfig}}()
+    config_dict = Dict{NodeWrapper, Vector{IOConfig}}()
     for config in all_configs
         v = get!(config_dict, first(config), IOConfig[])
         push!(v, last(config))
     end
 
-    num_configs = sum(length(config_dict[nGraph.name(op)]) for op in f if keep(op))
+    num_configs = sum(length(config_dict[node]) for node in nodes(data) if keep(node))
     progress_bar = Progress(num_configs, 1)
 
     # Setup a little update function for all configurations
@@ -64,7 +64,7 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
             showvalues = [
                 (:iter, serviced[]),
                 (:total, num_configs),
-                (:op, nGraph.name(op)),
+                (:op, name(op)),
                 (:config, config),
                 (:ncached, ncached),
             ]
@@ -73,26 +73,23 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
 
     ncached = 0
 
-    for (index, op) in enumerate(f)
+    for (index, node) in enumerate(nodes(data))
         # Skip unneeded ops
-        keep(op) || continue
-
-        op_name = nGraph.name(op)
-        op_data = data.nodes[index]
+        keep(node) || continue
 
         # Get the configs to run for this node
-        configs = config_dict[op_name]
+        configs = config_dict[node]
 
         # Before we build a sub-function, get all of the cached ops.
         cached_configs = IOConfig[]
-        kernel_params = CPUKernelParams(op) 
+        kernel_params = CPUKernelParams(unwrap(node)) 
         for config in configs 
             if haskey(cache, (kernel_params, config))
                 # Update the number of timings serviced from cached ops
                 ncached += 1 
-                _update!(progress_bar, op, config, ncached)
+                _update!(progress_bar, node, config, ncached)
 
-                op_data.timings[config] = [cache[(kernel_params, config)]]
+                node.timings[config] = [cache[(kernel_params, config)]]
                 push!(cached_configs, config)
             end
         end
@@ -101,11 +98,11 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
         length(cached_configs) == length(configs) && continue 
 
         # Extract a subgraph with just this op
-        ex, inputs, outputs, copied_op = extract(op)
+        ex, inputs, outputs, copied_op = extract(unwrap(node))
 
         # Profile the timings
         for config in filter(!in(cached_configs), configs)
-            _update!(progress_bar, op, config, ncached)
+            _update!(progress_bar, node, config, ncached)
             # setup the config
             _setup!(copied_op, config)
 
@@ -115,13 +112,13 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
 
             for i in 1:5
                 ex(inputs, outputs)
-                record_time!(op_data, function_name, copied_op)
+                record_time!(node, function_name, copied_op)
             end
 
             _cleanup!(copied_op)
 
             # Save the results to the cache, and then save the cache
-            cache[(kernel_params, config)] = minimum(op_data.timings[config])
+            cache[(kernel_params, config)] = minimum(node.timings[config])
             save(cache)
         end
 
@@ -135,7 +132,7 @@ end
 read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
 read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
 
-function record_time!(node_data, function_name, op)
+function record_time!(node::NodeWrapper, function_name, op)
     timings = read_timing_data(function_name)
     # Get the persistence config of this op
     config = getconfig(op)
@@ -144,7 +141,7 @@ function record_time!(node_data, function_name, op)
     index = findfirst(x -> x["name"] == nGraph.name(op), timings)
     @assert index !== nothing
 
-    push!(get!(node_data.timings, config, Float64[]), timings[index]["dur"])
+    push!(get!(node.timings, config, Float64[]), timings[index]["dur"])
 end
 
 function extract(node::nGraph.Node; backend = nGraph.Backend())

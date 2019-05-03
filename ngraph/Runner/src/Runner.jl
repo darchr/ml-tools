@@ -12,6 +12,7 @@ using Dates, Random, Serialization, Statistics
 
 # deps
 using nGraph, Flux, JSON
+using JuMP, Gurobi
 using RecipesBase
 using LightGraphs, MetaGraphs
 using IterTools
@@ -47,7 +48,7 @@ include("profiler/profile.jl")
 include("visualize.jl")
 include("verifier.jl")
 
-keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result"))
+keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
 keep(op::nGraph.Node) = keep(nGraph.description(op))
 
 end # module

@@ -43,7 +43,6 @@
 # To sequentially build the objective function, we can have a JuMP `expression`
 # (http://www.juliaopt.org/JuMP.jl/v0.19.0/expressions/) which we update with the
 # `add_to_expression!` function at each node in the graph.
-using JuMP, Gurobi
 
 # For dispatch purposes
 abstract type ModelType end
