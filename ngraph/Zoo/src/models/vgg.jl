@@ -121,8 +121,8 @@ function vgg19_training(batchsize; kw...)
     Y = nGraph.Tensor(backend, y)
 
     # Get the forward pass
-    #forward = vgg19()
-    forward = vgg416()
+    forward = vgg19()
+    #forward = vgg416()
     
     # Compute the backward pass.
     f(x, y) = Flux.crossentropy(forward(x), y)

@@ -48,7 +48,7 @@ include("profiler/profile.jl")
 include("visualize.jl")
 include("verifier.jl")
 
-keep(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
-keep(op::nGraph.Node) = keep(nGraph.description(op))
+hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
+hasprofile(op::nGraph.Node) = keep(nGraph.description(op))
 
 end # module

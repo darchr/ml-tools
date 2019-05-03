@@ -23,6 +23,10 @@ function isarg(fex::nGraph.FluxExecutable, t::TensorWrapper)
     return false
 end
 
+function isparam(fex::nGraph.FluxExecutable, n::NodeWrapper)
+    return in(n, NodeWrapper.(nGraph.get_parameters(fex.ex.ngraph_function)))
+end
+
 function isresult(fex::nGraph.FluxExecutable, t::TensorWrapper)
     output_nodes = NodeWrapper.(nGraph.get_results(fex.ex.ngraph_function))
 
@@ -30,6 +34,10 @@ function isresult(fex::nGraph.FluxExecutable, t::TensorWrapper)
         in(t, outputs(node)) && return true
     end
     return false
+end
+
+function isresult(fex::nGraph.FluxExecutable, n::NodeWrapper)
+    return in(n, NodeWrapper.(nGraph.get_results(fex.ex.ngraph_function)))
 end
 
 """

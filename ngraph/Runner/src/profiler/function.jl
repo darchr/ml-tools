@@ -25,7 +25,7 @@ function all_pmem_time(fex, args, profile_data)
 
     # Get timing for All PMEM
     for fn_node in fex.ex.ngraph_function
-        Runner.keep(fn_node) || continue
+        hasprofile(fn_node) || continue
 
         # Check the output tensors of this node can live in PMEM. If so, assign them there
         for tensor in nGraph.output_descriptors(fn_node)
@@ -119,7 +119,7 @@ function gettimings(data)
     timings = NamedTuple[]
 
     for node in data.nodes
-        Runner.keep(node) || continue
+        hasprofile(node) || continue
         configs = collect(keys(node.timings))
 
         dram_config = configs[findfirst(x -> dc(x.inputs) && dc(x.outputs), configs)]

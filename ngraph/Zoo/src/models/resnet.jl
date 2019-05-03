@@ -138,6 +138,6 @@ function resnet_training(version, batchsize = 16)
     Y = nGraph.Tensor(backend, rand(Float32, 1000, batchsize))
 
     g(x, y) = Flux.crossentropy(_resnet(version)(x), y)
-    f = nGraph.compile(g, X, Y; optimizer = nGraph.SGD(Float32(0.0000001)))
+    f = nGraph.compile(g, X, Y; optimizer = nGraph.SGD(Float32(0.0001)))
     return f, (X, Y)
 end

@@ -1,4 +1,13 @@
 #####
+##### Creation Contexts
+#####
+
+abstract type AbstractCreationContext end
+
+struct AllTensors <: AbstractCreationContext end
+struct OnlyIntermediate <: AbstractCreationContext end
+
+#####
 ##### TensorWrapper
 #####
 
@@ -36,13 +45,13 @@ Base.hash(n::NodeWrapper, h::UInt = UInt(0x4029388)) = hash(name(n), h)
 outputs(n::NodeWrapper) = TensorWrapper.(nGraph.output_descriptors(unwrap(n)))
 inputs(n::NodeWrapper) = TensorWrapper.(nGraph.input_descriptors(unwrap(n)))
 
-keep(x::NodeWrapper) = keep(description(x))
+hasprofile(x::NodeWrapper) = hasprofile(description(x))
 
 #####
 ##### Profile Data
 #####
 
-struct ProfileData
+struct ProfileData{C <: AbstractCreationContext}
     tensors::Vector{TensorWrapper}
 
     # Stored in program order.
@@ -56,9 +65,11 @@ struct ProfileData
 end
 
 nodes(P::ProfileData) = P.nodes
+nodes(P::ProfileData, inds...) = getindex(P.nodes, inds...)
+
 tensors(P::ProfileData) = P.tensors
 
-function ProfileData(fex::nGraph.FluxExecutable)
+function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
     fn = fex.ex.ngraph_function
 
     # Construct the tensors and nodes fields
@@ -78,9 +89,9 @@ function ProfileData(fex::nGraph.FluxExecutable)
 
     @show length(io_tensors)
 
-    liveness = liveness_analysis(nodes, io_tensors, constant_tensors)
+    liveness = liveness_analysis(ctx, nodes, io_tensors, constant_tensors)
 
-    PD = ProfileData(
+    PD = ProfileData{typeof(ctx)}(
         tensors,
         nodes,
         liveness.new_list,
@@ -88,26 +99,46 @@ function ProfileData(fex::nGraph.FluxExecutable)
         io_tensors,
         constant_tensors
     )
-    #set_tensor_locations!(PD, fn)
     return PD
 end
 
-function liveness_analysis(nodes::Vector{NodeWrapper}, io_tensors, constant_tensors)
+#####
+##### Context Dependent Liveness Analysis
+#####
+
+# Many of the downstream algorithms can be tuned by messing with liveness analysis.
+#
+# When we're optimizing over all tensors (i.e. considering inputs and outputs), then we must
+# consider the inputs, outputs, and constants and live for the whole duration of the function.
+#
+# On the other hand, if we're only optimizing over intermediate tensors, we don't want 
+# the io/constants showing up.
+
+_fill_first(::AllTensors, new_list, io, constants) = new_list[1] = vcat(collect.((io, constants))...) 
+_fill_first(::OnlyIntermediate, args...) = nothing
+
+_add_filter(::AbstractCreationContext, tensors, io, constants) = filter(x -> !in(x, io) && !in(x, constants), tensors)
+
+_can_free(::AbstractCreationContext, tensor::TensorWrapper, freed, io, constants) =
+    !any(x -> in(tensor, x), (freed, io, constants))
+
+function liveness_analysis(ctx::AbstractCreationContext, nodes::Vector{NodeWrapper}, io, constants)
     new_list = [TensorWrapper[] for _ in nodes]
     free_list = [TensorWrapper[] for _ in nodes]
 
-    new_list[1] = vcat(collect(io_tensors), collect(constant_tensors))
+    # Initialize the first entry in the table
+    _fill_first(ctx, new_list, io, constants)
 
     # Forward Pass
     for (index, op) in Iterators.drop(enumerate(nodes), 1)
-        new_list[index] = filter(x -> !in(x, io_tensors) && !in(x, constant_tensors), outputs(op))
+        new_list[index] = _add_filter(ctx, outputs(op), io, constants)
     end
 
     # Backward Pass
     freed_tensors = Set{TensorWrapper}() 
     for (index, op) in enumerate(reverse(nodes))
         for tensor in inputs(op)
-            if !any(x -> in(tensor, x), (freed_tensors, io_tensors, constant_tensors))
+            if _can_free(ctx, tensor, freed_tensors, io, constants)
                 push!(free_list[end + 1 - index], tensor)
                 push!(freed_tensors, tensor)
             end
@@ -117,15 +148,15 @@ function liveness_analysis(nodes::Vector{NodeWrapper}, io_tensors, constant_tens
     return (new_list = new_list, free_list = free_list)
 end
 
-struct LiveTensorIterator
-    data::ProfileData
+# Convenience for iterating over live tensors
+struct LiveTensorIterator{C}
+    data::ProfileData{C}
     live_tensors::Set{TensorWrapper}
 end
 
-function live_tensors(data::ProfileData) 
-    init = Set(Iterators.flatten((data.io_tensors, data.constant_tensors)))
-    LiveTensorIterator(data, init)
-end
+_live_tensor_init(data::ProfileData{AllTensors}) = Set(Iterators.flatten((data.io_tensors, data.constant_tensors)))
+_live_tensor_init(data::ProfileData{OnlyIntermediate}) = Set{TensorWrapper}()
+live_tensors(data::ProfileData) = LiveTensorIterator(data, _live_tensor_init(data))
 
 Base.length(L::LiveTensorIterator) = length(L.data.newlist)
 function Base.iterate(L::LiveTensorIterator, s = 1)
@@ -174,9 +205,26 @@ function allocation_bounds(data::ProfileData)
     return (upper_bound = upper_bound, lower_bound = lower_bound)
 end
 
-function locations(data::ProfileData, tensor::TensorWrapper)
+#####
+##### Valid locations that a tensor can live
+#####
+
+function locations(data::ProfileData{AllTensors}, tensor::TensorWrapper)
     # Now, constants are the only items that are fixed.
     if isconstant(_producer(tensor, nodes(data)))
+        return [DRAM]
+    else
+        return [DRAM, PMEM]
+    end
+end
+
+# TODO: These might not be perfect ...
+isparam(t::NodeWrapper) = startswith(name(t), "Parameter")
+isresult(t::NodeWrapper) = startswith(name(t), "Result")
+
+function locations(data::ProfileData{OnlyIntermediate}, tensor::TensorWrapper)
+    producer = _producer(tensor, nodes(data))
+    if isconstant(producer) || isparam(producer) || isresult(producer)
         return [DRAM]
     else
         return [DRAM, PMEM]
@@ -186,7 +234,7 @@ end
 function get_configs(data::ProfileData)
     configs = Set{Tuple{NodeWrapper, IOConfig}}()
     for node in nodes(data)
-        keep(node) || continue
+        hasprofile(node) || continue
 
         config_inputs = [locations(data, t) for t in inputs(node)]
         config_outputs = [locations(data, t) for t in outputs(node)]

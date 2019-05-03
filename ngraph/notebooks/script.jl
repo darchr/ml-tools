@@ -2,8 +2,8 @@
 using Runner, Zoo, Serialization, nGraph, JuMP
 
 #f = () -> Zoo.inception_v4_training(3072)
-#f = () -> Zoo.resnet_training(50, 256)
-f = () -> Zoo.vgg19_training(128)
+f = () -> Zoo.resnet_training(50, 256)
+#f = () -> Zoo.vgg19_training(128)
 nsteps = 6
 
 # Generator functions for the various optimization methods
@@ -39,3 +39,5 @@ synchronous_iter = synchronous.(fractions)
 #synchronous_data = Runner.compare(f, synchronous_iter; statspath = "serials/vgg416_128_synchronous.jls")
 synchronous_data = Runner.compare(f, synchronous_iter; statspath = "serials/test.jls")
 =#
+
+

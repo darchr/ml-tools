@@ -22,7 +22,7 @@ function predict(F::Frame{<:SimpleModel})
     runtime = zero(Float64)
     for node in F.profile_data.nodes
         node_name = node.name
-        keep(node.description) || continue
+        hasprofile(node.description) || continue
 
         config = getconfig(F, node_name)
         runtime += minimum(node.timings[config])
@@ -97,7 +97,7 @@ function add_nodes!(F::Frame{<:SimpleModel})
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
-        keep(node) || continue
+        hasprofile(node) || continue
 
         configs = collect(keys(node.timings))
 
@@ -153,6 +153,9 @@ function add_constraints!(F::Frame{T}) where {T <: SimpleModel}
     var_tensors = F.model[:var_tensors]
 
     for (index, live_tensors) in enumerate(live_tensors(F.profile_data))
+        node = nodes(F.profile_data, index)
+        hasprofile(node) || continue
+
         if !isempty(live_tensors)
             @constraint(F.model,
                 sum(
@@ -161,17 +164,17 @@ function add_constraints!(F::Frame{T}) where {T <: SimpleModel}
             )
 
             # Insert the objective for the greedy formulation
-            if T == ILPGreedy
-                objective_expr = F.model[:objective_expr]
-                for tensor in live_free_tensors
-                    add_to_expression!(
-                        objective_expr,
-                        round(Int, tensor_data[tensor].bytes / 1E6),
-                        var_tensors[tensor, DRAM]
-                    )
-                end
-            end
-        end
+           #  if T == ILPGreedy
+           #      objective_expr = F.model[:objective_expr]
+           #      for tensor in live_free_tensors
+           #          add_to_expression!(
+           #              objective_expr,
+           #              round(Int, tensor_data[tensor].bytes / 1E6),
+           #              var_tensors[tensor, DRAM]
+           #          )
+           #      end
+           #  end
+        end 
     end
 
     return

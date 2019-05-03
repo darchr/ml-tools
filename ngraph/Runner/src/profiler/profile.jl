@@ -28,7 +28,10 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_PATH))
+function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext; 
+        cache = CPUKernelCache(BASE_CACHE_PATH)
+    )
+
     backend = fex.ex.backend
 
     # Go through each node
@@ -36,7 +39,7 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
     f = fex.ex.ngraph_function
-    data = ProfileData(fex)
+    data = ProfileData(fex, ctx)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -50,7 +53,7 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
         push!(v, last(config))
     end
 
-    num_configs = sum(length(config_dict[node]) for node in nodes(data) if keep(node))
+    num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
     progress_bar = Progress(num_configs, 1)
 
     # Setup a little update function for all configurations
@@ -75,7 +78,7 @@ function profile(fex::nGraph.FluxExecutable; cache = CPUKernelCache(BASE_CACHE_P
 
     for (index, node) in enumerate(nodes(data))
         # Skip unneeded ops
-        keep(node) || continue
+        hasprofile(node) || continue
 
         # Get the configs to run for this node
         configs = config_dict[node]
