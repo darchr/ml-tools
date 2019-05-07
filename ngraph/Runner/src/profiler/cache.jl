@@ -20,6 +20,9 @@ struct CPUKernelParams{IS, OS, IT, OT, NIF}
     input_formats::NTuple{NIF, Int64} 
 end
 
+# For 
+filter_out_io(c::CPUKernelParams) = (c.description,)
+
 function CPUKernelParams(node::nGraph.Node)
     description = nGraph.description(node)
 
@@ -29,6 +32,7 @@ function CPUKernelParams(node::nGraph.Node)
     input_sizes = ntuple(x -> nGraph.get_input_shape(node, x), num_inputs)
     input_types = ntuple(x -> nGraph.get_input_element_type(node, x), num_inputs)
 
+    # Only
     ismkl = nGraph.is_mkldnn(node)
     input_formats = ntuple(
         # At the moment, still forwarding to nGraph.Lib.

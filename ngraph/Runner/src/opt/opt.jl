@@ -48,10 +48,10 @@
 abstract type ModelType end
 
 # Struct to be passed around since all these items are generally used together anyways.
-mutable struct Frame{T <: ModelType}
+mutable struct Frame{T <: ModelType, C}
     modeltype::T
     model::JuMP.Model
-    profile_data::ProfileData
+    profile_data::ProfileData{C}
     #config::Dict{String, TensorLocation}
 end
 

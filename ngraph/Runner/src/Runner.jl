@@ -28,6 +28,18 @@ struct IOConfig{N, M}
     outputs::NTuple{M, TensorLocation}
 end
 
+Base.iterate(io::IOConfig, args...) = iterate(Iterators.flatten((io.inputs, io.outputs)), args...)
+Base.length(io::IOConfig{N,M}) where {N,M} = N + M
+function Base.getindex(io::IOConfig{N,M}, idx::Integer) where {N,M}
+    if idx <= N
+        return io.inputs[idx]
+    elseif idx <= length(io)
+        return io.outputs[idx - N]
+    else
+        throw(BoundsError(io, idx))
+    end
+end
+
 function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
     f = x -> (x == DRAM) ? "DRAM" : "PMEM"
     print(io, "IOConfig{$N,$M}: ")
@@ -47,8 +59,9 @@ include("models/simple.jl")
 include("profiler/profile.jl")
 include("visualize.jl")
 include("verifier.jl")
+include("visualizer/analyzer.jl")
 
 hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
-hasprofile(op::nGraph.Node) = keep(nGraph.description(op))
+hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 
 end # module

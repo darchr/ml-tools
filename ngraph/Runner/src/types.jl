@@ -30,8 +30,8 @@ struct NodeWrapper
     node::nGraph.Node
     timings::Dict{IOConfig, Vector{Float64}}
 end
-
 NodeWrapper(n::nGraph.Node) = NodeWrapper(n, Dict{IOConfig, Vector{Float64}}())
+Base.show(io::IO, n::NodeWrapper) = print(io, name(n))
 
 unwrap(n::NodeWrapper) = n.node
 
@@ -117,7 +117,8 @@ end
 _fill_first(::AllTensors, new_list, io, constants) = new_list[1] = vcat(collect.((io, constants))...) 
 _fill_first(::OnlyIntermediate, args...) = nothing
 
-_add_filter(::AbstractCreationContext, tensors, io, constants) = filter(x -> !in(x, io) && !in(x, constants), tensors)
+_add_filter(::AbstractCreationContext, tensors, io, constants) = 
+    filter(x -> !in(x, io) && !in(x, constants), tensors)
 
 _can_free(::AbstractCreationContext, tensor::TensorWrapper, freed, io, constants) =
     !any(x -> in(tensor, x), (freed, io, constants))
@@ -154,8 +155,10 @@ struct LiveTensorIterator{C}
     live_tensors::Set{TensorWrapper}
 end
 
-_live_tensor_init(data::ProfileData{AllTensors}) = Set(Iterators.flatten((data.io_tensors, data.constant_tensors)))
+_live_tensor_init(data::ProfileData{AllTensors}) = 
+    Set(Iterators.flatten((data.io_tensors, data.constant_tensors)))
 _live_tensor_init(data::ProfileData{OnlyIntermediate}) = Set{TensorWrapper}()
+
 live_tensors(data::ProfileData) = LiveTensorIterator(data, _live_tensor_init(data))
 
 Base.length(L::LiveTensorIterator) = length(L.data.newlist)
@@ -163,11 +166,9 @@ function Base.iterate(L::LiveTensorIterator, s = 1)
     s > length(L) && return nothing
 
     # Free tensors from the previous iteration
-    if s > 1
+    if !isone(s)
         for tensor in L.data.freelist[s-1]
-            if !in(tensor, L.data.io_tensors) && !in(tensor, L.data.constant_tensors)
-                delete!(L.live_tensors, tensor)
-            end
+            delete!(L.live_tensors, tensor)
         end
     end
 

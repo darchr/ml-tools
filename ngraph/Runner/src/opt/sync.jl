@@ -37,7 +37,7 @@ Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorWrapper,SynchronousTensorMeta
 
 limit(S::Synchronous) = S.dram_limit
 predict(F::Frame{Synchronous}) = objective_value(F.model)
-descriptor(F::Frame{Synchronous}, tensor::TensorWrapper) = F.descriptors[tensor]
+descriptor(F::Frame{Synchronous}, tensor::TensorWrapper) = F.modeltype.descriptors[tensor]
 
 #####
 ##### Helper Functions
@@ -47,7 +47,11 @@ descriptor(F::Frame{Synchronous}, tensor::TensorWrapper) = F.descriptors[tensor]
 inedges(g, v) = (edgetype(g)(u, v) for u in inneighbors(g, v))
 outedges(g, v) = (edgetype(g)(v, u) for u in outneighbors(g, v))
 
-function create_model(modeltype::Synchronous, profile_data)
+create_model(modeltype::Synchronous, profile_data::ProfileData{AllTensors}) = error("""
+Synchronous model not implemented yet for all tensors.
+""")
+
+function create_model(modeltype::Synchronous, profile_data::ProfileData{OnlyIntermediate})
 
     preprocess!(modeltype, profile_data)
 
@@ -99,13 +103,13 @@ function preprocess!(S::Synchronous, data::ProfileData)
         ref = nodes(data, ind)
         reference_map = Dict(ref => ref)
 
-        while true
+        while ind < length(nodes(data))
             ind += 1
             node = nodes(data, ind)
             if in(node, users)
                 ref = node
             end
-            reference_map[ref] = node
+            reference_map[node] = ref
             ref == last(users) && break
         end
 
@@ -113,8 +117,9 @@ function preprocess!(S::Synchronous, data::ProfileData)
         g = MetaDiGraph()
 
         # Add nodes for each region
+        isempty(users) && error()
         for (count, node) in enumerate(users)
-            islast = (index == last(users))
+            islast = (count == length(users))
 
             if count == 1
                 add_vertex!(g, :metadata, VertexMetadata(0, node, LOC_SOURCE))
@@ -154,9 +159,7 @@ function preprocess!(S::Synchronous, data::ProfileData)
             (LOC_DRAM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_WRITE) : nothing,
             (LOC_DRAM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
 
-            # LOC_PMEM_PRE as the source
-            #
-            # Don't connect the pre-node to DRAM for the first gadget.
+            # LOC_PMEM as source
             (LOC_PMEM, LOC_DRAM) => (s,d) -> (s == d) && !isone(s) ? EdgeMetadata(EDGE_READ) : nothing,
             (LOC_PMEM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
             (LOC_PMEM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
@@ -193,6 +196,7 @@ end
 
 function add_tensors!(F::Frame{Synchronous})
     data = F.profile_data
+    modeltype = F.modeltype
 
     # Create variables for the tensors
     @variable(F.model,
@@ -288,7 +292,7 @@ function add_tensors!(F::Frame{Synchronous})
     @variable(F.model,
         tensor_in_dram[
             tensor = tensors(data),
-            user = users(descriptor(F, tensor))
+            user = name.(users(descriptor(F, tensor)))
         ],
         Bin
     )
@@ -330,15 +334,15 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function tensor_in_dram(F::Frame{Synchronous}, tensor::TensorWrapper, node::NodeWrapper)
-
+function get_tensor_in_dram(F::Frame{Synchronous}, tensor::TensorWrapper, node::NodeWrapper)
     desc = descriptor(F, tensor)
+
     if in(node, users(desc))
         return F.model[:tensor_in_dram][tensor, name(node)]
     else
-        ref = get_reference(descriptor, node)
+        ref = get_reference(desc, node)
         edge = find_edge(
-            descriptor.graph,
+            desc.graph,
             # Source vertex must be in one of the dram locations
             # and outgoing edge must map to the same location.
             (g,e) -> _meta(g, src(e)).location == LOC_DRAM &&
@@ -376,7 +380,7 @@ function add_nodes!(F::Frame{Synchronous})
             for (location, tensor) in iter
                 # use `jump_tensor` because it's really a JuMP variable that is returned
                 # by this call.
-                jump_tensor = tensor_in_dram(F, tensor, node)
+                jump_tensor = get_tensor_in_dram(F, tensor, node)
                 if location == DRAM
                     add_to_expression!(expr, jump_tensor)
                     @constraint(F.model, vars[config] <= jump_tensor)
@@ -417,14 +421,14 @@ function add_constraints!(F::Frame{Synchronous})
     # Unpack some variables
     data = F.profile_data
 
-    for (index, live_tensors) in enuemrate(live_tensors(data))
+    for (index, tensors) in enumerate(live_tensors(data))
         node = nodes(data, index)
         hasprofile(node) || continue
 
-        if !isempty(live_tensors)
+        if !isempty(tensors)
             @constraint(F.model,
-                sum(tensor_size(t) * tensor_in_dram(F, t, node) 
-                    for t in live_tensors 
+                sum(tensor_size(t) * get_tensor_in_dram(F, t, node) 
+                    for t in tensors 
                     if !iszero(tensor_size(t))) <= limit(F)
             )
         end
@@ -452,7 +456,7 @@ function get_schedule(F::Frame{Synchronous})
         path = [_meta(g, v)]
         while _meta(g, v).location != LOC_SINK
             for e in outedges(g, v)
-                if approx_one(value(model_graphs[tensor_name, e]))
+                if approx_one(value(model_graphs[tensor, e]))
                     v = dst(e)
                     break
                 end
@@ -469,81 +473,48 @@ function get_schedule(F::Frame{Synchronous})
     return schedule
 end
 
-# Simple struct for keeping track of move nodes that have been inserted for verification
-struct InsertedMoveNode
-    name::String
-    producer::String
-    users::Vector{String}
-    bytes::Int
-    write_to_pmem::Bool
-end
-
 function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     # Unpack args
-    profile_data = F.profile_data
-    descriptors = F.modeltype.descriptors
+    data = F.profile_data
     tensor_graphs = F.model[:tensor_graphs]
     fn = fex.ex.ngraph_function
     _cleanup!(fn)
 
     # Get the locations of the tensors currently in the graph
-    node_dict = Dict(nGraph.name(op) => op for op in fn)
-    config = Dict{String, TensorLocation}()
+    config = Dict{TensorWrapper, TensorLocation}()
 
     # Process the move node chains
     schedule = get_schedule(F)
-    move_nodes_created = Dict{String, InsertedMoveNode}()
-    for (tensor_name, vertices) in schedule
+    for (tensor, vertices) in schedule
 
         initial_location = first(vertices).location
         if initial_location == LOC_PMEM
-            config[tensor_name] = PMEM
+            config[tensor] = PMEM
         elseif initial_location == LOC_DRAM
-            config[tensor_name] = DRAM
+            config[tensor] = DRAM
         else
             error("$(initial_location)???")
         end
 
-
-        # Some preliminary assertions to make sure nothing has gone too far off the rails
-        # yet.
-        ops_using_tensor = descriptors[tensor_name].ops_using_tensor
-        @assert length(vertices) >= length(ops_using_tensor)
-
         # Get a list of move actions that we will have to perform.
         actions = getactions(vertices)
 
-        incumbent_name = profile_data.tensors[tensor_name].parent_name
-        incumbent_index = profile_data.tensors[tensor_name].output_index
-        incumbent_tensor = tensor_name
-        for action in actions
-            # Translate consumers into nodes.
-            #
-            # We go:
-            # consumers -> node_names
-            # node_names -> nodes
-            node_names = [profile_data.nodes[i].name for i in action.consumers]
-            consumers = [node_dict[n] for n in node_names]
+        producer = _producer(tensor, nodes(data))
+        producer_output = _find(isequal(tensor), outputs(producer))
 
-            producer = node_dict[incumbent_name]
-            consumer_inputs = [
-                findfirst(
-                    x -> nGraph.get_name(x) == incumbent_tensor, 
-                    nGraph.input_descriptors(n)
-                ) for n in consumers
-            ]
-            move_node = insert_move_node!(producer, incumbent_index, consumers, consumer_inputs)
+        for action in actions
+            consumers = action.consumers
+            consumer_inputs = [_find(isequal(tensor), inputs(n)) for n in consumers]
+
+            move_node = insert_move_node!(producer, producer_output, consumers, consumer_inputs)
 
             # Determine associate from the action location.
             #
             # If moving to PMEM, perform this action as soon as possible after the node
             # generating the argument.
             if action.location == PMEM
-                nGraph.set_input_affinity(move_node)
-                nGraph.add_associate(move_node, incumbent_name)
-
-                #@show nGraph.name(move_node)
-                #@show incumbent_name
+                nGraph.set_input_affinity(unwrap(move_node))
+                nGraph.add_associate(unwrap(move_node), name(producer))
 
                 # Perform a sanity check. Should not move data to PMEM if it already 
                 # started in PMEM.
@@ -553,34 +524,24 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
             # associates to this list because scheduling may be reordered after inserting
             # the move nodes.
             elseif action.location == DRAM
-                nGraph.set_output_affinity(move_node)
-                for nn in node_names
-                    nGraph.add_associate(move_node, nn)
+                nGraph.set_output_affinity(unwrap(move_node))
+                for consumer in consumers
+                    nGraph.add_associate(unwrap(move_node), name(consumer))
                 end
             else
                 error()
             end
 
-            # Record this move node and the size of the tensor for bandwidth debugging
-            move_nodes_created[nGraph.name(move_node)] = InsertedMoveNode(
-                nGraph.name(move_node),
-                incumbent_name,
-                node_names,
-                profile_data.tensors[tensor_name].bytes,
-                action.location == PMEM,
-            )
-
             # Add this move node to `node_dict` and assign its output tensor to the config.
-            output_tensor_name = nGraph.get_name(nGraph.output_descriptor(move_node, 1))
-            config[output_tensor_name] = action.location
-            node_dict[nGraph.name(move_node)] = move_node
+            output_tensor = first(outputs(move_node))
+            config[output_tensor] = action.location
 
             if action.replace_incumbent
-                incumbent_name = nGraph.name(move_node)
+                producer = move_node
                 # Since we're just inserting move nodes, the output index will now always
                 # be 1
-                incumbent_index = 1
-                incumbent_tensor = output_tensor_name
+                producer_output = 1
+                tensor = output_tensor
             end
         end
     end
@@ -593,9 +554,9 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
 
     # Iterate over each node and each output tensor for each node. Each output tensor should
     # have an assigned location
-    for node in fn, output in nGraph.output_descriptors(node)
-        if config[nGraph.get_name(output)] == PMEM
-            nGraph.make_persistent(output)
+    for node in fn, output in outputs(NodeWrapper(node))
+        if config[output] == PMEM
+            make_persistent(fex, data, output)
         end
     end
 
@@ -606,40 +567,7 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     #####
     #verify_moves(fex, move_nodes_created)
 
-    return fex, move_nodes_created
-end
-
-function verify_moves(fex::nGraph.FluxExecutable, move_nodes)
-    fn = fex.ex.ngraph_function 
-
-    # Iterate through each op, keeping track of the previous op.
-    #
-    # Every time we get to a "Move" node, check if it is a write to PMEM or read from PMEM.
-    # - If write, make sure it immediately follows its producer.
-    # - If read, make sure the next op is one of its consumers.
-    previous_op = first(fn)
-    display_next = false
-    for op in Iterators.drop(fn, 1)
-        op_name = nGraph.name(op)
-        if display_next
-            #@show op_name
-            display_next = false
-        end
-        #println()
-
-        if startswith(op_name, "Move")
-            metadata = move_nodes[op_name]
-            if metadata.write_to_pmem
-                @show metadata.producer
-                @show nGraph.name(previous_op)
-            else
-                @show metadata.users
-                display_next = true
-            end
-        end
-        previous_op = op
-    end
-    return nothing
+    return fex, nothing
 end
 
 # your moves are weak
@@ -679,14 +607,14 @@ be more complicated than I originally thought.
 =#
 
 struct MoveAction
-    consumers::Vector{Int}
+    consumers::Vector{NodeWrapper}
     location::TensorLocation
     replace_incumbent::Bool
 end
 
 # Consume all of the PKEEP nodes.
 function getkeeps(vertices::Vector{VertexMetadata}, index)
-    keeps = Int[]
+    keeps = NodeWrapper[]
     while checkbounds(Bool, vertices, index) && vertices[index].location == LOC_DRAM
         push!(keeps, vertices[index].op)
         index += 1
