@@ -1,11 +1,11 @@
 # Timing methods for the whole function
 
-function gettime(fex::nGraph.FluxExecutable, args; timeout = Second(10), min_calls = 3)
+function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 3)
     start = now()
     mintime = typemax(Float64)
     times = 1
     while (now() < start + timeout) || (times <= min_calls)
-        runtime = @elapsed(fex(args...))
+        runtime = @elapsed(fex())
         mintime = min(mintime, runtime)
         times += 1
     end
@@ -17,7 +17,7 @@ function all_dram_time(fex, args)
     backend = fex.ex.backend
     Runner._cleanup!(fex.ex.ngraph_function)
     fex = nGraph.recompile(fex)
-    return fex, gettime(fex, args)
+    return fex, gettime(fex)
 end
 
 function all_pmem_time(fex, args, profile_data)
@@ -36,16 +36,23 @@ function all_pmem_time(fex, args, profile_data)
         end
     end
     fex = nGraph.recompile(fex)
-    pmem_time = gettime(fex, args)
+    pmem_time = gettime(fex)
 
     return fex, pmem_time
 end
 
 _base_stats() = (
+    # Runtimes
     predicted_runtimes = Float64[],
     actual_runtimes = Float64[],
-    dram_limits = Int64[],
     kernel_times = Vector{Any}[],
+
+    # Tensor Sizes
+    io_sizes = Ref(0),
+    default_alloc_size = Ref(0),
+    dram_limits = Int64[],
+    dram_alloc_size = Int64[],
+    pmem_alloc_size = Int64[],
 )
 
 """
@@ -65,8 +72,13 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt_iter; cache = CPUKernelCache(BASE_CACHE_PATH), statspath = nothing)
-    stats = (isnothing(statspath) || !ispath(statspath)) ? _base_stats() : deserialize(statspath)
+function compare(f, opt_iter, ctx = OnlyIntermediate(); cache = CPUKernelCache(BASE_CACHE_PATH), statspath = nothing)
+    if (isnothing(statspath) || !ispath(statspath)) 
+        stats = _base_stats()
+        initialize!(stats, f)
+    else
+        stats = deserialize(statspath)
+    end
 
     for (index, opt) in enumerate(opt_iter)
         println("Processing $index of $(length(opt_iter))")
@@ -79,7 +91,7 @@ function compare(f, opt_iter; cache = CPUKernelCache(BASE_CACHE_PATH), statspath
         # This will hopefully cleanup any previous Executables and the large memory buffers
         # associated with them.
         GC.gc()
-        _compare!(stats, f, opt; cache = cache)
+        _compare!(stats, f, opt, ctx; cache = cache)
         isnothing(statspath) || serialize(statspath, stats)
 
         @info """
@@ -91,17 +103,29 @@ function compare(f, opt_iter; cache = CPUKernelCache(BASE_CACHE_PATH), statspath
     return stats
 end
 
-function _compare!(stats, f, opt; kw...)
-    fex, args, frame, _metadata = factory(f, opt; kw...)
+function initialize!(stats, f)
+    # Instantiate the function
+    fex, args = f()
+
+    io_sizes = sum(sizeof, input_tensors(fex)) + sum(sizeof, output_tensors(fex))
+    stats.io_sizes[] = io_sizes
+    stats.default_alloc_size[] = nGraph.get_temporary_pool_size(fex.ex.ngraph_function)
+    return nothing
+end
+
+function _compare!(stats, f, opt, ctx; kw...)
+    fex, args, frame, _metadata = factory(f, opt, ctx; kw...)
 
     skip = in(limit(frame.modeltype), stats.dram_limits)
 
     # Get the predicted run time and then the actual run time
     if !skip 
         push!(stats.predicted_runtimes, Runner.predict(frame))
-        push!(stats.actual_runtimes, gettime(fex, args))
+        push!(stats.actual_runtimes, gettime(fex))
         push!(stats.dram_limits, limit(frame.modeltype))
         push!(stats.kernel_times, read_timing_data(fex.ex.ngraph_function))
+        push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
+        push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
     end
 
     nGraph._cleanup(fex.ex)

@@ -9,6 +9,16 @@ function _producer(tensor::TensorWrapper, nodes::Vector{NodeWrapper})
     return nodes[idx]
 end
 
+function input_tensors(fex::nGraph.FluxExecutable)
+    params = NodeWrapper.(nGraph.get_parameters(fex.ex.ngraph_function))
+    return Iterators.flatten(outputs.(params))
+end
+
+function output_tensors(fex::nGraph.FluxExecutable)
+    params = NodeWrapper.(nGraph.get_results(fex.ex.ngraph_function))
+    return Iterators.flatten(inputs.(params))
+end
+
 """
     isarg(fex::nGraph.FluxExecutable, t::TensorWrapper) -> Bool
 
@@ -91,4 +101,11 @@ function make_persistent(fex::nGraph.FluxExecutable, data::ProfileData, tensor::
         nGraph.make_persistent!(get_exe_output(fex, tensor))
     end
     nGraph.make_persistent(unwrap(tensor))
+end
+
+make_persistent(tensor::TensorWrapper) = nGraph.make_persistent(unwrap(tensor))
+make_volatile(tensot::TensorWrapper) = nGraph.make_volatile(unwrap(tensor))
+
+function make_volatile(fex::nGraph.FluxExecutable, data::ProfileData, tensor::TensorWrapper)
+    nGraph.make_volatile(unwrap(tensor))
 end

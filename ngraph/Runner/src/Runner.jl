@@ -40,6 +40,18 @@ function Base.getindex(io::IOConfig{N,M}, idx::Integer) where {N,M}
     end
 end
 
+function setindex(io::IOConfig{N,M}, idx::Integer, x::TensorLocation) where {N,M}
+    if idx <= N
+        inputs = ntuple(i -> i == idx ? x : io.inputs[i], N)
+        outputs = io.outputs
+    elseif idx <= length(io)
+        idx = idx - length(io.inputs)
+        inputs = io.inputs
+        outputs = ntupls(i -> i == idx ? x : io.outputs[i], M)
+    end
+    return IOConfig{N,M}(inputs, outputs)
+end
+
 function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
     f = x -> (x == DRAM) ? "DRAM" : "PMEM"
     print(io, "IOConfig{$N,$M}: ")

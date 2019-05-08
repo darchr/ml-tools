@@ -21,6 +21,7 @@ Base.:(==)(a::TensorWrapper, b::TensorWrapper) = name(a) == name(b)
 Base.hash(a::TensorWrapper, h::UInt = convert(UInt, 0x23089234)) = hash(name(a), h)
 
 Base.sizeof(a::TensorWrapper) = sizeof(unwrap(a))
+is_persistent(a::TensorWrapper) = nGraph.is_persistent(unwrap(a))
 
 #####
 ##### Node Wrapper
@@ -83,8 +84,11 @@ function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
         end
     end
 
-    # How, perform the liveness analysis on the nodes and tensors data structures
-    io_tensors = Set(t for t in tensors if isparam(fex, t) || isresult(fex, t))
+    # Perform the liveness analysis on the nodes and tensors data structures
+    parameters = Iterators.flatten(outputs.(NodeWrapper.(nGraph.get_parameters(fn)))) 
+    results = Iterators.flatten(outputs.(NodeWrapper.(nGraph.get_results(fn))))
+    io_tensors = Set(Iterators.flatten((parameters, results)))
+
     constant_tensors = Set(t for t in tensors if isconstant(_producer(t, nodes)))
 
     @show length(io_tensors)

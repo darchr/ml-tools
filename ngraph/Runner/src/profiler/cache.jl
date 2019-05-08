@@ -6,8 +6,8 @@ save(::EmptyCache) = nothing
 
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
-    # The description of the op 
-    description::String 
+    # The description of the op
+    description::String
 
     # IO Sizes
     input_sizes::IS
@@ -17,11 +17,17 @@ struct CPUKernelParams{IS, OS, IT, OT, NIF}
 
     # MKLDNN Formats
     ismkl::Bool
-    input_formats::NTuple{NIF, Int64} 
+    input_formats::NTuple{NIF, Int64}
 end
 
-# For 
-filter_out_io(c::CPUKernelParams) = (c.description,)
+# For
+filter_out_io(c::CPUKernelParams) = (
+    c.description,
+    c.ismkl,
+    c.input_formats,
+    c.input_types,
+    c.output_types
+)
 
 function CPUKernelParams(node::nGraph.Node)
     description = nGraph.description(node)
@@ -36,12 +42,12 @@ function CPUKernelParams(node::nGraph.Node)
     ismkl = nGraph.is_mkldnn(node)
     input_formats = ntuple(
         # At the moment, still forwarding to nGraph.Lib.
-        x -> nGraph.Lib.get_input_format_string(node.ptr, convert(UInt, x-1)), 
+        x -> nGraph.Lib.get_input_format_int(node.ptr, convert(UInt, x-1)),
         num_inputs
     )
 
     # output processing
-    num_outputs = nGraph.get_output_size(node) 
+    num_outputs = nGraph.get_output_size(node)
     output_sizes = ntuple(x -> nGraph.get_output_shape(node, x), num_outputs)
     output_types = ntuple(x -> nGraph.get_output_element_type(node, x), num_outputs)
 
@@ -64,7 +70,7 @@ end
 function CPUKernelCache(file)::CPUKernelCache
     # If the cache path already exists, just return the existing object.
     # The type assertion for the function will make sure we don't return something weird.
-    if ispath(file) 
+    if ispath(file)
         cache = deserialize(file)::CPUKernelCache
         if cache.file == file
             return cache
@@ -74,7 +80,7 @@ function CPUKernelCache(file)::CPUKernelCache
 
     # Otherwise, create the object.
     return CPUKernelCache(
-        file, 
+        file,
         Dict{Tuple{CPUKernelParams, IOConfig},Float64}()
     )
 end
@@ -83,9 +89,9 @@ Base.getindex(cache::CPUKernelCache, args...) = getindex(cache.cache, args...)
 Base.setindex!(cache::CPUKernelCache, args...) = setindex!(cache.cache, args...)
 Base.haskey(cache::CPUKernelCache, args...) = haskey(cache.cache, args...)
 
-function save(cache::CPUKernelCache) 
+function save(cache::CPUKernelCache)
     # Make the directory for this cache if needed.
-    dir = dirname(cache.file) 
+    dir = dirname(cache.file)
     ispath(dir) || mkdir(dir)
     serialize(cache.file, cache)
 end

@@ -2,11 +2,66 @@
 module Analyzer
 
 import ..Runner
-import ..Runner: IOConfig, nodes, unwrap
+import ..Runner: IOConfig, nodes, unwrap, TensorWrapper, live_tensors, is_persistent,
+    inputs, outputs, tensors
 using nGraph
 using RecipesBase
-using PrettyTables
 using Plots
+
+include("marginal.jl")
+#####
+##### Reuse Distance
+#####
+
+struct ReuseDistance
+    data::Dict{TensorWrapper, Int64}
+end
+
+function reuse_distance(fex::nGraph.FluxExecutable, data::Runner.ProfileData)
+    tensor_to_tensors = Dict{TensorWrapper, Set{TensorWrapper}}()
+    for tensors in live_tensors(data)
+        for tensor in tensors
+            s = get!(tensor_to_tensors, tensor, Set{TensorWrapper}())
+            union!(s, tensors)
+        end
+    end
+    return ReuseDistance(Dict(k => sum(sizeof.(v)) for (k,v) in tensor_to_tensors))
+end
+
+@recipe function f(rd::ReuseDistance)
+    legend := :none
+    linewidth := 0
+    marker := :o
+    xlabel := "Reuse Distance (MiB)"
+    ylabel := "Tensor Size (MiB)"
+
+    @series begin
+        seriestype = :scatter 
+        markerstrokealpha := 0.0
+
+        # x values are the reuse distance
+        # y values are the size of the tensor
+        # color denotes PMEM vs DRAM
+        x = Float64[]
+        y = Float64[]
+        colors = Symbol[]  
+        for (tensor, distance) in rd.data
+            push!(x, distance)
+            push!(y, sizeof(tensor))
+            push!(colors, nGraph.is_persistent(unwrap(tensor)) ? :red : :blue)
+        end
+        c := colors
+
+        # Rescale
+        x .= x ./ 1E6
+        y .= y ./ 1E6
+        x, y
+    end
+end
+
+#####
+##### Kernel Analyzer
+#####
 
 struct Kernel
     params::Runner.CPUKernelParams
@@ -16,41 +71,20 @@ end
 
 description(K::Kernel) = K.params.description
 
-# Tables stuff
-hl_pmem() = Highlighter((data,i,j) -> (data[i,j] == Runner.PMEM); foreground = :red)
-hl_dram() = Highlighter((data,i,j) -> (data[i,j] == Runner.DRAM); foreground = :green)
-
-function showtable(kernels::Vector{Kernel})
-    # Make all the configs into a table
-    config_table = vcat(makearray.(k.configs for k in kernels)...)
-    showtable(config_table)
-end
-
-showtable(configs::Vector{T}) where {T <: IOConfig} =
-    pretty_table(makearray(configs), headers(first(configs)); highlighters = (hl_pmem(), hl_dram()))
-
-makearray(configs::Vector{IOConfig}) = vcat(permutedims.(collect.(configs))...)
-headers(::T) where {T <: IOConfig} = headers(T)
-headers(::Type{IOConfig{N,M}}) where {N,M} = vcat(
-    ["input $i" for i in 1:N],
-    ["output $i" for i in 1:M]
-)
-
 # IO Breakdown.
 # The goal of this routine is to take ngraph function, group the operations by type
 # and then plot it as a bargraph
 function kernel_breakdown(fex::nGraph.FluxExecutable)
-    pd = Runner.ProfileData(fex)
-
     kernels = Kernel[]
-    for (index, node) in enumerate(nodes(pd))
-        config = Runner.getconfig(unwrap(node))
-        params = Runner.CPUKernelParams(unwrap(node))
+    for (index, node) in enumerate(fex.ex.ngraph_function)
+        config = Runner.getconfig(node)
+        params = Runner.CPUKernelParams(node)
         # Get the entry for this kernel, creating it if it doesn't exist yet.
         push!(kernels, Kernel(params, index, config))
     end
     return kernels
 end
+
 
 struct KernelPlot{NR,NC,X,Y,C,T}
     kernels::Vector{Kernel}
@@ -73,6 +107,14 @@ end
     # Setup default plot settings
     layout := (num_rows, num_cols)
     seriestype := :scatter
+    legend := :none
+    xlabel := "Size (MiB)"
+    markerstrokealpha := 0.0
+    xrotation := 60
+
+    #size := (200 * num_rows, 500 * num_cols)
+    sz = (150 * num_cols, 300 * num_rows) 
+    size := sz
 
     for row in 1:num_rows
         for col in 1:num_cols
@@ -84,15 +126,13 @@ end
                 c := _plot.color(kernels, row, col)
                 title := _plot.title(kernels, row, col)
 
-                @show x
-                @show y
-                
+                # rescale
+                x = x ./ 1E6
+
                 x, y
             end
         end
     end
 end
-
-
 
 end

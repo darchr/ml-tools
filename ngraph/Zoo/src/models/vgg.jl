@@ -1,9 +1,13 @@
+abstract type AbstractVgg end
+struct Vgg19  <: AbstractVgg end
+struct Vgg416 <: AbstractVgg end
+
 vgg19() = Chain(
         # First Layer
         Conv((3,3), 3 => 64, relu; pad = 1),
         Conv((3,3), 64 => 128, relu; pad = 1),
         MaxPool((2,2)),
-        # Second Layer 
+        # Second Layer
         Conv((3,3), 128 => 128, relu; pad = 1),
         Conv((3,3), 128 => 256, relu; pad = 1),
         MaxPool((2,2)),
@@ -26,7 +30,7 @@ vgg19() = Chain(
         Conv((3,3), 512 => 512, relu; pad = 1),
         MaxPool((2,2)),
         # Fully Connected Layers
-        x -> reshape(x, :, size(x, 4)), 
+        x -> reshape(x, :, size(x, 4)),
         Dense(25088, 4096, relu),
         Dense(4096, 4096, relu),
         Dense(4096, 1000),
@@ -43,12 +47,12 @@ function vgg416()
     for _ in 1:loops[1]
     push!(layers, Conv((3,3), 64 => 64, relu; pad = 1))
     end
-    push!(layers, 
+    push!(layers,
         Conv((3,3), 64 => 128, relu; pad = 1),
         MaxPool((2,2))
     )
 
-    # Second Layer 
+    # Second Layer
     for _ in 1:loops[2]
         push!(layers, Conv((3,3), 128 => 128, relu; pad = 1))
     end
@@ -57,7 +61,7 @@ function vgg416()
         MaxPool((2,2))
     )
     # Third Layer
-    for _ in 1:loops[3] 
+    for _ in 1:loops[3]
         push!(layers, Conv((3,3), 256 => 256, relu; pad = 1))
     end
     push!(layers,
@@ -66,18 +70,18 @@ function vgg416()
     )
 
     # Fourth Layer
-    for _ in 1:loops[4] 
+    for _ in 1:loops[4]
         push!(layers, Conv((3,3), 512 => 512, relu; pad = 1))
     end
     push!(layers, MaxPool((2,2)))
     # Fifth Layer
-    for _ in 1:loops[5] 
+    for _ in 1:loops[5]
         push!(layers, Conv((3,3), 512 => 512, relu; pad = 1))
     end
     push!(layers,
         MaxPool((2,2)),
         # Fully Connected Layers
-        x -> reshape(x, :, size(x, 4)), 
+        x -> reshape(x, :, size(x, 4)),
         Dense(25088, 4096, relu),
         Dense(4096, 4096, relu),
         Dense(4096, 1000),
@@ -85,7 +89,7 @@ function vgg416()
         x -> log.(max.(x, Float32(1e-9))),
         softmax
     )
-    
+
     # Return a vetor version of a chain
     return function(x)
         for l in layers
@@ -109,7 +113,10 @@ function vgg19_inference(batchsize)
     return g, (X,)
 end
 
-function vgg19_training(batchsize; kw...)
+_forward(::Vgg19) = vgg19()
+_forward(::Vgg416) = vgg416()
+
+function vgg_training(vgg::T, batchsize; kw...) where {T <: AbstractVgg}
     x = rand(Float32, 224, 224, 3, batchsize)
     y = zeros(Float32, 1000, batchsize)
     for col in 1:batchsize
@@ -121,9 +128,8 @@ function vgg19_training(batchsize; kw...)
     Y = nGraph.Tensor(backend, y)
 
     # Get the forward pass
-    forward = vgg19()
-    #forward = vgg416()
-    
+    forward = _forward(vgg)
+
     # Compute the backward pass.
     f(x, y) = Flux.crossentropy(forward(x), y)
 

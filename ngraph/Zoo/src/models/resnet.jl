@@ -1,3 +1,7 @@
+abstract type AbstractResnet end
+struct Resnet50 <: AbstractResnet end
+struct Resnet200 <: AbstractResnet end
+
 #####
 ##### Resnet 50 from Metalhead
 #####
@@ -89,17 +93,12 @@ function Bottleneck(filters::Int, downsample::Bool = false, res_top::Bool = fals
     end
 end
 
-_resnet50() = _resnet(50)
-_resnet200() = _resnet(200)
 
-function _resnet(version)
-    if version == 50
-        layers = [3, 4, 6, 3]
-    elseif version == 200
-        layers = [3, 24, 36, 3]
-    else
-        error(version)
-    end
+_layers(::Resnet50) = [3,4,6,3]
+_layers(::Resnet200) = [3, 24, 36, 3]
+
+function _resnet(version::AbstractResnet)
+    layers = _layers(version)
     layer_arr = []
 
     push!(layer_arr, Conv((7,7), 3=>64, pad = (3,3), stride = (2,2)))
@@ -129,10 +128,7 @@ function _resnet(version)
     end
 end
 
-resnet50_training(args...) = resnet_training(50, args...)
-resnet200_training(args...) = resnet_training(200, args...)
-
-function resnet_training(version, batchsize = 16)
+function resnet_training(version::T, batchsize = 16) where {T <: AbstractResnet}
     backend = nGraph.Backend()
     X = nGraph.Tensor(backend, rand(Float32, 224, 224, 3, batchsize))
     Y = nGraph.Tensor(backend, rand(Float32, 1000, batchsize))

@@ -207,7 +207,6 @@ function tensor_location(F::Frame{<:SimpleModel}, tensor::TensorWrapper)
 end
 
 function getconfig(F::Frame{<:SimpleModel}, node::NodeWrapper)
-
     _inputs = ntuple(x -> tensor_location(F, inputs(node)[x]), length(inputs(node)))
     _outputs = ntuple(x -> tensor_location(F, outputs(node)[x]), length(outputs(node)))
 
