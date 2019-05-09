@@ -17,8 +17,10 @@ end
 unwrap(a::TensorWrapper) = a.tensor
 
 JuMP.name(a::TensorWrapper) = nGraph.get_name(unwrap(a))
-Base.:(==)(a::TensorWrapper, b::TensorWrapper) = name(a) == name(b)
-Base.hash(a::TensorWrapper, h::UInt = convert(UInt, 0x23089234)) = hash(name(a), h)
+
+rawptr(a::TensorWrapper) = nGraph.getpointer(unwrap(a))[]
+Base.:(==)(a::TensorWrapper, b::TensorWrapper) = rawptr(a) == rawptr(b)
+Base.hash(a::TensorWrapper, h::UInt = convert(UInt, 0x23089234)) = hash(rawptr(a), h)
 
 Base.sizeof(a::TensorWrapper) = sizeof(unwrap(a))
 is_persistent(a::TensorWrapper) = nGraph.is_persistent(unwrap(a))
@@ -37,11 +39,14 @@ Base.show(io::IO, n::NodeWrapper) = print(io, name(n))
 unwrap(n::NodeWrapper) = n.node
 
 JuMP.name(n::NodeWrapper) = nGraph.name(unwrap(n))
+
+rawptr(a::NodeWrapper) = nGraph.getpointer(unwrap(a))[]
+
 description(n::NodeWrapper) = nGraph.description(unwrap(n))
 isconstant(n::NodeWrapper) = description(n) == "Constant"
 
-Base.:(==)(n::NodeWrapper, m::NodeWrapper) = (name(m) == name(n))
-Base.hash(n::NodeWrapper, h::UInt = UInt(0x4029388)) = hash(name(n), h)
+Base.:(==)(n::NodeWrapper, m::NodeWrapper) = rawptr(n) == rawptr(m)
+Base.hash(n::NodeWrapper, h::UInt = UInt(0x4029388)) = hash(rawptr(n), h)
 
 outputs(n::NodeWrapper) = TensorWrapper.(nGraph.output_descriptors(unwrap(n)))
 inputs(n::NodeWrapper) = TensorWrapper.(nGraph.input_descriptors(unwrap(n)))
@@ -87,13 +92,22 @@ function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
     # Perform the liveness analysis on the nodes and tensors data structures
     parameters = Iterators.flatten(outputs.(NodeWrapper.(nGraph.get_parameters(fn)))) 
     results = Iterators.flatten(outputs.(NodeWrapper.(nGraph.get_results(fn))))
-    io_tensors = Set(Iterators.flatten((parameters, results)))
 
-    constant_tensors = Set(t for t in tensors if isconstant(_producer(t, nodes)))
+    @timeit TO "io_tensors" io_tensors = Set(Iterators.flatten((parameters, results)))
+    constant_tensors = Set{TensorWrapper}()
+    @timeit TO "constant_tensors" for node in nodes
+        if isconstant(node)
+            for tensor in outputs(node)
+                push!(constant_tensors, tensor)
+            end
+        end
+    end
 
     @show length(io_tensors)
 
-    liveness = liveness_analysis(ctx, nodes, io_tensors, constant_tensors)
+    @timeit TO "liveness" begin
+        liveness = liveness_analysis(ctx, nodes, io_tensors, constant_tensors)
+    end
 
     PD = ProfileData{typeof(ctx)}(
         tensors,

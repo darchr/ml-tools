@@ -52,7 +52,6 @@ mutable struct Frame{T <: ModelType, C}
     modeltype::T
     model::JuMP.Model
     profile_data::ProfileData{C}
-    #config::Dict{String, TensorLocation}
 end
 
 limit(F::Frame) = limit(F.modeltype)
@@ -68,14 +67,18 @@ include("sync.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt, ctx = AllTensors(); cache = CPUKernelCache(BASE_CACHE_PATH))
-    fex, args = f()
-    data = profile(fex, ctx; cache = cache)
+function factory(f, opt, ctx = AllTensors(); cache = CPUKernelCache(BASE_CACHE_PATH), skip_run = false)
+    @timeit TO "creating model" fex, args = f()
+    @timeit TO "getting profile data" data = profile(fex, ctx; cache = cache)
 
     modeltype = opt(data)
-    frame = create_model(modeltype, data)
-    optimize!(frame)
-    fex, _metadata = configure!(fex, frame) 
+    @timeit TO "creating model" frame = create_model(modeltype, data)
+    @timeit TO "optimizing" optimize!(frame)
+    if !skip_run
+        @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
+    else
+        _metadata = nothing
+    end
     
     return fex, args, frame, _metadata
 end

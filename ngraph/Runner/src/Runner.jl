@@ -14,9 +14,12 @@ using Dates, Random, Serialization, Statistics
 using nGraph, Flux, JSON
 using JuMP, Gurobi
 using RecipesBase
-using LightGraphs, MetaGraphs
+using LightGraphs
 using IterTools
 using ProgressMeter
+using TimerOutputs
+
+const TO = TimerOutput()
 
 @enum TensorLocation::UInt8 DRAM PMEM
 
@@ -63,6 +66,7 @@ end
 ##### Local Includes
 #####
 
+include("metagraph.jl")
 include("setup.jl")
 include("types.jl")
 include("util.jl")

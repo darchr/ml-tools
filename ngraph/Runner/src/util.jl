@@ -9,6 +9,11 @@ function _producer(tensor::TensorWrapper, nodes::Vector{NodeWrapper})
     return nodes[idx]
 end
 
+function _lastuser(tensor::TensorWrapper, nodes::Vector{NodeWrapper})
+    idx = _find(x -> in(tensor, outputs(x)), reverse(nodes))
+    return nodes[end + 1 - idx]
+end
+
 function input_tensors(fex::nGraph.FluxExecutable)
     params = NodeWrapper.(nGraph.get_parameters(fex.ex.ngraph_function))
     return Iterators.flatten(outputs.(params))

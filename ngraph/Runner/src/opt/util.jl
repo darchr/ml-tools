@@ -1,12 +1,15 @@
 function find_vertex(g, f)
-    iter = filter_vertices(g, f) |> collect
+    #iter = filter_vertices(g, f) |> collect
+    iter = filter(v -> f(g,v), collect(vertices(g)))
     # Make sure we only have one match
     @assert length(iter) == 1
     return first(iter)
 end
 
 function find_edge(g, f)
-    iter = filter_edges(g, f) |> collect
+    #iter = filter_edges(g, f) |> collect
+    iter = filter(e -> f(g,e), collect(edges(g)))
+
     # Make sure we only have one match
     @assert length(iter) == 1
     return first(iter)

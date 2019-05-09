@@ -1,6 +1,6 @@
 # Timing methods for the whole function
 
-function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 3)
+function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 2)
     start = now()
     mintime = typemax(Float64)
     times = 1
@@ -72,7 +72,11 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt_iter, ctx = OnlyIntermediate(); cache = CPUKernelCache(BASE_CACHE_PATH), statspath = nothing)
+function compare(f, opt_iter, ctx = OnlyIntermediate(); 
+                 cache = CPUKernelCache(BASE_CACHE_PATH), 
+                 statspath = nothing,
+                 skip_run = false,
+    )
     if (isnothing(statspath) || !ispath(statspath)) 
         stats = _base_stats()
         initialize!(stats, f)
@@ -91,13 +95,15 @@ function compare(f, opt_iter, ctx = OnlyIntermediate(); cache = CPUKernelCache(B
         # This will hopefully cleanup any previous Executables and the large memory buffers
         # associated with them.
         GC.gc()
-        _compare!(stats, f, opt, ctx; cache = cache)
+        _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run)
         isnothing(statspath) || serialize(statspath, stats)
 
-        @info """
-        Predicted Run Time: $(last(stats.predicted_runtimes))
-        Actual Run Time: $(last(stats.actual_runtimes))
-        """
+        if !skip_run
+            @info """
+            Predicted Run Time: $(last(stats.predicted_runtimes))
+            Actual Run Time: $(last(stats.actual_runtimes))
+            """
+        end
     end
 
     return stats
@@ -113,19 +119,23 @@ function initialize!(stats, f)
     return nothing
 end
 
-function _compare!(stats, f, opt, ctx; kw...)
-    fex, args, frame, _metadata = factory(f, opt, ctx; kw...)
+function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
+    fex, args, frame, _metadata = factory(f, opt, ctx; skip_run = skip_run, kw...)
 
     skip = in(limit(frame.modeltype), stats.dram_limits)
 
     # Get the predicted run time and then the actual run time
     if !skip 
         push!(stats.predicted_runtimes, Runner.predict(frame))
-        push!(stats.actual_runtimes, gettime(fex))
         push!(stats.dram_limits, limit(frame.modeltype))
-        push!(stats.kernel_times, read_timing_data(fex.ex.ngraph_function))
         push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
         push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
+
+        if !skip_run
+            push!(stats.actual_runtimes, gettime(fex))
+            push!(stats.kernel_times, read_timing_data(fex.ex.ngraph_function))
+        end
+
     end
 
     nGraph._cleanup(fex.ex)
