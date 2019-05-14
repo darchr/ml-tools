@@ -46,6 +46,7 @@ _base_stats() = (
     predicted_runtimes = Float64[],
     actual_runtimes = Float64[],
     kernel_times = Vector{Any}[],
+    move_time = Float64[],
 
     # Tensor Sizes
     io_sizes = Ref(0),
@@ -130,6 +131,7 @@ function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
         push!(stats.dram_limits, limit(frame.modeltype))
         push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
         push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
+        push!(stats.move_time, estimate_move_time(fex, frame))
 
         if !skip_run
             push!(stats.actual_runtimes, gettime(fex))

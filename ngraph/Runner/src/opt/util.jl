@@ -16,6 +16,7 @@ function find_edge(g, f)
 end
 
 approx_one(x) = isapprox(x, one(x); atol = 1e-3)
+approx_one(x::JuMP.VariableRef) = approx_one(value(x))
 
 """
     insert_move_node!(producer, index, consumers) -> nGraph.Node

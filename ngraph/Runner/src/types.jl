@@ -33,6 +33,7 @@ struct NodeWrapper
     node::nGraph.Node
     timings::Dict{IOConfig, Vector{Float64}}
 end
+
 NodeWrapper(n::nGraph.Node) = NodeWrapper(n, Dict{IOConfig, Vector{Float64}}())
 Base.show(io::IO, n::NodeWrapper) = print(io, name(n))
 
@@ -68,6 +69,9 @@ struct ProfileData{C <: AbstractCreationContext}
     freelist::Vector{Vector{TensorWrapper}}
     io_tensors::Set{TensorWrapper}
     constant_tensors::Set{TensorWrapper}
+
+    # Metadat to speed up down-stream algorithms
+    users::Dict{TensorWrapper, Vector{NodeWrapper}}
 end
 
 nodes(P::ProfileData) = P.nodes
@@ -75,17 +79,27 @@ nodes(P::ProfileData, inds...) = getindex(P.nodes, inds...)
 
 tensors(P::ProfileData) = P.tensors
 
+_producer(tensor::TensorWrapper, P::ProfileData) = first(P.users[tensor])
+_consumer(tensor::TensorWrapper, P::ProfileData) = last(P.users[tensor])
+_users(tensor::TensorWrapper, P::ProfileData) = P.users[tensor]
+
 function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
     fn = fex.ex.ngraph_function
 
     # Construct the tensors and nodes fields
     tensors = TensorWrapper[]
     nodes = NodeWrapper[]
+    users = Dict{TensorWrapper, Vector{NodeWrapper}}()
     for op in fn
         wrapped = NodeWrapper(op)
         push!(nodes, wrapped)
+        # Record the tensors. Also record the users at this time for convenience
         for tensor in outputs(wrapped)
             push!(tensors, tensor)
+            users[tensor] = [wrapped]
+        end
+        for tensor in inputs(wrapped)
+            push!(users[tensor], wrapped)
         end
     end
 
@@ -115,7 +129,8 @@ function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
         liveness.new_list,
         liveness.free_list,
         io_tensors,
-        constant_tensors
+        constant_tensors,
+        users
     )
     return PD
 end
@@ -230,7 +245,7 @@ end
 
 function locations(data::ProfileData{AllTensors}, tensor::TensorWrapper)
     # Now, constants are the only items that are fixed.
-    if isconstant(_producer(tensor, nodes(data)))
+    if isconstant(_producer(tensor, data))
         return [DRAM]
     else
         return [DRAM, PMEM]
@@ -242,7 +257,7 @@ isparam(t::NodeWrapper) = startswith(name(t), "Parameter")
 isresult(t::NodeWrapper) = startswith(name(t), "Result")
 
 function locations(data::ProfileData{OnlyIntermediate}, tensor::TensorWrapper)
-    producer = _producer(tensor, nodes(data))
+    producer = _producer(tensor, data)
     if isconstant(producer) || isparam(producer) || isresult(producer)
         return [DRAM]
     else

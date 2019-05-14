@@ -67,18 +67,18 @@ include("sync.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt, ctx = AllTensors(); cache = CPUKernelCache(BASE_CACHE_PATH), skip_run = false)
-    @timeit TO "creating model" fex, args = f()
+function factory(f, opt, ctx = AllTensors(); 
+        cache = CPUKernelCache(BASE_CACHE_PATH), 
+        skip_run = false
+    )
+
+    @timeit TO "building ngraph function" fex, args = f()
     @timeit TO "getting profile data" data = profile(fex, ctx; cache = cache)
 
     modeltype = opt(data)
     @timeit TO "creating model" frame = create_model(modeltype, data)
     @timeit TO "optimizing" optimize!(frame)
-    if !skip_run
-        @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
-    else
-        _metadata = nothing
-    end
+    @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
     
     return fex, args, frame, _metadata
 end

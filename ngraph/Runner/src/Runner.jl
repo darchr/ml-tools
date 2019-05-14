@@ -55,6 +55,10 @@ function setindex(io::IOConfig{N,M}, idx::Integer, x::TensorLocation) where {N,M
     return IOConfig{N,M}(inputs, outputs)
 end
 
+function Base.isless(a::IOConfig{N,M}, b::IOConfig{N,M}) where {N,M}
+    return (a.inputs < b.inputs) || ((a.inputs == b.inputs) && a.outputs < b.outputs)
+end
+
 function Base.show(io::IO, config::IOConfig{N,M}) where {N,M}
     f = x -> (x == DRAM) ? "DRAM" : "PMEM"
     print(io, "IOConfig{$N,$M}: ")

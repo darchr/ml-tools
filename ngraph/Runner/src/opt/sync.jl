@@ -9,7 +9,7 @@
 # We then create a variable that is "active" when a tensor changes location from DRAM
 # to PMEM. These variables will add time to the objective function
 struct TensorMeta
-    graph::MyMetaGraph
+    graph::MetaGraph
 
     # Nodes using this tensor
     users::Vector{NodeWrapper}
@@ -54,14 +54,6 @@ predict(F::Frame{<:SubModelType}) = objective_value(F.model)
 descriptor(F::Frame{<:SubModelType}, tensor::TensorWrapper) = F.modeltype.descriptors[tensor]
 
 #####
-##### Helper Functions
-#####
-
-# Why do these not exist in LightGraphs.jl??
-inedges(g, v) = (edgetype(g)(u, v) for u in inneighbors(g, v))
-outedges(g, v) = (edgetype(g)(v, u) for u in outneighbors(g, v))
-
-#####
 ##### Entry Point
 #####
 
@@ -90,8 +82,10 @@ function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyInt
     return frame
 end
 
+## Metadata For graph creation
 @enum VertexLocation LOC_PMEM LOC_DRAM LOC_SOURCE LOC_SINK
 @enum EdgeType EDGE_READ EDGE_WRITE EDGE_NONE
+@enum MoveType MOVE_SYNC MOVE_ASYNC MOVE_NONE
 
 # Metadata to assign to each node in the liveness graph for tensors.
 struct VertexMetadata
@@ -107,25 +101,24 @@ struct EdgeMetadata
     edgetype::EdgeType
 end
 
-#_meta(g, x) = get_prop(g, x, :metadata)
-
 #####
 ##### Preprocessing
 #####
 
 # Preprocessing basically involves creating the tensor graphs for each intermediate tensor.
 
-function _liverange(nodes::Vector{NodeWrapper}, t::TensorWrapper)
-    start = findfirst(x -> in(t, outputs(x)), nodes)::Int
-    stop = findlast(x -> in(t, inputs(x)), nodes)
+function _liverange(data::ProfileData, t::TensorWrapper)
+    start = findfirst(isequal(_producer(t, data)), nodes(data))::Int
+    stop = findlast(isequal(_consumer(t, data)), nodes(data))
     isnothing(stop) && (stop = length(nodes))
     return start:stop
 end
 
 function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
-    liverange = _liverange(nodes(data), t)
+    liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
-    users = [n for n in livenodes if in(t, inputs(n)) || in(t, outputs(n))]
+    #users = [n for n in livenodes if in(t, inputs(n)) || in(t, outputs(n))]
+    users = _users(t, data)
 
     # Build the referece map
     reference_map = Dict{NodeWrapper, NodeWrapper}()
@@ -142,7 +135,7 @@ function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
 end
 
 function _getgadgets(::Static, data::ProfileData, t::TensorWrapper)
-    liverange = _liverange(nodes(data), t)
+    liverange = _liverange(data, t)
     producer = nodes(data, first(liverange))
 
     reference_map = Dict{NodeWrapper, NodeWrapper}()
@@ -176,26 +169,7 @@ function edge_metadata(src, dst, s, d)
     return nothing
 end
 
-function preprocess!(S::Synchronous, data::ProfileData)
-    # Create a dictionary mapping source and destination locations to a function.
-    #
-    # That function will take the gadget numbers of the source and destination. If
-    # there should be an edge, return the appropriate metadata. Otherwise, return
-    # `nothing`.
-    # metadata_map = Dict(
-    #     (LOC_SOURCE, LOC_DRAM) => (s,d) -> isone(d) ? EdgeMetadata(EDGE_NONE) : nothing,
-    #     (LOC_SOURCE, LOC_PMEM) => (s,d) -> isone(d) ? EdgeMetadata(EDGE_NONE) : nothing,
-
-    #     # LOC_DRAM as source
-    #     (LOC_DRAM, LOC_DRAM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
-    #     (LOC_DRAM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_WRITE) : nothing,
-    #     (LOC_DRAM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
-
-    #     # LOC_PMEM as source
-    #     (LOC_PMEM, LOC_DRAM) => (s,d) -> (s == d) && !isone(s) ? EdgeMetadata(EDGE_READ) : nothing,
-    #     (LOC_PMEM, LOC_PMEM) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
-    #     (LOC_PMEM, LOC_SINK) => (s,d) -> (s == d-1) ? EdgeMetadata(EDGE_NONE) : nothing,
-    # )
+function preprocess!(S::SubModelType, data::ProfileData)
 
     for tensor in tensors(data)
         # Get the users of this node
@@ -206,11 +180,10 @@ function preprocess!(S::Synchronous, data::ProfileData)
         @assert !isempty(users)
 
         # Graph building time :D
-        #g = MetaDiGraph()
-        g = MyMetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
+        g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
 
         # Add nodes for each region
-        for (count, node) in enumerate(users)
+        @timeit TO "creating graph vertices" for (count, node) in enumerate(users)
             islast = (count == length(users))
 
             if count == 1
@@ -224,19 +197,16 @@ function preprocess!(S::Synchronous, data::ProfileData)
             for location in locations(data, tensor)
                 if location == DRAM
                     # Add DRAM node
-                    #add_vertex!(g, :metadata, VertexMetadata(count, node, LOC_DRAM))
                     add_vertex!(g, VertexMetadata(count, node, LOC_DRAM))
                 end
 
                 if location == PMEM
                     # Add pre and post PMEM nodes
-                    #add_vertex!(g, :metadata, VertexMetadata(count, node, LOC_PMEM))
                     add_vertex!(g, VertexMetadata(count, node, LOC_PMEM))
                 end
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                #add_vertex!(g, :metadata, VertexMetadata(count + 1, node, LOC_SINK))
                 add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK))
             end
         end
@@ -244,24 +214,12 @@ function preprocess!(S::Synchronous, data::ProfileData)
         # Use a quadratic complexity algorithm for doing edge assignment. It's not
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
-        for src in vertices(g), dst in vertices(g)
+        @timeit TO "creating graph edges" for src in vertices(g), dst in vertices(g)
             src == dst && continue
 
             src_meta = _meta(g, src)
             dst_meta = _meta(g, dst)
 
-            # Create a key from the source and destination pairs
-            #key = (src_meta.location, dst_meta.location)
-
-            # Get the metadata function from `metadata_map` and pass the source and
-            # destination gadget numbers to the function.
-            #
-            # If the result is `nothing`, no edge should be created. Otherwise, create
-            # an edge with the given metadata.
-            #
-            # Also, dynamic dispatch in a loop. That's smart.
-            #fn = get(metadata_map, key, (args...) -> nothing)
-            #metadata = fn(src_meta.gadget, dst_meta.gadget)
             metadata = edge_metadata(
                 src_meta.location,
                 dst_meta.location,
@@ -284,33 +242,33 @@ end
 ##### Adding Tensors
 #####
 
-function add_tensors!(F::Frame{Synchronous})
-    data = F.profile_data
-    modeltype = F.modeltype
+function add_tensors!(frame::Frame{<:SubModelType})
+    data = frame.profile_data
+    modeltype = frame.modeltype
 
-    # Create variables for the tensors
-    @variable(F.model,
+    # Create variables for the tensors and add flow constraints to the to the tensor graphs
+    @variable(frame.model,
         tensor_graphs[
             tensor = tensors(data),
-            e = edges(graph(descriptor(F, tensor)))
+            e = edges(graph(descriptor(frame, tensor)))
         ],
         Bin
     )
 
     for tensor in tensors(data)
-        g = graph(descriptor(F, tensor))
+        g = graph(descriptor(frame, tensor))
         # Iterate through nodes in the graph - generating constraints based on the type
         # of node.
         for v in vertices(g)
             # Set flow coming out of the source node
             if _meta(g, v).location == LOC_SOURCE
-                @constraint(F.model,
+                @constraint(frame.model,
                     sum(tensor_graphs[tensor, e] for e in outedges(g, v)) == 1
                 )
 
             # Set flow going into the sink node
             elseif _meta(g, v).location == LOC_SINK
-                @constraint(F.model,
+                @constraint(frame.model,
                     sum(tensor_graphs[tensor, e] for e in inedges(g, v)) == 1
                 )
 
@@ -318,7 +276,7 @@ function add_tensors!(F::Frame{Synchronous})
             else
                 oe = collect(outedges(g, v))
                 ie = collect(inedges(g, v))
-               @constraint(F.model,
+               @constraint(frame.model,
                    sum(tensor_graphs[tensor, e] for e in oe) - sum(tensor_graphs[tensor, e] for e in ie) == 0
                )
            end
@@ -329,23 +287,71 @@ function add_tensors!(F::Frame{Synchronous})
     ##### Add objective penalty for moving data
     #####
 
-    objective_expr = F.model[:objective_expr]
-    read_bandwidth = F.modeltype.read_bandwidth
-    write_bandwidth = F.modeltype.write_bandwidth
+    add_movement_formulations!(frame)
+
+    #####
+    ##### Create variables to determine if a tensor is in DRAM.
+    #####
+
+    @variable(frame.model,
+        tensor_in_dram[
+            tensor = tensors(data),
+            user = name.(users(descriptor(frame, tensor)))
+        ],
+        Bin
+    )
+
+    # A tensor in DRAM is live if any of its incoming edges are used.
+    for tensor in tensors(data)
+        desc = descriptor(frame, tensor)
+        g = graph(desc)
+
+        #for op in descriptors[name].ops_using_tensor
+        for user in users(desc)
+            # Get the DRAM and PREAD vertices for this op.
+            vertex = find_vertex(
+                g,
+                (g,v) -> _meta(g, v).location == LOC_DRAM && _meta(g, v).op == user
+            )
+
+            # Map `inedges` to `vertex_iter` and iterats over all those edges
+            for e in inedges(g, vertex)
+                @constraint(frame.model, tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e])
+            end
+
+            # If all incoming edges are not taken, tensor MUST not be in DRAM.
+            @constraint(frame.model,
+                sum(tensor_graphs[tensor, e] for e in inedges(g, vertex)) >=
+                    tensor_in_dram[tensor, name(user)]
+            )
+        end
+    end
+
+    return nothing
+end
+
+# Formulation specific move node stuff
+add_movement_formulations!(frame::Frame{Static}) = nothing
+function add_movement_formulations!(frame::Frame{Synchronous})
+    data = frame.profile_data
+    objective_expr = frame.model[:objective_expr]
+    tensor_graphs = frame.model[:tensor_graphs]
+    read_bandwidth = frame.modeltype.read_bandwidth
+    write_bandwidth = frame.modeltype.write_bandwidth
 
     # A tensor is written to dram if:
     # - It was not created into PMEM
     # - Any edge from DRAM to PMEM is taken
     #
     # NOTE: We only pay the write cost once.
-    @variable(F.model, tensor_write[tensor = tensors(data)], Bin)
+    @variable(frame.model, tensor_write[tensor = tensors(data)], Bin)
 
     # Add objective terms for all read ops
     for tensor in tensors(data)
         # Skip if this tensor can never be assigned to PMEM
         in(PMEM, locations(data, tensor)) || continue
 
-        g = graph(descriptor(F, tensor))
+        g = graph(descriptor(frame, tensor))
         bytes = sizeof(tensor)
 
         read_cost = round(Int, bytes / read_bandwidth)
@@ -367,55 +373,20 @@ function add_tensors!(F::Frame{Synchronous})
         edge_var = tensor_graphs[tensor, first_pmem_edge]
 
         # If the tensor is created into PMEM, we never write
-        @constraint(F.model, tensor_write[tensor] <= 1 - edge_var)
+        @constraint(frame.model, tensor_write[tensor] <= 1 - edge_var)
 
         # `tensor_write` must be 1 if `edge_var == 1` and any write edge is taken
         #edge_iter = filter_edges(g, (g,e) -> _meta(g, e).edgetype == EDGE_WRITE)
         edge_iter = filter(e -> _meta(g, e).edgetype == EDGE_WRITE, collect(edges(g)))
         for e in edge_iter
-            @constraint(F.model, tensor_write[tensor] >= tensor_graphs[tensor, e] - edge_var)
+            @constraint(frame.model, tensor_write[tensor] >= tensor_graphs[tensor, e] - edge_var)
         end
 
         # If all write edges are not taken, tensor_write must be zero
-        @constraint(F.model, tensor_write[tensor] <= sum(tensor_graphs[tensor, e] for e in edge_iter))
+        @constraint(frame.model, tensor_write[tensor] <= sum(tensor_graphs[tensor, e] for e in edge_iter))
         add_to_expression!(objective_expr, write_cost, tensor_write[tensor])
     end
-
-    @variable(F.model,
-        tensor_in_dram[
-            tensor = tensors(data),
-            user = name.(users(descriptor(F, tensor)))
-        ],
-        Bin
-    )
-
-    # A tensor in DRAM is live if any of its incoming edges are used.
-    for tensor in tensors(data)
-        desc = descriptor(F, tensor)
-        g = graph(desc)
-
-        #for op in descriptors[name].ops_using_tensor
-        for user in users(desc)
-            # Get the DRAM and PREAD vertices for this op.
-            vertex = find_vertex(
-                g,
-                (g,v) -> _meta(g, v).location == LOC_DRAM && _meta(g, v).op == user
-            )
-
-            # Map `inedges` to `vertex_iter` and iterats over all those edges
-            for e in inedges(g, vertex)
-                @constraint(F.model, tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e])
-            end
-
-            # If all incoming edges are not taken, tensor MUST not be in DRAM.
-            @constraint(F.model,
-                sum(tensor_graphs[tensor, e] for e in inedges(g, vertex)) >=
-                    tensor_in_dram[tensor, name(user)]
-            )
-        end
-    end
-
-    return
+    return nothing
 end
 
 # There's an issue when trying to reference whether or not a tensor is in DRAM.
@@ -426,7 +397,7 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function get_tensor_in_dram(F::Frame{Synchronous}, tensor::TensorWrapper, node::NodeWrapper)
+function get_tensor_in_dram(F::Frame{<:SubModelType}, tensor::TensorWrapper, node::NodeWrapper)
     desc = descriptor(F, tensor)
 
     if in(node, users(desc))
@@ -435,11 +406,13 @@ function get_tensor_in_dram(F::Frame{Synchronous}, tensor::TensorWrapper, node::
         ref = get_reference(desc, node)
         edge = find_edge(
             desc.graph,
-            # Source vertex must be in one of the dram locations
-            # and outgoing edge must map to the same location.
+            # Source vertex must be in DRAM.
+            # Destination can be in DRAM or SINK.
+            #
+            # We expect the SINK case to only apply the Static case.
             (g,e) -> _meta(g, src(e)).location == LOC_DRAM &&
                 _meta(g, src(e)).op == ref &&
-                _meta(g, dst(e)).location == LOC_DRAM
+                in(_meta(g, dst(e)).location, (LOC_DRAM, LOC_SINK))
         )
 
         # Return the edge in question
@@ -447,7 +420,7 @@ function get_tensor_in_dram(F::Frame{Synchronous}, tensor::TensorWrapper, node::
     end
 end
 
-function add_nodes!(F::Frame{Synchronous})
+function add_nodes!(F::Frame{<:SubModelType})
     data = F.profile_data
 
     for node in nodes(data)
@@ -509,7 +482,7 @@ end
 tensor_size(t::TensorWrapper) = tensor_size(sizeof(t))
 tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
-function add_constraints!(F::Frame{Synchronous})
+function add_constraints!(F::Frame{<:SubModelType})
     # Unpack some variables
     data = F.profile_data
 
@@ -533,42 +506,16 @@ end
 ##### Conifiguration
 #####
 
-function get_schedule(F::Frame{Synchronous})
-    data = F.profile_data
-    model_graphs = F.model[:tensor_graphs]
-
-    schedule = Dict{TensorWrapper, Vector{VertexMetadata}}()
-
-    for tensor in tensors(data)
-        g = graph(descriptor(F, tensor))
-
-        # Trace the route taken through the graph
-        v = find_vertex(g, (g, v) -> _meta(g, v).location == LOC_SOURCE)
-
-        path = [_meta(g, v)]
-        while _meta(g, v).location != LOC_SINK
-            for e in outedges(g, v)
-                if approx_one(value(model_graphs[tensor, e]))
-                    v = dst(e)
-                    break
-                end
-            end
-            push!(path, _meta(g, v))
-        end
-        # Drop the first source element and last sink element
-        popfirst!(path)
-        pop!(path)
-
-        schedule[tensor] = path
-    end
-
-    return schedule
+struct MoveAction
+    consumers::Vector{NodeWrapper}
+    location::TensorLocation
+    replace_incumbent::Bool
 end
 
-function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
+function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:SubModelType})
     # Unpack args
-    data = F.profile_data
-    tensor_graphs = F.model[:tensor_graphs]
+    data = frame.profile_data
+    tensor_graphs = frame.model[:tensor_graphs]
     fn = fex.ex.ngraph_function
     _cleanup!(fn)
 
@@ -576,9 +523,10 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     config = Dict{TensorWrapper, TensorLocation}()
 
     # Process the move node chains
-    schedule = get_schedule(F)
-    for (tensor, vertices) in schedule
+    schedule = get_schedule(frame)
+    action_map = Dict{TensorWrapper, Vector{MoveAction}}()
 
+    for (tensor, vertices) in schedule
         initial_location = first(vertices).location
         if initial_location == LOC_PMEM
             config[tensor] = PMEM
@@ -590,8 +538,9 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
 
         # Get a list of move actions that we will have to perform.
         actions = getactions(vertices)
+        action_map[tensor] = actions
 
-        producer = _producer(tensor, nodes(data))
+        producer = _producer(tensor, data)
         producer_output = _find(isequal(tensor), outputs(producer))
 
         for action in actions
@@ -638,6 +587,8 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
         end
     end
 
+    @assert action_verification(frame.modeltype, action_map)
+
     #####
     ##### Apply the config
     #####
@@ -659,49 +610,44 @@ function configure!(fex::nGraph.FluxExecutable, F::Frame{Synchronous})
     #####
     #verify_moves(fex, move_nodes_created)
 
-    return fex, nothing
+    return fex, action_map
 end
 
-# your moves are weak
-function profile_moves(fex, args, move_nodes::Dict)
-    timing_data = read_timing_data(fex.ex.ngraph_function)
-    computed_stats = Dict{String, NamedTuple}()
-    for (node_name, stats) in move_nodes
-        time = timing_data[findfirst(x -> x["name"] == node_name, timing_data)]["dur"]
-        # Convert bytes to GB, time from μs to s
-        bandwidth = (stats.bytes / 1E9) / (time / 1E6)
-        computed_stats[node_name] = merge(stats, (bandwidth = bandwidth, ))
-    end
+# For the static formulation, we must make sure that no move ops were emitted
+action_verification(::Static, action_map) = all(isempty, values(action_map))
+action_verification(::SubModelType, action_map) = true
 
-    # Summarize read and write bandwidth
-    println("Read Bandwidths")
-    for (node_name, stats) in computed_stats
-        if stats.write_to_pmem == false
-            println("$node_name => $(stats.bandwidth) GB/s")
-            println("    size: $(stats.bytes) B")
+# Get the path of the tensor traced through the graph
+function get_schedule(F::Frame{<:SubModelType})
+    data = F.profile_data
+    model_graphs = F.model[:tensor_graphs]
+
+    schedule = Dict{TensorWrapper, Vector{VertexMetadata}}()
+
+    for tensor in tensors(data)
+        g = graph(descriptor(F, tensor))
+
+        # Trace the route taken through the graph
+        v = find_vertex(g, (g, v) -> _meta(g, v).location == LOC_SOURCE)
+
+        path = [_meta(g, v)]
+        while _meta(g, v).location != LOC_SINK
+            for e in outedges(g, v)
+                if approx_one(model_graphs[tensor, e])
+                    v = dst(e)
+                    break
+                end
+            end
+            push!(path, _meta(g, v))
         end
-    end
-    println()
-    println("Write Bandwidths")
-    for (node_name, stats) in computed_stats
-        if stats.write_to_pmem == true
-            println("$node_name => $(stats.bandwidth) GB/s")
-            println("    size: $(stats.bytes) B")
-        end
+        # Drop the first source element and last sink element
+        popfirst!(path)
+        pop!(path)
+
+        schedule[tensor] = path
     end
 
-    return computed_stats
-end
-
-#=
-Okay, so converting the schedule of move operation into a useable form actual turs out to
-be more complicated than I originally thought.
-=#
-
-struct MoveAction
-    consumers::Vector{NodeWrapper}
-    location::TensorLocation
-    replace_incumbent::Bool
+    return schedule
 end
 
 # Consume all of the PKEEP nodes.
@@ -757,4 +703,61 @@ function getactions(vertices::Vector{VertexMetadata})
         filter!(!isequal(producing_op), action.consumers)
     end
     return actions
+end
+
+#####
+##### Misc Stuff
+#####
+
+estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Static}) = zero(Float64)
+function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Synchronous})
+    # Get the read and write bandwidths from the frame.
+    write_bandwidth = frame.modeltype.write_bandwidth
+    read_bandwidth = frame.modeltype.read_bandwidth
+
+    move_time = zero(Float64)
+    for _node in fex.ex.ngraph_function
+        node = NodeWrapper(_node)
+        if description(node) == "Move"
+            tensor = first(outputs(node))
+            if is_persistent(tensor)
+                move_time += sizeof(tensor) / write_bandwidth
+            else
+                move_time += sizeof(tensor) / read_bandwidth
+            end
+        end
+    end
+    return move_time
+end
+
+
+# your moves are weak
+function profile_moves(fex, args, move_nodes::Dict)
+    timing_data = read_timing_data(fex.ex.ngraph_function)
+    computed_stats = Dict{String, NamedTuple}()
+    for (node_name, stats) in move_nodes
+        time = timing_data[findfirst(x -> x["name"] == node_name, timing_data)]["dur"]
+        # Convert bytes to GB, time from μs to s
+        bandwidth = (stats.bytes / 1E9) / (time / 1E6)
+        computed_stats[node_name] = merge(stats, (bandwidth = bandwidth, ))
+    end
+
+    # Summarize read and write bandwidth
+    println("Read Bandwidths")
+    for (node_name, stats) in computed_stats
+        if stats.write_to_pmem == false
+            println("$node_name => $(stats.bandwidth) GB/s")
+            println("    size: $(stats.bytes) B")
+        end
+    end
+    println()
+    println("Write Bandwidths")
+    for (node_name, stats) in computed_stats
+        if stats.write_to_pmem == true
+            println("$node_name => $(stats.bandwidth) GB/s")
+            println("    size: $(stats.bytes) B")
+        end
+    end
+
+    return computed_stats
 end
