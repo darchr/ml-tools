@@ -5,6 +5,9 @@ using Runner, Zoo, Serialization, nGraph, JuMP
 _inception_v4_3072() = Zoo.inception_v4_training(3072)
 savefile(::typeof(_inception_v4_3072)) = "inception_v4_3072.jls"
 
+_inception_v4_3200() = Zoo.inception_v4_training(3200)
+savefile(::typeof(_inception_v4_3200)) = "inception_v4_3200.jls"
+
 _inception_v4_256() = Zoo.inception_v4_training(256)
 savefile(::typeof(_inception_v4_256)) = "inception_v4_256.jls"
 
@@ -25,6 +28,9 @@ savefile(::typeof(_resnet200_128)) = "resnet200_128.jls"
 _vgg416_128() = Zoo.vgg_training(Zoo.Vgg416(), 128)
 savefile(::typeof(_vgg416_128)) = "vgg416_128.jls"
 
+_vgg416_160() = Zoo.vgg_training(Zoo.Vgg416(), 160)
+savefile(::typeof(_vgg416_160)) = "vgg416_160.jls"
+
 _vgg19_128() = Zoo.vgg_training(Zoo.Vgg19(), 128)
 savefile(::typeof(_vgg19_128)) = "vgg19_128.jls"
 
@@ -33,8 +39,8 @@ savefile(::typeof(_vgg19_128)) = "vgg19_128.jls"
 ##### The function to actually use
 #####
 
-f = _resnet200_256
-skip_run = true
+f = _inception_v4_3072
+skip_run = false
 nsteps = 20
 
 # Generator functions for the various optimization methods
@@ -64,8 +70,8 @@ r = exp10.(range(0, 1; length = nsteps))
 r = r .- minimum(r)
 fractions = r ./ maximum(r)
 
-static_iter = static.(fractions)
-synchronous_iter = synchronous.(fractions)
+static_iter = static.(fractions[2:end])
+synchronous_iter = synchronous.(fractions[2:end])
 
 # Liveness Analysis
 style = Runner.OnlyIntermediate()
@@ -73,8 +79,8 @@ prefix = skip_run ? "skipped_" : ""
 
 # Simple formulation
 file = "serials/" * prefix * "static_" * savefile(f)
-Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)
+#Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)
 
 # Synchronous Formulation
-file = "serials/" * prefix * "synchronous_" * savefile(f)
+file = "serials/temp_" * prefix * "synchronous_" * savefile(f)
 Runner.compare(f, synchronous_iter, style; statspath = file, skip_run = skip_run)

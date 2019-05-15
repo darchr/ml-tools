@@ -1,0 +1,12 @@
+name = "Mop"
+uuid = "af1e13ce-7f61-5de0-96a8-247ca740a439"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
