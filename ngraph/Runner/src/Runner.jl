@@ -80,6 +80,7 @@ include("profiler/profile.jl")
 include("visualize.jl")
 include("verifier.jl")
 include("visualizer/analyzer.jl")
+include("reuse.jl")
 
 hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))

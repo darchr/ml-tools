@@ -39,7 +39,7 @@ savefile(::typeof(_vgg19_128)) = "vgg19_128.jls"
 ##### The function to actually use
 #####
 
-f = _inception_v4_3072
+f = _vgg416_160
 skip_run = false
 nsteps = 20
 
@@ -70,17 +70,17 @@ r = exp10.(range(0, 1; length = nsteps))
 r = r .- minimum(r)
 fractions = r ./ maximum(r)
 
-static_iter = static.(fractions[2:end])
-synchronous_iter = synchronous.(fractions[2:end])
+static_iter = static.(fractions)
+synchronous_iter = synchronous.(fractions)
 
-# Liveness Analysis
+# For Liveness Analysis
 style = Runner.OnlyIntermediate()
 prefix = skip_run ? "skipped_" : ""
 
+# Synchronous Formulation
+file = "serials/" * prefix * "synchronous_" * savefile(f)
+Runner.compare(f, synchronous_iter, style; statspath = file, skip_run = skip_run)
+
 # Simple formulation
 file = "serials/" * prefix * "static_" * savefile(f)
-#Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)
-
-# Synchronous Formulation
-file = "serials/temp_" * prefix * "synchronous_" * savefile(f)
-Runner.compare(f, synchronous_iter, style; statspath = file, skip_run = skip_run)
+Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)
