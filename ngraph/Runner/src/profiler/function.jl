@@ -221,3 +221,39 @@ struct PlotDispatch end
         end
     end
 end
+
+#####
+##### Compare the running times of a function with the predicted runtime.
+#####
+function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
+    kernel_times = read_timing_data(fex.ex.ngraph_function)
+    results = []
+
+    # Iterate through the kernels - find kernels with timing parameter, get their time,
+    # and then find what the expected runtime is.
+    for op in fex.ex.ngraph_function
+        op_wrapped = NodeWrapper(op)
+        if !hasprofile(op_wrapped) || description(op_wrapped) == "Move"
+            continue
+        end
+
+        op_name = name(op_wrapped)
+        config = getconfig(op)
+
+        # Get the actual run time.
+        index = findfirst(x -> x["name"] == op_name, kernel_times)
+        actual_runtime = kernel_times[index]["dur"]
+
+        # Get the expected run time
+        index = findfirst(isequal(op_wrapped), nodes(data))
+        expected_time = nodes(data, index).timings[config]
+
+        push!(results, (
+            name = op_name,
+            config = config,
+            actual = actual_runtime,
+            expected = expected_time,
+        ))
+    end
+    return results
+end

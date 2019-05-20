@@ -1,22 +1,34 @@
+@enum MemoryPool POOL_SOURCE POOL_SINK POOL_DRAM POOL_PMEM
+
 #####
 ##### Datatype for Tensors
 #####
 
-struct Tensor{T,P}
+abstract type AbstractTensor
+
+struct Tensor{T} <: AbstractTensor
     size::Int64
     islive::Bool
+    pools::Vector{MemoryPool}
+    # For graph creation
+    sync_moves::Vector{T}
+    async_moves::Vector{T}
     users::Vector{T}
-    pools::Vector{P}
 end
 
 _producer(T::Tensor) = first(T.users)
 _lastuser(T::Tensor) = last(T.users)
 _users(T::Tensor) = T.users
+_pools(T::Tensor) = T.pools
 
 Base.sizeof(T::Tensor) = T.size
 islive(T::Tensor) = T.islive
 
 _liverange(T::Tensor) = _index(_producer(T)):_index(_consumer(T))
+
+issync(T::Tensor, K) = in(K, T.sync_moves)
+isasync(T::Tensor, K) = in(K, T.async_moves)
+ismove(T::Tensor, K) = issync(T,K) || isasync(T,K)
 
 #####
 ##### Datatypes for Kernels
@@ -30,24 +42,23 @@ struct KernelLUT{T} <: AbstractKernelObjective
     data::Dict{T,Float64}
 end
 
-struct Kernel{K <: AbstractKernelObjective, P}
+struct Kernel{K <: AbstractKernelObjective}
     # This kernel's index in the computation graph
     index::Int
-    inputs::Vector{Tensor{Kernel, P}}
-    outputs::Vector{Tensor{Kernel, P}}
+    inputs::Vector{Tensor{Kernel}}
+    outputs::Vector{Tensor{Kernel}}
 
     # The type of objective function to use
     objective::K
 
     # New and freed tensors from liveness analysis
-    tensor_newlist::Vector{Tensor{Kernel, P}}
-    tensor_freelist::Vector{Tensor{Kernel, P}}
+    tensor_newlist::Vector{Tensor{Kernel}}
+    tensor_freelist::Vector{Tensor{Kernel}}
 end
 
 _inputs(K::Kernel) = K.inputs
 _outputs(K::Kernel) = K.outputs
 _index(K::Kernel) = K.index
-
 
 #####
 ##### Computation Graph

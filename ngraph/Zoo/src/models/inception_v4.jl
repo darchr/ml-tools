@@ -241,7 +241,6 @@ function inception_v4_training(batchsize; kw...)
 
     forward = inception_v4(x)
 
-    # TODO: Bad loss function for now
     f(x, y) = Flux.crossentropy(forward(x), y)
 
     g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)), kw...)

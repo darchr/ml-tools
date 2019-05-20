@@ -15,6 +15,9 @@ _inception_v4_128() = Zoo.inception_v4_training(128)
 savefile(::typeof(_inception_v4_128)) = "inception_v4_128.jls"
 
 # Resnet
+_resnet50_128() = Zoo.resnet_training(Zoo.Resnet50(), 128)
+savefile(::typeof(_resnet50_128)) = "resnet50_128.jls"
+
 _resnet50_256() = Zoo.resnet_training(Zoo.Resnet50(), 256)
 savefile(::typeof(_resnet50_256)) = "resnet50_256.jls"
 
@@ -34,12 +37,16 @@ savefile(::typeof(_vgg416_160)) = "vgg416_160.jls"
 _vgg19_128() = Zoo.vgg_training(Zoo.Vgg19(), 128)
 savefile(::typeof(_vgg19_128)) = "vgg19_128.jls"
 
+# DenseNet
+_densenet264_128() = Zoo.densenet_training(128)
+savefile(::typeof(_densenet264_128)) = "densenet264_128"
+
 
 #####
 ##### The function to actually use
 #####
 
-f = _vgg416_160
+f = _densenet264_128
 skip_run = false
 nsteps = 20
 
@@ -65,22 +72,22 @@ static(n) = function(data)
     return Runner.Static(x)
 end
 
-# Fractions of the dram limit to use
-r = exp10.(range(0, 1; length = nsteps))
-r = r .- minimum(r)
-fractions = r ./ maximum(r)
-
-static_iter = static.(fractions)
-synchronous_iter = synchronous.(fractions)
-
-# For Liveness Analysis
-style = Runner.OnlyIntermediate()
-prefix = skip_run ? "skipped_" : ""
-
-# Synchronous Formulation
-file = "serials/" * prefix * "synchronous_" * savefile(f)
-Runner.compare(f, synchronous_iter, style; statspath = file, skip_run = skip_run)
-
-# Simple formulation
-file = "serials/" * prefix * "static_" * savefile(f)
-Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)
+# # Fractions of the dram limit to use
+# r = exp10.(range(0, 1; length = nsteps))
+# r = r .- minimum(r)
+# fractions = r ./ maximum(r)
+# 
+# static_iter = static.(fractions)
+# synchronous_iter = synchronous.(fractions)
+# 
+# # For Liveness Analysis
+# style = Runner.OnlyIntermediate()
+# prefix = skip_run ? "skipped_" : ""
+# 
+# # Synchronous Formulation
+# file = "serials/" * prefix * "synchronous_" * savefile(f)
+# #Runner.compare(f, synchronous_iter, style; statspath = file, skip_run = skip_run)
+# 
+# # Simple formulation
+# file = "serials/" * prefix * "static_" * savefile(f)
+# Runner.compare(f, static_iter, style; statspath = file, skip_run = skip_run)

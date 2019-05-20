@@ -65,7 +65,7 @@ function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyInt
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60, MIPGap = 0.0003))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 180, MIPGap = 0.0003))
     frame = Frame(modeltype, model, profile_data)
 
     # Create an empty expression that will be progressively generated to the final

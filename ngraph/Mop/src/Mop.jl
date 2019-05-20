@@ -1,5 +1,6 @@
 module Mop
 
+using Parameters
 using JuMP, Gurobi
 
 include("types.jl")
