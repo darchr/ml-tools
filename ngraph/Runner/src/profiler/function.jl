@@ -73,7 +73,7 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt_iter, ctx = OnlyIntermediate(); 
+function compare(f, opt, ctx = OnlyIntermediate(); 
                  cache = CPUKernelCache(BASE_CACHE_PATH), 
                  statspath = nothing,
                  skip_run = false,
@@ -85,26 +85,22 @@ function compare(f, opt_iter, ctx = OnlyIntermediate();
         stats = deserialize(statspath)
     end
 
-    for (index, opt) in enumerate(opt_iter)
-        println("Processing $index of $(length(opt_iter))")
+    # Use an inner function so that the FluxExecutable (and thus ngraph executable)
+    # go out of scope and are thus elegible for garbage collection.
+    #
+    # Further, invoke the GC before calling this function.
+    #
+    # This will hopefully cleanup any previous Executables and the large memory buffers
+    # associated with them.
+    nGraph.purge!()
+    _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run)
+    isnothing(statspath) || serialize(statspath, stats)
 
-        # Use an inner function so that the FluxExecutable (and thus ngraph executable)
-        # go out of scope and are thus elegible for garbage collection.
-        #
-        # Further, invoke the GC before calling this function.
-        #
-        # This will hopefully cleanup any previous Executables and the large memory buffers
-        # associated with them.
-        GC.gc()
-        _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run)
-        isnothing(statspath) || serialize(statspath, stats)
-
-        if !skip_run
-            @info """
-            Predicted Run Time: $(last(stats.predicted_runtimes))
-            Actual Run Time: $(last(stats.actual_runtimes))
-            """
-        end
+    if !skip_run
+        @info """
+        Predicted Run Time: $(last(stats.predicted_runtimes))
+        Actual Run Time: $(last(stats.actual_runtimes))
+        """
     end
 
     return stats
@@ -225,6 +221,7 @@ end
 #####
 ##### Compare the running times of a function with the predicted runtime.
 #####
+
 function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
     kernel_times = read_timing_data(fex.ex.ngraph_function)
     results = []
@@ -253,7 +250,69 @@ function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
             config = config,
             actual = actual_runtime,
             expected = expected_time,
+            node = op_wrapped,
         ))
     end
     return results
+end
+
+#####
+##### Calibration
+#####
+
+# Sometimes, after profiling, the results from the pure profiling step are wildly 
+# inaccurate.
+#
+# In such cases, we may have to perform a post-per-node profiling step where we execute the
+# whole graph and customize our nodes times for that graph.
+_err(expected, actual) = abs(expected /1E6 - actual) / actual
+function calibrate(f, opt, ctx = OnlyIntermediate(); 
+        cache = CPUKernelCache(BASE_CACHE_PATH),
+        tol = 0.05,
+        max_iterations = 20,
+        α = 0.9,
+    )
+
+    # Enter loop
+    fex, args, frame, _metadata = factory(f, opt, ctx; cache = cache)
+    expected_runtime = Runner.predict(frame)
+    actual_runtime = gettime(fex)
+
+    err = _err(expected_runtime, actual_runtime)
+
+    iterations = 0
+    while err > tol
+        # Debug info
+        iterations += 1
+        println("Performing Calibration Iteration $iterations")
+        println("Error: $err")
+
+        # Get the individual node times. Update the state of any entry in the cache.
+        kernel_times = compare_kernel_times(fex, frame.profile_data)
+        kernels_updated = 0
+        for kernel_time in kernel_times
+            expected = minimum(kernel_time.expected)
+            actual = kernel_time.actual
+            if _err(expected, actual) > tol 
+                config = kernel_time.config
+                params = CPUKernelParams(unwrap(kernel_time.node))
+                # Update and save the cache
+                cache[(params, config)] = expected + α * (actual - expected)
+                save(cache)
+                kernels_updated += 1
+            end
+        end
+        println("Updated $kernels_updated kernels on this iteration")
+
+        iterations > max_iterations && break 
+
+        # Try again
+        fex, args, frame, _metadata = factory(f, opt, ctx; cache = cache)
+        expected_runtime = Runner.predict(frame)
+        actual_runtime = gettime(fex)
+
+        err = _err(expected_runtime, actual_runtime)
+    end
+    println("Final Error: $err")
+    return iterations
 end

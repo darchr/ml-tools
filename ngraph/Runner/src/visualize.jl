@@ -263,8 +263,9 @@ end
 #####
 
 struct AllocationView end
-@recipe function f(::AllocationView, fn::nGraph.NFunction)
-    profile_data = ProfileData(fn)
+@recipe function f(::AllocationView, fex::nGraph.FluxExecutable)
+    profile_data = ProfileData(fex)
+    fn = fex.ex.ngraph_function
 
     tensor_map = Dict{String, nGraph.TensorDescriptor}()
     for op in fn

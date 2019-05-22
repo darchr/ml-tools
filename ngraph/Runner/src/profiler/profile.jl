@@ -101,7 +101,9 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
         length(cached_configs) == length(configs) && continue 
 
         # Extract a subgraph with just this op
-        ex, inputs, outputs, copied_op = extract(unwrap(node))
+        @timeit TO "extracting node" begin 
+            ex, inputs, outputs, copied_op = extract(unwrap(node))
+        end
 
         # Profile the timings
         for config in filter(!in(cached_configs), configs)
@@ -113,10 +115,12 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
             ex = nGraph.recompile(ex)
             function_name = nGraph.name(ex.ngraph_function)
 
-            for i in 1:5
+            # Run the inner loop multiple times to warm up the cache.
+            # This seems to make a pretty big difference for smaller batchsizes.
+            @timeit TO "running inner loop" for _ in 1:3
                 ex(inputs, outputs)
-                record_time!(node, function_name, copied_op)
             end
+            @timeit TO "recording time" record_time!(node, function_name, copied_op, config)
 
             _cleanup!(copied_op)
 
@@ -135,10 +139,22 @@ end
 read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
 read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
 
-function record_time!(node::NodeWrapper, function_name, op)
+function record_time!(node::NodeWrapper, function_name, op, expected_config)
     timings = read_timing_data(function_name)
     # Get the persistence config of this op
     config = getconfig(op)
+
+    # Make sure that the expected configuration is the one we actualy get.
+    if config != expected_config
+        @error """
+        Expected config $expected_config.
+        Got Config $config.
+
+        Op Name: $(nGraph.name(op))
+        params: $(CPUKernelParams(op))
+        """
+        error()
+    end
 
     # Extract the timings and record it
     index = findfirst(x -> x["name"] == nGraph.name(op), timings)
@@ -199,10 +215,7 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     found = false
     for op in ex.ngraph_function
         # Line it up by description and input/output sizes.
-        if nGraph.description(op) == nGraph.description(copied_node) &&
-            nGraph.get_input_size(op) == nGraph.get_input_size(copied_node) &&
-            nGraph.get_output_size(op) == nGraph.get_output_size(op)
-
+        if CPUKernelParams(op) == CPUKernelParams(copied_node) 
             translated_node = op
             found = true
             break

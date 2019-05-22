@@ -34,6 +34,7 @@ mutable struct Static <: SubModelType
     descriptors::Dict{TensorWrapper, TensorMeta}
 end
 Static(a) = Static(a, Dict{TensorWrapper,TensorMeta}())
+name(::Static) = "static"
 
 # Synchronous: Can move, but cannot overlap movement with computation
 mutable struct Synchronous <: SubModelType
@@ -47,6 +48,7 @@ mutable struct Synchronous <: SubModelType
     descriptors::Dict{TensorWrapper, TensorMeta}
 end
 Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorWrapper,TensorMeta}())
+name(::Synchronous) = "synchronous"
 
 # Common Methods
 limit(S::SubModelType) = S.dram_limit

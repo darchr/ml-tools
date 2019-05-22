@@ -137,3 +137,10 @@ function resnet_training(version::T, batchsize = 16) where {T <: AbstractResnet}
     f = nGraph.compile(g, X, Y; optimizer = nGraph.SGD(Float32(0.0001)))
     return f, (X, Y)
 end
+
+function resnet_inference(version::T, batchsize = 16) where {T <: AbstractResnet}
+    backend = nGraph.Backend()
+    X = nGraph.Tensor(backend, rand(Float32, 224, 224, 3, batchsize))
+    f = nGraph.compile(_resnet(version), X)
+    return f, (X,)
+end
