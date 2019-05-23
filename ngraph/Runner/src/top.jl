@@ -11,6 +11,15 @@ function entry(fns, opts)
 
         # Run for the product of functions and optimization targets.
         for opt in opts
+            iterations = calibrate(f, opt)
+
+            @info """
+            Function: $(name(f))
+            Opt: $(name(opt))
+            Iterations: $iterations
+            """
+        end
+        for opt in opts
             _entry(f, opt)
         end
     end
@@ -39,15 +48,6 @@ end
 
 function _entry(f, opt)
     # Perform a profiling and calibration
-    iterations = calibrate(f, opt)
-    GC.gc()
-
-    @info """
-    Function: $(name(f))
-    Opt: $(name(opt))
-    Iterations: $iterations
-    """
-
     savefile = joinpath(savedir(f), join((name(f), name(opt)), "_") * ".jls")
     compare(f, opt; statspath = savefile)
     return nothing

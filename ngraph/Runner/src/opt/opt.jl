@@ -78,7 +78,9 @@ function factory(f, opt, ctx = AllTensors();
     modeltype = opt(data)
     @timeit TO "creating model" frame = create_model(modeltype, data)
     @timeit TO "optimizing" optimize!(frame)
+    @info "Configuring"
     @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
+    @info "Done Configuring"
     
     return fex, args, frame, _metadata
 end

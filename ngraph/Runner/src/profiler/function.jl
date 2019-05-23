@@ -5,40 +5,13 @@ function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 2
     mintime = typemax(Float64)
     times = 1
     while (now() < start + timeout) || (times <= min_calls)
+        @info "Running Function"
         runtime = @elapsed(fex())
+        @info "Done Running Function"
         mintime = min(mintime, runtime)
         times += 1
     end
     return mintime
-end
-
-function all_dram_time(fex, args)
-    # Get timing for All DRAM
-    backend = fex.ex.backend
-    Runner._cleanup!(fex.ex.ngraph_function)
-    fex = nGraph.recompile(fex)
-    return fex, gettime(fex)
-end
-
-function all_pmem_time(fex, args, profile_data)
-    backend = fex.ex.backend
-
-    # Get timing for All PMEM
-    for fn_node in fex.ex.ngraph_function
-        hasprofile(fn_node) || continue
-
-        # Check the output tensors of this node can live in PMEM. If so, assign them there
-        for tensor in nGraph.output_descriptors(fn_node)
-            tensor_name = nGraph.get_name(tensor)
-            if in(Runner.PMEM, profile_data.tensors[tensor_name].locations)
-                nGraph.make_persistent(tensor)
-            end
-        end
-    end
-    fex = nGraph.recompile(fex)
-    pmem_time = gettime(fex)
-
-    return fex, pmem_time
 end
 
 _base_stats() = (
@@ -92,7 +65,7 @@ function compare(f, opt, ctx = OnlyIntermediate();
     #
     # This will hopefully cleanup any previous Executables and the large memory buffers
     # associated with them.
-    nGraph.purge!()
+    GC.gc()
     _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run)
     isnothing(statspath) || serialize(statspath, stats)
 
@@ -118,6 +91,7 @@ end
 
 function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
     fex, args, frame, _metadata = factory(f, opt, ctx; skip_run = skip_run, kw...)
+    GC.gc()
 
     skip = in(limit(frame.modeltype), stats.dram_limits)
 
@@ -136,7 +110,6 @@ function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
 
     end
 
-    nGraph._cleanup(fex.ex)
     return nothing
 end
 
@@ -270,7 +243,7 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
         cache = CPUKernelCache(BASE_CACHE_PATH),
         tol = 0.05,
         max_iterations = 20,
-        α = 0.9,
+        α = 0.2,
     )
 
     # Enter loop

@@ -128,9 +128,6 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
             cache[(kernel_params, config)] = minimum(node.timings[config])
             save(cache)
         end
-
-        # Clean up the last function
-        nGraph._cleanup(ex)
     end
 
     return data

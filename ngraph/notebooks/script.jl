@@ -104,13 +104,13 @@ end
 
 # Setup functions to Test
 fns = (
+    #Vgg(128, Zoo.Vgg19()),
     Resnet(128, Zoo.Resnet50()),
-    Vgg(256, Zoo.Vgg19()),
     Inception_v4(256),
 )
 
 # Setup FUnctions
-nsteps = 20
+nsteps = 10
 
 # Fractions of the dram limit to use
 r = exp10.(range(0, 1; length = nsteps))
@@ -118,8 +118,8 @@ r = r .- minimum(r)
 fractions = r ./ maximum(r)
 
 opts = Iterators.flatten((
-    (MyStatic(f) for f in fractions),
     (MySynchronous(f) for f in fractions),
+    (MyStatic(f) for f in fractions),
 ))
 
 # Launch the test
