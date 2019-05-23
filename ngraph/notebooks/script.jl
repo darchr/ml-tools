@@ -1,19 +1,6 @@
 #using Pkg; Pkg.activate(".")
 using Runner, Zoo, Serialization, nGraph, JuMP
 
-# # Inception
-# _inception_v4_3072() = Zoo.inception_v4_training(3072)
-# savefile(::typeof(_inception_v4_3072)) = "inception_v4_3072.jls"
-# 
-# _inception_v4_3200() = Zoo.inception_v4_training(3200)
-# savefile(::typeof(_inception_v4_3200)) = "inception_v4_3200.jls"
-# 
-# _inception_v4_256() = Zoo.inception_v4_training(256)
-# savefile(::typeof(_inception_v4_256)) = "inception_v4_256.jls"
-# 
-# _inception_v4_128() = Zoo.inception_v4_training(128)
-# savefile(::typeof(_inception_v4_128)) = "inception_v4_128.jls"
-
 _savedir() = abspath("./serials")
 
 # Resnet
@@ -46,30 +33,6 @@ end
 Runner.name(R::Inception_v4) = "inception_v4_batchsize_$(R.batchsize)"
 Runner.savedir(R::Inception_v4) = _savedir()
 (R::Inception_v4)() = Zoo.inception_v4_training(R.batchsize)
-
-# 
-# _resnet50_256() = Zoo.resnet_training(Zoo.Resnet50(), 256)
-# savefile(::typeof(_resnet50_256)) = "resnet50_256.jls"
-# 
-# _resnet200_256() = Zoo.resnet_training(Zoo.Resnet200(), 256)
-# savefile(::typeof(_resnet200_256)) = "resnet200_256.jls"
-# 
-# _resnet200_128() = Zoo.resnet_training(Zoo.Resnet200(), 128)
-# savefile(::typeof(_resnet200_128)) = "resnet200_128.jls"
-# 
-# # Vgg
-# _vgg416_128() = Zoo.vgg_training(Zoo.Vgg416(), 128)
-# savefile(::typeof(_vgg416_128)) = "vgg416_128.jls"
-# 
-# _vgg416_160() = Zoo.vgg_training(Zoo.Vgg416(), 160)
-# savefile(::typeof(_vgg416_160)) = "vgg416_160.jls"
-# 
-# _vgg19_128() = Zoo.vgg_training(Zoo.Vgg19(), 128)
-# savefile(::typeof(_vgg19_128)) = "vgg19_128.jls"
-# 
-# # DenseNet
-# _densenet264_128() = Zoo.densenet_training(128)
-# savefile(::typeof(_densenet264_128)) = "densenet264_128"
 
 #####
 ##### Optimization Generators
@@ -104,7 +67,7 @@ end
 
 # Setup functions to Test
 fns = (
-    #Vgg(128, Zoo.Vgg19()),
+    Vgg(128, Zoo.Vgg19()),
     Resnet(128, Zoo.Resnet50()),
     Inception_v4(256),
 )
@@ -116,6 +79,9 @@ nsteps = 10
 r = exp10.(range(0, 1; length = nsteps))
 r = r .- minimum(r)
 fractions = r ./ maximum(r)
+
+# Reverse so calibration moves from fastest to slowest.
+reverse!(fractions)
 
 opts = Iterators.flatten((
     (MySynchronous(f) for f in fractions),
