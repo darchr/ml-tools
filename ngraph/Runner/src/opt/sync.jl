@@ -34,7 +34,6 @@ mutable struct Static <: SubModelType
     descriptors::Dict{TensorWrapper, TensorMeta}
 end
 Static(a) = Static(a, Dict{TensorWrapper,TensorMeta}())
-name(::Static) = "static"
 
 # Synchronous: Can move, but cannot overlap movement with computation
 mutable struct Synchronous <: SubModelType
@@ -48,7 +47,16 @@ mutable struct Synchronous <: SubModelType
     descriptors::Dict{TensorWrapper, TensorMeta}
 end
 Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorWrapper,TensorMeta}())
-name(::Synchronous) = "synchronous"
+
+# Asynchronous: Can overlap movcement with computation
+mutable struct Asynchronous <: SubModelType
+    dram_limit::Int64
+    read_bandwidth::Int64
+    write_bandwidth::Int64
+
+    descriptors::Dict{TensorWrapper, TensorMeta}
+end
+Asynchronous(args...) = Asynchronous(args..., Dict{TensorWrapper, TensorMeta}())
 
 # Common Methods
 limit(S::SubModelType) = S.dram_limit
@@ -59,6 +67,8 @@ descriptor(F::Frame{<:SubModelType}, tensor::TensorWrapper) = F.modeltype.descri
 ##### Entry Point
 #####
 
+const _expr_type = typeof(AffExpr())
+
 create_model(modeltype::Synchronous, profile_data::ProfileData{AllTensors}) = error("""
 Synchronous model not implemented yet for all tensors.
 """)
@@ -67,27 +77,55 @@ function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyInt
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 180, MIPGap = 0.0003))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 300, MIPGap = 0.001))
     frame = Frame(modeltype, model, profile_data)
 
-    # Create an empty expression that will be progressively generated to the final
-    # objective.
-    model[:objective_expr] = AffExpr()
+    # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
+    # and eventually combine all of them together.
+    model[:node_times] = Dict{String, _expr_type}()
+    model[:tensor_async] = Dict{String, _expr_type}()
+    model[:tensor_sync] = _expr_type()
+
 
     @timeit TO "adding tensors" add_tensors!(frame)
     @timeit TO "adding nodes" add_nodes!(frame)
     @timeit TO "adding constraints" add_constraints!(frame)
 
-    # Add the objective expression we've built up.
-    @objective(frame.model, Min, frame.model[:objective_expr])
+    # Default objective is to just sum all of the node times
+    objective_expr = model[:tensor_sync]
+    for (node_name, node_times) in model[:node_times]
+        # Check to see if there are overlapping async transfers.
+        #
+        # If so, take the max of the sum of the overlapping transfers and the node time.
+        _async = get(model[:tensor_async], node_name, nothing)
+        if isnothing(_async)
+            add_to_expression!(objective_expr, node_times)
+        else
+            println("Applying Overlap Constraint for $node_name")
+
+            var = @variable(model, integer = true, lower_bound = 0)
+            @constraint(model, var >= node_times)
+            @constraint(model, var >= _async)
+            add_to_expression!(objective_expr, var)
+        end
+    end
+    # Quick optimization to remove zero terms
+    drop_zeros!(objective_expr)
+    @objective(frame.model, Min, objective_expr)
 
     return frame
 end
 
 ## Metadata For graph creation
 @enum VertexLocation LOC_PMEM LOC_DRAM LOC_SOURCE LOC_SINK
-@enum EdgeType EDGE_READ EDGE_WRITE EDGE_NONE
-@enum MoveType MOVE_SYNC MOVE_ASYNC MOVE_NONE
+@enum EdgeType begin
+    EDGE_NONE
+    EDGE_SYNC_READ
+    EDGE_SYNC_WRITE
+    EDGE_ASYNC_READ
+    EDGE_ASYNC_WRITE
+end
+@enum MoveType MOVE_NONE MOVE_SYNC MOVE_ASYNC
 
 # Metadata to assign to each node in the liveness graph for tensors.
 struct VertexMetadata
@@ -97,6 +135,8 @@ struct VertexMetadata
     op::NodeWrapper
     # Where the vertex lives
     location::VertexLocation
+    # What type of moves this vertex allows
+    move_type::MoveType
 end
 
 struct EdgeMetadata
@@ -116,10 +156,43 @@ function _liverange(data::ProfileData, t::TensorWrapper)
     return start:stop
 end
 
+function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorWrapper)
+    liverange = _liverange(data, t)
+    livenodes = (nodes(data, x) for x in liverange)
+    users = _users(t, data)
+    refs = Vector{NamedTuple{(:node, :move_type),Tuple{NodeWrapper,MoveType}}}()
+
+    # Build the referece map
+    reference_map = Dict{NodeWrapper, NodeWrapper}()
+    ref = first(users)
+    bound = 5
+
+    move_time = sizeof(t) / A.write_bandwidth
+    for ind in liverange
+        node = nodes(data, ind)
+        if in(node, users)
+            push!(refs, (node = node, move_type = MOVE_SYNC))
+            ref = node
+
+        # Check if there is a user node within `bound`. If so, make this an async move node.
+        elseif hasprofile(node) && 
+            any(
+                in(users), 
+                (nodes(data, i) for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
+            )
+
+            push!(refs, (node = node, move_type = MOVE_ASYNC))
+            ref = node
+        end
+        reference_map[node] = ref
+    end
+
+    return refs, reference_map
+end
+
 function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
-    #users = [n for n in livenodes if in(t, inputs(n)) || in(t, outputs(n))]
     users = _users(t, data)
 
     # Build the referece map
@@ -133,7 +206,11 @@ function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
         reference_map[node] = ref
     end
 
-    return users, reference_map
+    nt = [
+        (node = u, move_type = isone(i) ? MOVE_NONE : MOVE_SYNC) for (i,u) in enumerate(users)
+    ]
+
+    return nt, reference_map
 end
 
 function _getgadgets(::Static, data::ProfileData, t::TensorWrapper)
@@ -145,10 +222,20 @@ function _getgadgets(::Static, data::ProfileData, t::TensorWrapper)
         reference_map[nodes(data, ind)] = producer
     end
 
-    return [producer], reference_map
+    return [(node = producer, move_type = MOVE_NONE)], reference_map
 end
 
-function edge_metadata(src, dst, s, d)
+function edge_metadata(src, dst, s, d, src_move_type)
+    # Setup the correct move annotations.
+    if src_move_type == MOVE_ASYNC
+        edge_read_type = EDGE_ASYNC_READ
+        edge_write_type = EDGE_ASYNC_WRITE
+    else
+        edge_read_type = EDGE_SYNC_READ
+        edge_write_type = EDGE_SYNC_WRITE
+    end
+
+    # Determine if an edge should be added and what kind of edge it is.
     if (src, dst) == (LOC_SOURCE, LOC_DRAM)
         isone(d) && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_SOURCE, LOC_PMEM)
@@ -157,12 +244,12 @@ function edge_metadata(src, dst, s, d)
     elseif (src, dst) == (LOC_DRAM, LOC_DRAM)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_DRAM, LOC_PMEM)
-        s == d-1 && return EdgeMetadata(EDGE_WRITE)
+        s == d-1 && return EdgeMetadata(edge_write_type)
     elseif (src, dst) == (LOC_DRAM, LOC_SINK)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
     # LOC_PMEM as source
     elseif (src, dst) == (LOC_PMEM, LOC_DRAM)
-        (s == d) && !isone(s) && return EdgeMetadata(EDGE_READ)
+        (s == d) && !isone(s) && return EdgeMetadata(edge_read_type)
     elseif (src, dst) == (LOC_PMEM, LOC_PMEM)
         (s == d-1) && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_PMEM, LOC_SINK)
@@ -176,6 +263,10 @@ function preprocess!(S::SubModelType, data::ProfileData)
     for tensor in tensors(data)
         # Get the users of this node
         @timeit TO "making gadgets" begin
+            # Get two things from _getgadgets:
+            #
+            # 1. A named tuple (node::NodeWrapper, move_type::MoveType)
+            # 2. A dictionary implementing the `ref` function.
             users, reference_map = _getgadgets(S, data, tensor)
         end
 
@@ -185,12 +276,15 @@ function preprocess!(S::SubModelType, data::ProfileData)
         g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
 
         # Add nodes for each region
-        @timeit TO "creating graph vertices" for (count, node) in enumerate(users)
+        @timeit TO "creating graph vertices" for (count, nt) in enumerate(users)
+            # Unpacek the
+            node = nt.node
+            move_type = nt.move_type
             islast = (count == length(users))
 
             if count == 1
                 #add_vertex!(g, :metadata, VertexMetadata(0, node, LOC_SOURCE))
-                add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE))
+                add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE, move_type))
             end
             # Enumerate over locations that this tensor can live.
             #
@@ -199,17 +293,17 @@ function preprocess!(S::SubModelType, data::ProfileData)
             for location in locations(data, tensor)
                 if location == DRAM
                     # Add DRAM node
-                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM))
+                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type))
                 end
 
                 if location == PMEM
                     # Add pre and post PMEM nodes
-                    add_vertex!(g, VertexMetadata(count, node, LOC_PMEM))
+                    add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type))
                 end
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK))
+                add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK, move_type))
             end
         end
 
@@ -226,17 +320,17 @@ function preprocess!(S::SubModelType, data::ProfileData)
                 src_meta.location,
                 dst_meta.location,
                 src_meta.gadget,
-                dst_meta.gadget
+                dst_meta.gadget,
+                src_meta.move_type,
             )
 
             isnothing(metadata) && continue
 
-            #add_edge!(g, src, dst, :metadata, metadata)
             add_edge!(g, src, dst, metadata)
         end
 
         # Create the descriptor
-        S.descriptors[tensor] = TensorMeta(g, users, reference_map)
+        S.descriptors[tensor] = TensorMeta(g, [u.node for u in users], reference_map)
     end
 end
 
@@ -308,7 +402,6 @@ function add_tensors!(frame::Frame{<:SubModelType})
         desc = descriptor(frame, tensor)
         g = graph(desc)
 
-        #for op in descriptors[name].ops_using_tensor
         for user in users(desc)
             # Get the DRAM and PREAD vertices for this op.
             vertex = find_vertex(
@@ -318,7 +411,10 @@ function add_tensors!(frame::Frame{<:SubModelType})
 
             # Map `inedges` to `vertex_iter` and iterats over all those edges
             for e in inedges(g, vertex)
-                @constraint(frame.model, tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e])
+                @constraint(
+                    frame.model, 
+                    tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e]
+                )
             end
 
             # If all incoming edges are not taken, tensor MUST not be in DRAM.
@@ -332,11 +428,20 @@ function add_tensors!(frame::Frame{<:SubModelType})
     return nothing
 end
 
+# Filter on edge type, sort by parent index to get the edges in execution order.
+_find_edges(g, edgetype) = sort(
+    filter(e -> _meta(g, e).edgetype == edgetype, collect(edges(g))),
+    by = src
+)
+
 # Formulation specific move node stuff
 add_movement_formulations!(frame::Frame{Static}) = nothing
-function add_movement_formulations!(frame::Frame{Synchronous})
+function add_movement_formulations!(frame::Frame{<:SubModelType})
     data = frame.profile_data
-    objective_expr = frame.model[:objective_expr]
+
+    tensor_sync_expr = frame.model[:tensor_sync]
+    tensor_async_dict = frame.model[:tensor_async]
+
     tensor_graphs = frame.model[:tensor_graphs]
     read_bandwidth = frame.modeltype.read_bandwidth
     write_bandwidth = frame.modeltype.write_bandwidth
@@ -353,40 +458,101 @@ function add_movement_formulations!(frame::Frame{Synchronous})
         # Skip if this tensor can never be assigned to PMEM
         in(PMEM, locations(data, tensor)) || continue
 
+        # Some unpacking
         g = graph(descriptor(frame, tensor))
         bytes = sizeof(tensor)
 
         read_cost = round(Int, bytes / read_bandwidth)
         write_cost = round(Int, bytes / write_bandwidth)
 
-        # Objective terms for read ops
-        #for e in filter_edges(g, (g,e) -> _meta(g, e).edgetype == EDGE_READ)
-        for e in filter(e -> _meta(g,e).edgetype == EDGE_READ, collect(edges(g)))
-            add_to_expression!(objective_expr, read_cost, tensor_graphs[tensor, e])
-        end
-
-        # objbetive terns for write ops
-        first_pmem_edge = find_edge(g,
+        # Collect Edges according to type.
+        sync_reads = _find_edges(g, EDGE_SYNC_READ)
+        sync_writes = _find_edges(g, EDGE_SYNC_WRITE)
+        async_reads = _find_edges(g, EDGE_ASYNC_READ)
+        async_writes = _find_edges(g, EDGE_ASYNC_WRITE)
+        starts_in_pmem = find_edge(g,
             (g,e) ->
                 _meta(g, src(e)).location == LOC_SOURCE &&
                 _meta(g, dst(e)).location == LOC_PMEM
         )
 
-        edge_var = tensor_graphs[tensor, first_pmem_edge]
+        #####
+        ##### Constraints for sync write variable
+        #####
 
-        # If the tensor is created into PMEM, we never write
-        @constraint(frame.model, tensor_write[tensor] <= 1 - edge_var)
-
-        # `tensor_write` must be 1 if `edge_var == 1` and any write edge is taken
-        #edge_iter = filter_edges(g, (g,e) -> _meta(g, e).edgetype == EDGE_WRITE)
-        edge_iter = filter(e -> _meta(g, e).edgetype == EDGE_WRITE, collect(edges(g)))
-        for e in edge_iter
-            @constraint(frame.model, tensor_write[tensor] >= tensor_graphs[tensor, e] - edge_var)
+        # No Sync write if any async write
+        for e in sync_writes
+            # gather up all the asynchronous write variables
+            if isempty(async_writes)
+                _expr = 0
+            else
+                _expr = @expression(
+                    frame.model,
+                    sum(tensor_graphs[tensor, x] for x in async_writes)
+                )
+            end
+            @constraint(
+                frame.model, 
+                tensor_write[tensor] >= tensor_graphs[tensor, e] - tensor_graphs[tensor, starts_in_pmem] - _expr
+            )
         end
 
-        # If all write edges are not taken, tensor_write must be zero
-        @constraint(frame.model, tensor_write[tensor] <= sum(tensor_graphs[tensor, e] for e in edge_iter))
-        add_to_expression!(objective_expr, write_cost, tensor_write[tensor])
+        # No sync write if no edges taken
+        @constraint(
+            frame.model,
+            tensor_write[tensor] <= sum(tensor_graphs[tensor, e] for e in sync_writes)
+        )
+
+        # No sync write if tensor starts in PMEM
+        @constraint(
+            frame.model,
+            tensor_write[tensor] <= 1 - tensor_graphs[tensor, starts_in_pmem]
+        )
+
+        #####
+        ##### Constrants on async write variables
+        #####
+
+        # Assign each edge to the kernel it overlaps with.
+        #
+        # Just go overkill and grab all the edges, even though we end up only using a subset.
+        kernels = Dict(e => _meta(g,src(e)).op for e in edges(g))
+
+        # Create read variables expressions
+        for e in async_reads
+            _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
+            add_to_expression!(_expr, read_cost, tensor_graphs[tensor, e])
+        end
+
+        # Create write variables.
+        #
+        # Because these are created in order, we can just iterate through sequentially.
+        gen_vars = VariableRef[]
+        for e in async_writes
+            var = @variable(frame.model, binary = true)
+            @constraint(frame.model, var <= tensor_graphs[tensor, e])
+            if isempty(gen_vars)
+                @constraint(frame.model, var >= tensor_graphs[tensor, e] - tensor_write[tensor])
+            else
+                @constraint(
+                    frame.model,
+                    var >= tensor_graphs[tensor, e] - tensor_write[tensor] - sum(gen_vars)
+                )
+            end
+            push!(gen_vars, var)
+
+            # Add this move cost
+            _expr = tensor_async_dict[name(kernels[e])]
+            add_to_expression!(_expr, write_cost, var)
+        end
+
+        #####
+        ##### Finally, add all the synchonous move costs.
+        #####
+        for e in sync_reads
+            add_to_expression!(tensor_sync_expr, read_cost, tensor_graphs[tensor, e])
+        end
+        add_to_expression!(tensor_sync_expr, write_cost, tensor_write[tensor])
     end
     return nothing
 end
@@ -438,7 +604,7 @@ function add_nodes!(F::Frame{<:SubModelType})
 
         for config in configs
             # Create an expression for the input and output locations
-            expr = AffExpr()
+            expr = _expr_type()
             iter = Iterators.flatten((
                 zip(config.inputs, inputs(node)),
                 zip(config.outputs, outputs(node))
@@ -465,13 +631,14 @@ function add_nodes!(F::Frame{<:SubModelType})
         # here, we're adding a valid contraint to help the solver
         @constraint(F.model, sum(vars[config] for config in configs) == 1)
 
-        # Mutate the "objective_expr" with these timings
-        objective_expr = F.model[:objective_expr]
+        # Create an expression for this node's expected running time.
+        node_times = _expr_type()
         for config in configs
             # For now, just use the Mean
             coeff = round(Int64, minimum(node.timings[config]))
-            add_to_expression!(objective_expr, coeff, vars[config])
+            add_to_expression!(node_times, coeff, vars[config])
         end
+        F.model[:node_times][name(node)] = node_times
     end
     return
 end
@@ -513,6 +680,8 @@ struct MoveAction
     location::TensorLocation
     replace_incumbent::Bool
 end
+
+configure!(fex::nGraph.FluxExecutable, frame::Frame{Asynchronous}) = fex, nothing
 
 function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:SubModelType})
     # Unpack args
@@ -633,7 +802,16 @@ function get_schedule(F::Frame{<:SubModelType})
         v = find_vertex(g, (g, v) -> _meta(g, v).location == LOC_SOURCE)
 
         path = [_meta(g, v)]
+        seen = Int[]
         while _meta(g, v).location != LOC_SINK
+            if isempty(outedges(g, v)) || in(v, seen)
+                error("""
+                $tensor
+                $(_meta(g, v))
+                """)
+            end
+
+            push!(seen, v)
             for e in outedges(g, v)
                 if approx_one(model_graphs[tensor, e])
                     v = dst(e)

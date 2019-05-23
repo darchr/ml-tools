@@ -50,6 +50,7 @@ function compare(f, opt, ctx = OnlyIntermediate();
                  cache = CPUKernelCache(BASE_CACHE_PATH), 
                  statspath = nothing,
                  skip_run = false,
+                 skip_configure = false
     )
     if (isnothing(statspath) || !ispath(statspath)) 
         stats = _base_stats()
@@ -66,7 +67,7 @@ function compare(f, opt, ctx = OnlyIntermediate();
     # This will hopefully cleanup any previous Executables and the large memory buffers
     # associated with them.
     GC.gc()
-    _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run)
+    _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run, skip_configure = skip_configure)
     isnothing(statspath) || serialize(statspath, stats)
 
     if !skip_run
@@ -89,8 +90,8 @@ function initialize!(stats, f)
     return nothing
 end
 
-function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
-    fex, args, frame, _metadata = factory(f, opt, ctx; skip_run = skip_run, kw...)
+function _compare!(stats, f, opt, ctx; skip_run = false, skip_configure = false, kw...)
+    fex, args, frame, _metadata = factory(f, opt, ctx; skip_configure = skip_configure, kw...)
     GC.gc()
 
     skip = in(limit(frame.modeltype), stats.dram_limits)
@@ -99,9 +100,11 @@ function _compare!(stats, f, opt, ctx; skip_run = false, kw...)
     if !skip 
         push!(stats.predicted_runtimes, Runner.predict(frame))
         push!(stats.dram_limits, limit(frame.modeltype))
-        push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
-        push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
-        push!(stats.move_time, estimate_move_time(fex, frame))
+        if !skip_configure
+            push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
+            push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
+            push!(stats.move_time, estimate_move_time(fex, frame))
+        end
 
         if !skip_run
             push!(stats.actual_runtimes, gettime(fex))

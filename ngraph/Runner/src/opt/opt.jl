@@ -69,7 +69,7 @@ include("sync.jl")
 """
 function factory(f, opt, ctx = AllTensors(); 
         cache = CPUKernelCache(BASE_CACHE_PATH), 
-        skip_run = false
+        skip_configure = false
     )
 
     @timeit TO "building ngraph function" fex, args = f()
@@ -78,9 +78,13 @@ function factory(f, opt, ctx = AllTensors();
     modeltype = opt(data)
     @timeit TO "creating model" frame = create_model(modeltype, data)
     @timeit TO "optimizing" optimize!(frame)
-    @info "Configuring"
-    @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
-    @info "Done Configuring"
+    if !skip_configure
+        @info "Configuring"
+        @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
+        @info "Done Configuring"
+    else
+        _metadata = nothing
+    end
     
     return fex, args, frame, _metadata
 end

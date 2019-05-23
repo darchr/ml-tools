@@ -34,6 +34,14 @@ Runner.name(R::Inception_v4) = "inception_v4_batchsize_$(R.batchsize)"
 Runner.savedir(R::Inception_v4) = _savedir()
 (R::Inception_v4)() = Zoo.inception_v4_training(R.batchsize)
 
+# DenseNet
+struct DenseNet
+    batchsize::Int
+end
+Runner.name(R::DenseNet) = "densenet264_batchsize_$(R.batchsize)"
+Runner.savedir(R::DenseNet) = _savedir()
+(R::DenseNet)() = Zoo.densenet_training(R.batchsize)
+
 #####
 ##### Optimization Generators
 #####
@@ -61,12 +69,25 @@ function (M::MySynchronous)(data)
     return Runner.Synchronous(x, 29000, 12000)
 end
 
+struct MyAsynchronous
+    limit::Float64
+end
+
+Runner.name(::MyAsynchronous) = "asynchronous"
+function (M::MyAsynchronous)(data)
+    bounds = Runner.allocation_bounds(data)
+    x = round(Int, bounds.upper_bound * M.limit / 1E6)
+    println("Trying to use $x MB of memory")
+    return Runner.Asynchronous(x, 29000, 12000)
+end
+
 #####
 ##### Test Routine
 #####
 
 # Setup functions to Test
 fns = (
+    #DenseNet(128),
     Vgg(128, Zoo.Vgg19()),
     Resnet(128, Zoo.Resnet50()),
     Inception_v4(256),
@@ -83,6 +104,10 @@ fractions = r ./ maximum(r)
 # Reverse so calibration moves from fastest to slowest.
 reverse!(fractions)
 
+#####
+##### Run Synchronous Tests
+#####
+
 opts = Iterators.flatten((
     (MySynchronous(f) for f in fractions),
     (MyStatic(f) for f in fractions),
@@ -91,3 +116,15 @@ opts = Iterators.flatten((
 # Launch the test
 Runner.entry(fns, opts)
 
+#####
+##### Run Asynchronous Tests
+#####
+
+opts = (MyAsynchronous(f) for f in fractions)
+
+for f in fns
+    for opt in opts
+        savefile = joinpath(Runner.savedir(f), join((Runner.name(f), Runner.name(opt), "estimate"), "_") * ".jls")
+        Runner.compare(f, opt; statspath = savefile, skip_run = true, skip_configure = true)
+    end
+end
