@@ -8,57 +8,6 @@ using nGraph
 using RecipesBase
 using Plots
 
-include("marginal.jl")
-#####
-##### Reuse Distance
-#####
-
-struct ReuseDistance
-    data::Dict{TensorWrapper, Int64}
-end
-
-function reuse_distance(fex::nGraph.FluxExecutable, data::Runner.ProfileData)
-    tensor_to_tensors = Dict{TensorWrapper, Set{TensorWrapper}}()
-    for tensors in live_tensors(data)
-        for tensor in tensors
-            s = get!(tensor_to_tensors, tensor, Set{TensorWrapper}())
-            union!(s, tensors)
-        end
-    end
-    return ReuseDistance(Dict(k => sum(sizeof.(v)) for (k,v) in tensor_to_tensors))
-end
-
-@recipe function f(rd::ReuseDistance)
-    legend := :none
-    linewidth := 0
-    marker := :o
-    xlabel := "Reuse Distance (MiB)"
-    ylabel := "Tensor Size (MiB)"
-
-    @series begin
-        seriestype = :scatter 
-        markerstrokealpha := 0.0
-
-        # x values are the reuse distance
-        # y values are the size of the tensor
-        # color denotes PMEM vs DRAM
-        x = Float64[]
-        y = Float64[]
-        colors = Symbol[]  
-        for (tensor, distance) in rd.data
-            push!(x, distance)
-            push!(y, sizeof(tensor))
-            push!(colors, nGraph.is_persistent(unwrap(tensor)) ? :red : :blue)
-        end
-        c := colors
-
-        # Rescale
-        x .= x ./ 1E6
-        y .= y ./ 1E6
-        x, y
-    end
-end
-
 #####
 ##### Kernel Analyzer
 #####

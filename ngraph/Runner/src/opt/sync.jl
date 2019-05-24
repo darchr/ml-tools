@@ -77,7 +77,7 @@ function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyInt
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 300, MIPGap = 0.001))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 120, MIPGap = 0.001))
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
@@ -475,6 +475,46 @@ function add_movement_formulations!(frame::Frame{<:SubModelType})
                 _meta(g, src(e)).location == LOC_SOURCE &&
                 _meta(g, dst(e)).location == LOC_PMEM
         )
+
+        #####
+        ##### Add constraints on the edges
+        #####
+        
+        ## NOTE: this constraint has dubious effect on performance.
+
+        # Write edges and read edges between synchronous moves can be at most 1
+        #
+        # Use IterTools.partition to taken consecutive edges
+        for (sync_edge_1, sync_edge_2) in IterTools.partition(sync_reads, 2, 1)
+            v_1 = src(sync_edge_1)
+            v_2 = src(sync_edge_2)
+
+            # Find all async reads between sync_edge_1 and sync_edge_2
+            async_edges = [e for e in async_reads if v_1 < src(e) < v_2]
+
+            if !isempty(async_edges)
+                @constraint(
+                    frame.model, 
+                    tensor_graphs[tensor, sync_edge_1] + sum(tensor_graphs[tensor, e] for e in async_edges) <= 1
+                )
+            end
+        end
+
+        # Repeat for write edges
+        for (sync_edge_1, sync_edge_2) in IterTools.partition(sync_writes, 2, 1)
+            v_1 = src(sync_edge_1)
+            v_2 = src(sync_edge_2)
+
+            # Find all async writes between sync_edge_1 and sync_edge_2
+            async_edges = [e for e in async_writes if v_1 < src(e) < v_2]
+
+            if !isempty(async_edges)
+                @constraint(
+                    frame.model, 
+                    tensor_graphs[tensor, sync_edge_1] + sum(tensor_graphs[tensor, e] for e in async_edges) <= 1
+                )
+            end
+        end
 
         #####
         ##### Constraints for sync write variable

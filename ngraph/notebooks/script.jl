@@ -87,10 +87,10 @@ end
 
 # Setup functions to Test
 fns = (
-    #DenseNet(128),
-    Vgg(128, Zoo.Vgg19()),
-    Resnet(128, Zoo.Resnet50()),
-    Inception_v4(256),
+    DenseNet(128),
+    #Vgg(128, Zoo.Vgg19()),
+    #Resnet(128, Zoo.Resnet50()),
+    #Inception_v4(256),
 )
 
 # Setup FUnctions

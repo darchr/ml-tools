@@ -82,7 +82,7 @@ include("visualize.jl")
 include("verifier.jl")
 include("visualizer/analyzer.jl")
 include("visualizer/reuse.jl")
-include("reuse.jl")
+include("visualizer/performance_plots.jl")
 include("top.jl")
 
 hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))

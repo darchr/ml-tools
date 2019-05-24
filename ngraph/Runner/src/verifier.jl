@@ -29,14 +29,14 @@ function verify(f, pass; seed = 8086)
     # generically.
     #
     # TODO: Maybe add a `params` argument to nGraph.jl to make this a little cleaner.
-    results = astuple(fex(args...))
+    results = astuple(fex())
     inputs = nGraph.getinputs(fex.optimizer)
     outputs = nGraph.getoutputs(fex.optimizer)
 
     # Check results for NaNs
-    @assert !any(x -> any(isnan, x), results)
-    @assert !any(x -> any(isnan, x), inputs)
-    @assert !any(x -> any(isnan, x), outputs)
+    @assert !any(x -> any(isnan, read(x)), results)
+    @assert !any(x -> any(isnan, read(x)), inputs)
+    @assert !any(x -> any(isnan, read(x)), outputs)
 
 
     # Now that we have baseline results, we compile again and then run the pass on the
@@ -45,16 +45,16 @@ function verify(f, pass; seed = 8086)
     fex_p, args_p = f()
     fex_p = pass(fex_p)
 
-    results_p = astuple(fex_p(args_p...))
+    results_p = astuple(fex_p())
     inputs_p = nGraph.getinputs(fex.optimizer)
     outputs_p = nGraph.getoutputs(fex.optimizer)
 
-    @assert !any(x -> any(isnan, x), results_p)
-    @assert !any(x -> any(isnan, x), inputs_p)
-    @assert !any(x -> any(isnan, x), outputs_p)
+    @assert !any(x -> any(isnan, read(x)), results_p)
+    @assert !any(x -> any(isnan, read(x)), inputs_p)
+    @assert !any(x -> any(isnan, read(x)), outputs_p)
 
     # util function
-    g = (a,b) -> all(isapprox.(collect.(a), collect.(b)))
+    g = (a,b) -> all(isapprox.(read.(a), read.(b)))
     args_match    = g(args_p, args)
     results_match = g(results_p, results)
     inputs_match  = g(inputs_p, inputs)

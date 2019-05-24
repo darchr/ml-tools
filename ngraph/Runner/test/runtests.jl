@@ -35,7 +35,7 @@ using Zoo
 @testset "Testing Synchronous Formulation" begin
     f = () -> Runner.simple_network()
     pass = function _dummy(fex)
-        data = Runner.profile(fex)
+        data = Runner.profile(fex, Runner.OnlyIntermediate())
         bounds = Runner.allocation_bounds(data)
         x = round(Int, bounds.upper_bound / (1E6 * 10))
         S = Runner.Synchronous(x, 29000, 12000) 
@@ -54,7 +54,7 @@ using Zoo
    @show matches
    @test all(matches)
  
-   f = () -> Zoo.inception_v4_training(128)
+   f = () -> Zoo.inception_v4_training(256)
    matches = Runner.verify(f, pass)
    @show matches
    @test all(matches)
