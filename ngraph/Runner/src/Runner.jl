@@ -85,7 +85,7 @@ include("visualizer/reuse.jl")
 include("visualizer/performance_plots.jl")
 include("top.jl")
 
-hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
+hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move", "Concat"))
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 
 end # module

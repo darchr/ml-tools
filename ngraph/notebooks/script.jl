@@ -6,7 +6,7 @@ _savedir() = abspath("./serials")
 # Resnet
 struct Resnet{T}
     batchsize::Int
-    zoo::T 
+    zoo::T
 end
 
 _sz(::Zoo.Resnet50) = "50"
@@ -41,6 +41,26 @@ end
 Runner.name(R::DenseNet) = "densenet264_batchsize_$(R.batchsize)"
 Runner.savedir(R::DenseNet) = _savedir()
 (R::DenseNet)() = Zoo.densenet_training(R.batchsize)
+
+# RHN
+struct RHN
+    num_layers::Int
+    depth::Int
+    num_steps::Int
+    hidden_size::Int
+    batch_size::Int
+end
+
+Runner.name(R::RHN) = "rhn_$(join(getfield.(Ref(R), fieldnames(RHN)), "_"))"
+Runner.savedir(R::RHN) = _savedir()
+(R::RHN)() = Zoo.rhn_model_tester(
+    num_layers = R.num_layers,
+    depth = R.depth,
+    num_steps = R.num_steps,
+    hidden_size = R.hidden_size,
+    batch_size = R.batch_size
+)
+
 
 #####
 ##### Optimization Generators
@@ -85,9 +105,11 @@ end
 ##### Test Routine
 #####
 
+
 # Setup functions to Test
 fns = (
-    DenseNet(128),
+       RHN(4, 4, 40, 2000, 512),
+    #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
     #Resnet(128, Zoo.Resnet50()),
     #Inception_v4(256),

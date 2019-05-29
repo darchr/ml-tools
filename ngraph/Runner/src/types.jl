@@ -99,7 +99,9 @@ function ProfileData(fex::nGraph.FluxExecutable, ctx = OnlyIntermediate())
             users[tensor] = [wrapped]
         end
         for tensor in inputs(wrapped)
-            push!(users[tensor], wrapped)
+            if !in(wrapped, users[tensor])
+                push!(users[tensor], wrapped)
+            end
         end
     end
 
