@@ -4,6 +4,19 @@
 
 struct ReusePlot end
 @recipe function f(::ReusePlot, p::ProfileData)
+    x, y = reuse_distance(p)
+
+    seriestype := :line
+    xlabel := "Reuse Distance (MiB)"
+    ylabel := "CDF"
+    legend := :none
+
+    @series begin
+        x, y
+    end
+end
+
+function reuse_distance(p::ProfileData)
     # Operate at a 1MiB granularity to avoid taking forever.
     pagesize = 1E6
     buckets = map(Runner.nodes(p)) do node
@@ -24,14 +37,7 @@ struct ReusePlot end
     y = Runner.cdf(r.upper)
     x = collect(1:length(y))
 
-    seriestype := :line
-    xlabel := "Reuse Distance (MiB)"
-    ylabel := "CDF"
-    legend := :none
-
-    @series begin
-        x, y
-    end
+    return x, y
 end
 
 #####

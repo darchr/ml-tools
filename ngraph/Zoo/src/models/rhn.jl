@@ -101,37 +101,48 @@ function (R::RHNModel)(input, targets, states, noise_x, noise_i, noise_h, noise_
     noise_broadcast = broadcast(noise_x, size(inputs); axes = 1)
     inputs = inputs .* noise_broadcast
 
+    # Split inputs into an array for each timestep
+    #
+    # Drop the last dimensions
+    inputs = map(
+        x -> reshape(x, (size(x,1), size(x,2))), 
+        [inputs[:, :, timestep] for timestep in 1:R.num_steps]
+    )
+
+    states = map(
+        x -> reshape(x, (size(x,1), size(x,2))), 
+        [states[:, :, layer] for layer in 1:length(R.rhn_cells)]
+    )
+
     # Go through the unrolling
     for (layer, cell) in enumerate(R.rhn_cells)
-        state = reshape(states[:, :, layer], (size(states, 1), size(states, 2)))
         _noise_i = reshape(noise_i[:, :, layer], (size(noise_i, 1), size(noise_i, 2)))
         _noise_h = reshape(noise_h[:, :, layer], (size(noise_h, 1), size(noise_h, 2)))
 
+        state = states[layer]
         outputs = []
         for timestep in 1:R.num_steps
-            i = reshape(inputs[:, :, timestep], (size(inputs, 1), size(inputs, 2)))
-            @show size(i)
-            @show size(state)
-            @show size(_noise_i)
-            @show size(_noise_h)
-
-            state = cell(i, state, _noise_i, _noise_h)
+            state = cell(inputs[timestep], state, _noise_i, _noise_h)
             push!(outputs, state)
         end
 
         # Reshape all the outputs to add an aditional dimension.
-        reshaped_outputs = map(x -> reshape(x, size(x)..., 1), outputs)
-        inputs = cat(reshaped_outputs...; dims = 3)
+        inputs = outputs 
     end
 
     # Collect everything and apply a loss function
-    output = inputs .* broadcast(noise_o, size(inputs); axes = 3)
+    reshaped = map(x -> reshape(x, size(x)..., 1), inputs) 
+    reshaped = reduce((x,y) -> cat(x, y; dims = 3), reshaped)
+    #reshaped = cat(map(x -> reshape(x, size(x)..., 1), inputs)...; dims = 3)
+    output = reshaped .* broadcast(noise_o, size(reshaped); axes = 3)
     output = reshape(output, :, size(embedding, 1))
     #softmax_w = transpose(embedding)
 
     @show size(output)
     @show size(embedding)
 
+    # TODO: Loss function not implemented correctly.
+    # Just doing this to obtain preliminary results.
     logits = output * embedding
     loss = logits .- broadcast(reshape(targets, :), size(logits); axes = 2)
     return sum(loss)

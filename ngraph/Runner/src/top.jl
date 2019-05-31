@@ -6,7 +6,7 @@ function savedir end
 function entry(fns, opts)
     for f in fns
         # Generate the reuse plot and heap allocation plots
-        _reuse_plot(f)
+        #_reuse_plot(f)
         #_allocation_plot(f)
 
         # Run for the product of functions and optimization targets.

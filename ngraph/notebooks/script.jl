@@ -108,7 +108,8 @@ end
 
 # Setup functions to Test
 fns = (
-       RHN(4, 4, 40, 2000, 512),
+    RHN(2, 4, 20, 5000, 512),
+    #RHN(4, 4, 10, 10000, 1024),
     #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
     #Resnet(128, Zoo.Resnet50()),

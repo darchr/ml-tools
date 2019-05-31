@@ -77,7 +77,7 @@ function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyInt
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 120, MIPGap = 0.001))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 600, MIPGap = 0.001))
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs

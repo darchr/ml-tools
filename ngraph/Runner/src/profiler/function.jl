@@ -244,9 +244,9 @@ end
 _err(expected, actual) = abs(expected /1E6 - actual) / actual
 function calibrate(f, opt, ctx = OnlyIntermediate(); 
         cache = CPUKernelCache(BASE_CACHE_PATH),
-        tol = 0.05,
+        tol = 0.10,
         max_iterations = 20,
-        α = 0.2,
+        α = 1.0,
     )
 
     # Enter loop
@@ -266,6 +266,9 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
         # Get the individual node times. Update the state of any entry in the cache.
         kernel_times = compare_kernel_times(fex, frame.profile_data)
         kernels_updated = 0
+
+        # Create a local cache - we'll update the global cache with the average.
+        local_cache = Dict{keytype(cache.cache), Vector{Float64}}()
         for kernel_time in kernel_times
             expected = minimum(kernel_time.expected)
             actual = kernel_time.actual
@@ -273,11 +276,17 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
                 config = kernel_time.config
                 params = CPUKernelParams(unwrap(kernel_time.node))
                 # Update and save the cache
-                cache[(params, config)] = expected + α * (actual - expected)
+                vec = get!(local_cache, (params, config), Float64[])
+                push!(vec, actual)
                 save(cache)
                 kernels_updated += 1
             end
         end
+
+        for (k,v) in local_cache
+            cache[k] = mean(v)
+        end
+
         println("Updated $kernels_updated kernels on this iteration")
 
         iterations > max_iterations && break 
