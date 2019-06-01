@@ -53,6 +53,7 @@ outputs(n::NodeWrapper) = TensorWrapper.(nGraph.output_descriptors(unwrap(n)))
 inputs(n::NodeWrapper) = TensorWrapper.(nGraph.input_descriptors(unwrap(n)))
 
 hasprofile(x::NodeWrapper) = hasprofile(description(x))
+ismove(x::NodeWrapper) = ismove(description(x))
 
 #####
 ##### Profile Data
@@ -70,7 +71,7 @@ struct ProfileData{C <: AbstractCreationContext}
     io_tensors::Set{TensorWrapper}
     constant_tensors::Set{TensorWrapper}
 
-    # Metadat to speed up down-stream algorithms
+    # Metadata to speed up down-stream algorithms
     users::Dict{TensorWrapper, Vector{NodeWrapper}}
 end
 

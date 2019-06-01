@@ -26,17 +26,15 @@ users(S::TensorMeta) = S.users
 ##### Model Types
 #####
 
-abstract type SubModelType <: ModelType end
-
 # Static: Assigns tensors to either PMEM or DRAM. No movement
-mutable struct Static <: SubModelType
+mutable struct Static <: ModelType
     dram_limit::Int64
     descriptors::Dict{TensorWrapper, TensorMeta}
 end
 Static(a) = Static(a, Dict{TensorWrapper,TensorMeta}())
 
 # Synchronous: Can move, but cannot overlap movement with computation
-mutable struct Synchronous <: SubModelType
+mutable struct Synchronous <: ModelType
     dram_limit::Int64
     read_bandwidth::Int64
     write_bandwidth::Int64
@@ -49,7 +47,7 @@ end
 Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorWrapper,TensorMeta}())
 
 # Asynchronous: Can overlap movcement with computation
-mutable struct Asynchronous <: SubModelType
+mutable struct Asynchronous <: ModelType
     dram_limit::Int64
     read_bandwidth::Int64
     write_bandwidth::Int64
@@ -59,9 +57,9 @@ end
 Asynchronous(args...) = Asynchronous(args..., Dict{TensorWrapper, TensorMeta}())
 
 # Common Methods
-limit(S::SubModelType) = S.dram_limit
-predict(F::Frame{<:SubModelType}) = objective_value(F.model)
-descriptor(F::Frame{<:SubModelType}, tensor::TensorWrapper) = F.modeltype.descriptors[tensor]
+limit(S::ModelType) = S.dram_limit
+predict(F::Frame{<:ModelType}) = objective_value(F.model)
+descriptor(F::Frame{<:ModelType}, tensor::TensorWrapper) = F.modeltype.descriptors[tensor]
 
 #####
 ##### Entry Point
@@ -73,7 +71,7 @@ create_model(modeltype::Synchronous, profile_data::ProfileData{AllTensors}) = er
 Synchronous model not implemented yet for all tensors.
 """)
 
-function create_model(modeltype::SubModelType, profile_data::ProfileData{OnlyIntermediate})
+function create_model(modeltype::ModelType, profile_data::ProfileData{OnlyIntermediate})
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
@@ -258,7 +256,7 @@ function edge_metadata(src, dst, s, d, src_move_type)
     return nothing
 end
 
-function preprocess!(S::SubModelType, data::ProfileData)
+function preprocess!(S::ModelType, data::ProfileData)
 
     for tensor in tensors(data)
         # Get the users of this node
@@ -338,7 +336,7 @@ end
 ##### Adding Tensors
 #####
 
-function add_tensors!(frame::Frame{<:SubModelType})
+function add_tensors!(frame::Frame{<:ModelType})
     data = frame.profile_data
     modeltype = frame.modeltype
 
@@ -436,7 +434,7 @@ _find_edges(g, edgetype) = sort(
 
 # Formulation specific move node stuff
 add_movement_formulations!(frame::Frame{Static}) = nothing
-function add_movement_formulations!(frame::Frame{<:SubModelType})
+function add_movement_formulations!(frame::Frame{<:ModelType})
     data = frame.profile_data
 
     tensor_sync_expr = frame.model[:tensor_sync]
@@ -605,7 +603,7 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function get_tensor_in_dram(F::Frame{<:SubModelType}, tensor::TensorWrapper, node::NodeWrapper)
+function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorWrapper, node::NodeWrapper)
     desc = descriptor(F, tensor)
 
     if in(node, users(desc))
@@ -628,7 +626,7 @@ function get_tensor_in_dram(F::Frame{<:SubModelType}, tensor::TensorWrapper, nod
     end
 end
 
-function add_nodes!(F::Frame{<:SubModelType})
+function add_nodes!(F::Frame{<:ModelType})
     data = F.profile_data
 
     for node in nodes(data)
@@ -691,7 +689,7 @@ end
 tensor_size(t::TensorWrapper) = tensor_size(sizeof(t))
 tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
-function add_constraints!(F::Frame{<:SubModelType})
+function add_constraints!(F::Frame{<:ModelType})
     # Unpack some variables
     data = F.profile_data
 
@@ -722,8 +720,7 @@ struct MoveAction
 end
 
 configure!(fex::nGraph.FluxExecutable, frame::Frame{Asynchronous}) = fex, nothing
-
-function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:SubModelType})
+function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     # Unpack args
     data = frame.profile_data
     tensor_graphs = frame.model[:tensor_graphs]
@@ -736,6 +733,10 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:SubModelType})
     # Process the move node chains
     schedule = get_schedule(frame)
     action_map = Dict{TensorWrapper, Vector{MoveAction}}()
+
+    child_tensors = Dict{TensorWrapper, Vector{TensorWrapper}}()
+    parent_tensors = Dict{TensorWrapper, TensorWrapper}()
+    
 
     for (tensor, vertices) in schedule
         initial_location = first(vertices).location
@@ -826,10 +827,10 @@ end
 
 # For the static formulation, we must make sure that no move ops were emitted
 action_verification(::Static, action_map) = all(isempty, values(action_map))
-action_verification(::SubModelType, action_map) = true
+action_verification(::ModelType, action_map) = true
 
 # Get the path of the tensor traced through the graph
-function get_schedule(F::Frame{<:SubModelType})
+function get_schedule(F::Frame{<:ModelType})
     data = F.profile_data
     model_graphs = F.model[:tensor_graphs]
 
@@ -952,14 +953,22 @@ end
 
 
 # your moves are weak
-function profile_moves(fex, args, move_nodes::Dict)
+function profile_moves(fex)
     timing_data = read_timing_data(fex.ex.ngraph_function)
     computed_stats = Dict{String, NamedTuple}()
-    for (node_name, stats) in move_nodes
-        time = timing_data[findfirst(x -> x["name"] == node_name, timing_data)]["dur"]
+    for node_unwrapped in fex.ex.ngraph_function
+        node = NodeWrapper(node_unwrapped)
+        ismove(node) || continue
+
+        time = timing_data[findfirst(x -> x["name"] == name(node), timing_data)]["dur"]
         # Convert bytes to GB, time from μs to s
-        bandwidth = (stats.bytes / 1E9) / (time / 1E6)
-        computed_stats[node_name] = merge(stats, (bandwidth = bandwidth, ))
+        bytes = sizeof(first(inputs(node))) 
+        bandwidth = (bytes / 1E9) / (time / 1E6)
+        computed_stats[name(node)] = (
+            bytes = bytes,
+            bandwidth = bandwidth,
+            write_to_pmem = !is_persistent(first(inputs(node))),
+        )
     end
 
     # Summarize read and write bandwidth

@@ -106,6 +106,7 @@ end
 #####
 
 
+#=
 # Setup functions to Test
 fns = (
     RHN(2, 4, 20, 5000, 512),
@@ -151,3 +152,4 @@ for f in fns
         Runner.compare(f, opt; statspath = savefile, skip_run = true, skip_configure = true)
     end
 end
+=#

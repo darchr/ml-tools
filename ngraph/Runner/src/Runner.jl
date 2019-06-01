@@ -14,12 +14,14 @@ using Dates, Random, Serialization, Statistics
 using nGraph, Flux, JSON
 using JuMP, Gurobi
 import JuMP.name
-using RecipesBase
+using RecipesBase, Plots
 using LightGraphs
 using IterTools
 using ProgressMeter
 using TimerOutputs
+using DataStructures
 
+# Global Timer
 const TO = TimerOutput()
 
 @enum TensorLocation::UInt8 DRAM PMEM
@@ -78,14 +80,18 @@ include("util.jl")
 include("opt/opt.jl")
 include("models/simple.jl")
 include("profiler/profile.jl")
-include("visualize.jl")
 include("verifier.jl")
-include("visualizer/analyzer.jl")
+#include("visualizer/analyzer.jl")
 include("visualizer/reuse.jl")
 include("visualizer/performance_plots.jl")
+include("visualizer/allocation_plots.jl")
+include("visualizer/analysis.jl")
 include("top.jl")
 
 hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
+
+ismove(description::String) = startswith(description, "Move")
+ismove(op::nGraph.Node) = ismove(nGraph.description(op))
 
 end # module

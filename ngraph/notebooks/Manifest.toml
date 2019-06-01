@@ -306,9 +306,9 @@ version = "0.5.0"
 
 [[GR]]
 deps = ["Base64", "DelimitedFiles", "LinearAlgebra", "Pkg", "Printf", "Random", "Serialization", "Sockets", "Test"]
-git-tree-sha1 = "537b61986d8a5fd21e577541f8f0735e481eb3ed"
+git-tree-sha1 = "9dff2d231311da78648abfa3287e3458a578d2f8"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.39.1"
+version = "0.40.0"
 
 [[GeometryTypes]]
 deps = ["ColorTypes", "FixedPointNumbers", "IterTools", "LinearAlgebra", "StaticArrays"]
@@ -335,10 +335,10 @@ uuid = "2e9cd046-0924-5485-92f1-d5272153d98b"
 version = "0.6.0"
 
 [[HTTP]]
-deps = ["Base64", "Dates", "Distributed", "IniFile", "MbedTLS", "Random", "Sockets", "Test"]
-git-tree-sha1 = "25db0e3f27bd5715814ca7e4ad22025fdcf5cc6e"
+deps = ["Base64", "Dates", "IniFile", "MbedTLS", "Sockets"]
+git-tree-sha1 = "854fad2a2b9cc6678f70ed15a65fc7e572056d39"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.8.0"
+version = "0.8.2"
 
 [[IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
@@ -682,10 +682,10 @@ uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "0.5.8"
 
 [[PlotlyBase]]
-deps = ["Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Requires", "Statistics", "Test", "UUIDs"]
-git-tree-sha1 = "685c331de7712539c1f0d06e061fe57320bba5c9"
+deps = ["Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Requires", "Statistics", "UUIDs"]
+git-tree-sha1 = "59105ae9f523831c9108eaeeac88beb827402e13"
 uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.2.5"
+version = "0.2.6"
 
 [[Plots]]
 deps = ["Base64", "Contour", "Dates", "FixedPointNumbers", "GR", "GeometryTypes", "JSON", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "Reexport", "Requires", "Showoff", "SparseArrays", "Statistics", "StatsBase", "UUIDs"]
@@ -770,7 +770,7 @@ uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 version = "0.11.1"
 
 [[Runner]]
-deps = ["AbstractPlotting", "Crayons", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "Plots", "PrettyTables", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Serialization", "Statistics", "TimerOutputs", "Tracker", "Zoo", "nGraph"]
+deps = ["AbstractPlotting", "Crayons", "DataStructures", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "Plots", "PrettyTables", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Serialization", "Statistics", "TimerOutputs", "Tracker", "Zoo", "nGraph"]
 path = "../Runner"
 uuid = "4a6e9825-ed04-540b-82d3-f33d0e8d45fb"
 version = "0.1.0"

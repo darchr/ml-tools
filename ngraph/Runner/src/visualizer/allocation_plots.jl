@@ -68,7 +68,7 @@ function emit_series(frame::Frame, pb::PlotBuilder, metadata::Dict{TensorWrapper
         push!(marker_colors, _color_marker(action.location))
 
         # Color the conumsers
-        if action.replace_incumbent 
+        if action.replace_incumbent
             incumbent_location = action.location
         else
             x_stop = node_times[node_to_index[last(action.consumers)]]
@@ -86,8 +86,8 @@ function emit_series(frame::Frame, pb::PlotBuilder, metadata::Dict{TensorWrapper
     push!(rectangle_colors, _color(incumbent_location))
 
     return PlotSeries(
-        start_index, 
-        rectangles, 
+        start_index,
+        rectangles,
         rectangle_colors,
         markers,
         marker_colors
@@ -100,6 +100,17 @@ end
     legend := :none
     xlabel := "Runtime (s)"
     ylabel := "Total Memory Allocated (MiB)"
+    layout := @layout [ allocations{0.4h}
+                       dram_read{0.1h}
+                       dram_write{0.1h}
+                       pmem_read{0.1h}
+                       pmem_write{0.1h}
+                       dram_to_pmem{0.1h}
+                       pmem_to_dram{0.1h} ]
+
+    size := (1000, 1000)
+    left_margin := 20mm
+    link := :x
 
     data = frame.profile_data
 
@@ -115,6 +126,7 @@ end
     node_to_index = Dict(n => i for (i,n) in enumerate(nodes(data)))
 
     # Keep a rolling tally of y-coordinates
+    subplot := 1
     y_start = 0.0
     for (index, newlist) in enumerate(data.newlist)
         x_start = node_times[index]
@@ -170,83 +182,76 @@ end
             end
         end
     end
-end
 
-#####
-##### Plot the DRAM allocation of a graph
-#####
+    #####
+    ##### Create a secondary plot for displaying bandwidth
+    #####
 
-struct AllocationView end
-@recipe function f(::AllocationView, fex::nGraph.FluxExecutable)
-    profile_data = ProfileData(fex)
-    fn = fex.ex.ngraph_function
+    # Gather all data into a NamedTuple
+    x = Float64[0.0]
+    syms = (:dram_read, :dram_write, :pmem_read, :pmem_write, :dram_to_pmem, :pmem_to_dram)
+    vals = NamedTuple{syms}(ntuple(x -> Float64[], length(syms)))
 
-    tensor_map = Dict{String, nGraph.TensorDescriptor}()
-    for op in fn
-        for t in nGraph.output_descriptors(op)
-            tensor_map[nGraph.get_name(t)] = t
+    for i in eachindex(nodes(data))
+        node = nodes(data, i)
+
+        # The `x` value is just the time of this node.
+        push!(x, node_times[i])
+
+        # Append zero to each `y` value.
+        for sym in syms
+            arr = vals[sym]
+            push!(arr, zero(eltype(arr)))
+        end
+
+        # Treat moves and normal ops separately
+        if !ismove(node)
+            # Tally up inputs and outputs
+            for input in inputs(node)
+                if is_persistent(input)
+                    vals[:pmem_read][end] += sizeof(input)
+                else
+                    vals[:dram_read][end] += sizeof(input)
+                end
+            end
+            for output in outputs(node)
+                if is_persistent(output)
+                    vals[:pmem_write][end] += sizeof(output)
+                else
+                    vals[:dram_write][end] += sizeof(output)
+                end
+            end
+        else
+            input = first(inputs(node))
+            @show sizeof(input)
+            if is_persistent(input)
+                vals[:pmem_to_dram][end] += sizeof(input)
+            else
+                vals[:dram_to_pmem][end] += sizeof(input)
+            end
         end
     end
 
-    seriestype := :shape
-    legend := :none
-    linecolor := :white
+    seriestype := :bar
+    linewidth := 1
+    linealpha := 1.0
 
-    tensor_set = Set{String}()
-    starts = Dict{String, Int64}()
+    # Bar_edges is not available for the GR backend.
+    # instead, compute the center of the bars
+    bar_centers = (x[1:end-1] .+ x[2:end]) ./ 2
+    widths = diff(x)
 
-    count = 0
-    for (index, tensor_names) in enumerate(live_tensors(profile_data))
-        filtered_names = filter(!in(profile_data.fixed_tensors), tensor_names)
-        for tensor_name in filtered_names
-            in(tensor_name, profile_data.fixed_tensors) && continue
+    # Generate the plot
+    subplot_index = 2
+    for sym in syms
+        @series begin
+            subplot := subplot_index
+            title := titlecase(string(sym))
+            bar_width := widths
+            y = vals[sym] ./ 1E6
 
-            # Find tensors that are no longer live
-            for n in tensor_set
-                if !in(n, filtered_names)
-                    delete!(tensor_set, n)
-                    count += 1
-
-                    tensor = tensor_map[n]
-                    nGraph.is_persistent(tensor) && continue
-                    @series begin
-                        x = starts[n]
-                        width = index - x
-
-
-                        y = nGraph.get_pool_offset(tensor) / 1E6
-                        height = sizeof(tensor) / 1E6
-
-                        if width > 500
-                            @show n
-                            @show x
-                            @show width
-                            @show y
-                            @show height
-                            println()
-                        end
-
-                        if startswith(nGraph.get_name(tensor), "Move")
-                            c := :red
-                        else
-                            c := :black
-                        end
-
-                        x, y = rectangle(x, y, width, height)
-                        x = Float64.(x)
-                        y = Float64.(y)
-
-                        x, y
-                    end
-                end
-            end
-
-            for n in filtered_names
-                if !in(n, tensor_set)
-                    starts[n] = index
-                    push!(tensor_set, n)
-                end
-            end
+            bar_centers, y
         end
+        subplot_index += 1
     end
 end
