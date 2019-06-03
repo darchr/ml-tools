@@ -274,7 +274,7 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
             actual = kernel_time.actual
             if _err(expected, actual) > tol 
                 config = kernel_time.config
-                params = CPUKernelParams(unwrap(kernel_time.node))
+                params = CPUKernelParams(kernel_time.node)
                 # Update and save the cache
                 vec = get!(local_cache, (params, config), Float64[])
                 push!(vec, actual)

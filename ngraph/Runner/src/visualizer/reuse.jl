@@ -23,7 +23,7 @@ function reuse_distance(p::ProfileData)
         pages = Set{Int}()
 
         for tensor in Iterators.flatten((Runner.inputs(node), Runner.outputs(node)))
-            offset = floor(Int, nGraph.get_pool_offset(Runner.unwrap(tensor)) / pagesize)
+            offset = floor(Int, nGraph.get_pool_offset(Runner.tensor) / pagesize)
             sz = sizeof(tensor)
             for i in offset:offset + ceil(Int, sz / pagesize)
                 push!(pages, i)

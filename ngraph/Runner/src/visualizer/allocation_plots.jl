@@ -14,19 +14,19 @@ end
 # Holder for metadata to pass around during building
 struct PlotBuilder
     # The tensor currently being emitted
-    tensor::TensorWrapper
+    tensor::TensorDescriptor
     newlist_index::Int
     y_start::Int
 
     # Timing of sequential nodes
     node_times::Vector{Float64}
-    node_to_index::Dict{NodeWrapper, Int64}
+    node_to_index::Dict{NodeDescriptor, Int64}
 end
 
 _color(x) = x == DRAM ? :blue : :red
 _color_marker(x) = x == DRAM ? :black : :darkgreen
 
-function emit_series(frame::Frame, pb::PlotBuilder, metadata::Dict{TensorWrapper, Vector{MoveAction}})
+function emit_series(frame::Frame, pb::PlotBuilder, metadata::Dict{TensorDescriptor, Vector{MoveAction}})
     # Unpack
     data = frame.profile_data
     node_times = pb.node_times
@@ -116,7 +116,7 @@ end
 
     # Get the execution times for the intermediate ops
     node_times = map(nodes(data)) do node
-        config = getconfig(unwrap(node))
+        config = getconfig(node)
 
         # Nodes we didn't profile have no timing information, so just return a default
         # zero time for those nodes

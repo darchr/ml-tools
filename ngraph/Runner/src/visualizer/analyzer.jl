@@ -2,7 +2,7 @@
 module Analyzer
 
 import ..Runner
-import ..Runner: IOConfig, nodes, unwrap, TensorWrapper, live_tensors, is_persistent,
+import ..Runner: IOConfig, nodes, TensorDescriptor, live_tensors, is_persistent,
     inputs, outputs, tensors
 using nGraph
 using RecipesBase

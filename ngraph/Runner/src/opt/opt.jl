@@ -48,10 +48,10 @@
 abstract type ModelType end
 
 # Struct to be passed around since all these items are generally used together anyways.
-mutable struct Frame{T <: ModelType, C}
+mutable struct Frame{T <: ModelType}
     modeltype::T
     model::JuMP.Model
-    profile_data::ProfileData{C}
+    profile_data::ProfileData
 end
 
 limit(F::Frame) = limit(F.modeltype)
@@ -65,13 +65,13 @@ include("sync.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt, ctx = AllTensors(); 
+function factory(f, opt; 
         cache = CPUKernelCache(BASE_CACHE_PATH), 
         skip_configure = false
     )
 
     @timeit TO "building ngraph function" fex, args = f()
-    @timeit TO "getting profile data" data = profile(fex, ctx; cache = cache)
+    @timeit TO "getting profile data" data = profile(fex; cache = cache)
 
     modeltype = opt(data)
     @timeit TO "creating model" frame = create_model(modeltype, data)
@@ -117,11 +117,11 @@ approx_one(x::JuMP.VariableRef) = approx_one(value(x))
 Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly 
 created node.
 """
-function insert_move_node!(producer::NodeWrapper, index, consumers::Vector{NodeWrapper}, consumer_inputs)
-    move_node = nGraph.move(unwrap(producer), index)
+function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{NodeDescriptor}, consumer_inputs)
+    move_node = nGraph.move(nGraph.Node(producer), index)
     for (consumer, input) in zip(consumers, consumer_inputs)
-        nGraph.splice(unwrap(producer), index, unwrap(consumer), input, move_node)
+        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
     end
     
-    return NodeWrapper(move_node)
+    return NodeDescriptor(move_node)
 end

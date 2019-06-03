@@ -31,7 +31,7 @@ filter_out_io(c::CPUKernelParams) = (
 
 mkldnn_string(x) = last(split(nGraph.Lib.get_mkldnn_string(x), ":"))
 
-function CPUKernelParams(node::nGraph.Node)
+function CPUKernelParams(node::nGraph.NodeLike)
     description = nGraph.description(node)
 
     # Input processing

@@ -28,7 +28,7 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext; 
+function profile(fex::nGraph.FluxExecutable;
         cache = CPUKernelCache(BASE_CACHE_PATH)
     )
 
@@ -39,7 +39,7 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
     f = fex.ex.ngraph_function
-    data = ProfileData(fex, ctx)
+    data = ProfileData(fex)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -47,7 +47,7 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
 
     # Convert the configs to a dictionary mapping node name to configs for easier
     # management
-    config_dict = Dict{NodeWrapper, Vector{IOConfig}}()
+    config_dict = Dict{NodeDescriptor, Vector{IOConfig}}()
     for config in all_configs
         v = get!(config_dict, first(config), IOConfig[])
         push!(v, last(config))
@@ -59,10 +59,10 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
     # Setup a little update function for all configurations
     # This gives a more fine-grained information than updating for each op
     serviced = Ref(0)
-    function _update!(p, op, config, ncached) 
+    function _update!(p, op, config, ncached)
         serviced[] += 1
         ProgressMeter.next!(
-            p; 
+            p;
             valuecolor = :white,
             showvalues = [
                 (:iter, serviced[]),
@@ -85,24 +85,25 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
 
         # Before we build a sub-function, get all of the cached ops.
         cached_configs = IOConfig[]
-        kernel_params = CPUKernelParams(unwrap(node)) 
-        for config in configs 
-            if haskey(cache, (kernel_params, config))
+        kernel_params = CPUKernelParams(node)
+        for config in configs
+            key = (kernel_params, config)
+            if haskey(cache, key)
                 # Update the number of timings serviced from cached ops
-                ncached += 1 
+                ncached += 1
                 _update!(progress_bar, node, config, ncached)
 
-                node.timings[config] = [cache[(kernel_params, config)]]
+                settime!(data, node, config, cache[key])
                 push!(cached_configs, config)
             end
         end
 
         # Abort if everything is cached
-        length(cached_configs) == length(configs) && continue 
+        length(cached_configs) == length(configs) && continue
 
         # Extract a subgraph with just this op
-        @timeit TO "extracting node" begin 
-            ex, inputs, outputs, copied_op = extract(unwrap(node))
+        @timeit TO "extracting node" begin
+            ex, inputs, outputs, copied_op = extract(nGraph.Node(node))
         end
 
         # Profile the timings
@@ -120,12 +121,18 @@ function profile(fex::nGraph.FluxExecutable, ctx::AbstractCreationContext;
             @timeit TO "running inner loop" for _ in 1:3
                 ex(inputs, outputs)
             end
-            @timeit TO "recording time" record_time!(node, function_name, copied_op, config)
+            @timeit TO "recording time" record_time!(
+                data, 
+                node, 
+                function_name, 
+                copied_op, 
+                config
+            )
 
             _cleanup!(copied_op)
 
             # Save the results to the cache, and then save the cache
-            cache[(kernel_params, config)] = minimum(node.timings[config])
+            cache[(kernel_params, config)] = gettime(data, node, config)
             save(cache)
         end
     end
@@ -136,7 +143,7 @@ end
 read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
 read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
 
-function record_time!(node::NodeWrapper, function_name, op, expected_config)
+function record_time!(data, node::NodeDescriptor, function_name, op, expected_config)
     timings = read_timing_data(function_name)
     # Get the persistence config of this op
     config = getconfig(op)
@@ -157,7 +164,11 @@ function record_time!(node::NodeWrapper, function_name, op, expected_config)
     index = findfirst(x -> x["name"] == nGraph.name(op), timings)
     @assert index !== nothing
 
-    push!(get!(node.timings, config, Float64[]), timings[index]["dur"])
+    if hastime(data, node, config)
+        settime!(data, node, config, minimum(gettime(data, node, config), timings[index]["dur"]))
+    else
+        settime!(data, node, config, timings[index]["dur"])
+    end
 end
 
 function extract(node::nGraph.Node; backend = nGraph.Backend())
@@ -169,7 +180,7 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     end
 
     # Insert layout conversion to match the mkldnn layouts in the original graph.
-    links = nGraph.Node[] 
+    links = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
         if nGraph.input_needs_conversion(node, i)
             push!(links, nGraph.convert_layout_to(params[i], node, i))
@@ -179,7 +190,7 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     end
 
     # Copy the node with the newly created parameters
-    copied_node = nGraph.copy_with_new_args(node, links)
+    copied_node = copy(node, links)
 
     # Make sure we're using the same version of the node.
     nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)
@@ -212,7 +223,7 @@ function extract(node::nGraph.Node; backend = nGraph.Backend())
     found = false
     for op in ex.ngraph_function
         # Line it up by description and input/output sizes.
-        if CPUKernelParams(op) == CPUKernelParams(copied_node) 
+        if CPUKernelParams(op) == CPUKernelParams(copied_node)
             translated_node = op
             found = true
             break

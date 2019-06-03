@@ -12,13 +12,13 @@ struct TensorMeta
     graph::MetaGraph
 
     # Nodes using this tensor
-    users::Vector{NodeWrapper}
+    users::Vector{NodeDescriptor}
 
     # Look-up a node wrapper, get the node that serves as a reference for this
-    reference_map::Dict{NodeWrapper, NodeWrapper}
+    reference_map::Dict{NodeDescriptor, NodeDescriptor}
 end
 
-get_reference(S::TensorMeta, node::NodeWrapper) = S.reference_map[node]
+get_reference(S::TensorMeta, node::NodeDescriptor) = S.reference_map[node]
 graph(S::TensorMeta) = S.graph
 users(S::TensorMeta) = S.users
 
@@ -29,9 +29,9 @@ users(S::TensorMeta) = S.users
 # Static: Assigns tensors to either PMEM or DRAM. No movement
 mutable struct Static <: ModelType
     dram_limit::Int64
-    descriptors::Dict{TensorWrapper, TensorMeta}
+    descriptors::Dict{TensorDescriptor, TensorMeta}
 end
-Static(a) = Static(a, Dict{TensorWrapper,TensorMeta}())
+Static(a) = Static(a, Dict{TensorDescriptor,TensorMeta}())
 
 # Synchronous: Can move, but cannot overlap movement with computation
 mutable struct Synchronous <: ModelType
@@ -42,9 +42,9 @@ mutable struct Synchronous <: ModelType
     # Metadata to help model creation
 
     # The names of all tensors in the function
-    descriptors::Dict{TensorWrapper, TensorMeta}
+    descriptors::Dict{TensorDescriptor, TensorMeta}
 end
-Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorWrapper,TensorMeta}())
+Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorDescriptor,TensorMeta}())
 
 # Asynchronous: Can overlap movcement with computation
 mutable struct Asynchronous <: ModelType
@@ -52,14 +52,14 @@ mutable struct Asynchronous <: ModelType
     read_bandwidth::Int64
     write_bandwidth::Int64
 
-    descriptors::Dict{TensorWrapper, TensorMeta}
+    descriptors::Dict{TensorDescriptor, TensorMeta}
 end
-Asynchronous(args...) = Asynchronous(args..., Dict{TensorWrapper, TensorMeta}())
+Asynchronous(args...) = Asynchronous(args..., Dict{TensorDescriptor, TensorMeta}())
 
 # Common Methods
 limit(S::ModelType) = S.dram_limit
 predict(F::Frame{<:ModelType}) = objective_value(F.model)
-descriptor(F::Frame{<:ModelType}, tensor::TensorWrapper) = F.modeltype.descriptors[tensor]
+descriptor(F::Frame{<:ModelType}, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
 
 #####
 ##### Entry Point
@@ -67,11 +67,7 @@ descriptor(F::Frame{<:ModelType}, tensor::TensorWrapper) = F.modeltype.descripto
 
 const _expr_type = typeof(AffExpr())
 
-create_model(modeltype::Synchronous, profile_data::ProfileData{AllTensors}) = error("""
-Synchronous model not implemented yet for all tensors.
-""")
-
-function create_model(modeltype::ModelType, profile_data::ProfileData{OnlyIntermediate})
+function create_model(modeltype::ModelType, profile_data::ProfileData)
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
@@ -130,7 +126,7 @@ struct VertexMetadata
     # The gadget that this vertex belongs to. Used for edge generation.
     gadget::Int
     # The op index that this gadget refers to
-    op::NodeWrapper
+    op::NodeDescriptor
     # Where the vertex lives
     location::VertexLocation
     # What type of moves this vertex allows
@@ -147,21 +143,21 @@ end
 
 # Preprocessing basically involves creating the tensor graphs for each intermediate tensor.
 
-function _liverange(data::ProfileData, t::TensorWrapper)
+function _liverange(data::ProfileData, t::TensorDescriptor)
     start = findfirst(isequal(_producer(t, data)), nodes(data))::Int
     stop = findlast(isequal(_consumer(t, data)), nodes(data))
     isnothing(stop) && (stop = length(nodes))
     return start:stop
 end
 
-function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorWrapper)
+function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
     users = _users(t, data)
-    refs = Vector{NamedTuple{(:node, :move_type),Tuple{NodeWrapper,MoveType}}}()
+    refs = Vector{NamedTuple{(:node, :move_type),Tuple{NodeDescriptor,MoveType}}}()
 
     # Build the referece map
-    reference_map = Dict{NodeWrapper, NodeWrapper}()
+    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
     ref = first(users)
     bound = 5
 
@@ -188,13 +184,13 @@ function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorWrapper)
     return refs, reference_map
 end
 
-function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
+function _getgadgets(::Synchronous, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
     users = _users(t, data)
 
     # Build the referece map
-    reference_map = Dict{NodeWrapper, NodeWrapper}()
+    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
     ref = first(users)
     for ind in liverange
         node = nodes(data, ind)
@@ -211,11 +207,11 @@ function _getgadgets(::Synchronous, data::ProfileData, t::TensorWrapper)
     return nt, reference_map
 end
 
-function _getgadgets(::Static, data::ProfileData, t::TensorWrapper)
+function _getgadgets(::Static, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     producer = nodes(data, first(liverange))
 
-    reference_map = Dict{NodeWrapper, NodeWrapper}()
+    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
     for ind in liverange
         reference_map[nodes(data, ind)] = producer
     end
@@ -263,7 +259,7 @@ function preprocess!(S::ModelType, data::ProfileData)
         @timeit TO "making gadgets" begin
             # Get two things from _getgadgets:
             #
-            # 1. A named tuple (node::NodeWrapper, move_type::MoveType)
+            # 1. A named tuple (node::NodeDescriptor, move_type::MoveType)
             # 2. A dictionary implementing the `ref` function.
             users, reference_map = _getgadgets(S, data, tensor)
         end
@@ -603,7 +599,7 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorWrapper, node::NodeWrapper)
+function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorDescriptor, node::NodeDescriptor)
     desc = descriptor(F, tensor)
 
     if in(node, users(desc))
@@ -635,7 +631,7 @@ function add_nodes!(F::Frame{<:ModelType})
         # ILP model is concerned.
         hasprofile(node) || continue
 
-        configs = collect(keys(node.timings))
+        configs = collect(keys(gettime(data, node)))
 
         # Create a variable for each config.
         vars = @variable(F.model, [config = configs], Bin)
@@ -673,7 +669,7 @@ function add_nodes!(F::Frame{<:ModelType})
         node_times = _expr_type()
         for config in configs
             # For now, just use the Mean
-            coeff = round(Int64, minimum(node.timings[config]))
+            coeff = round(Int64, gettime(data, node, config))
             add_to_expression!(node_times, coeff, vars[config])
         end
         F.model[:node_times][name(node)] = node_times
@@ -686,7 +682,7 @@ end
 #
 # Take the floor to introduce more zeros into the ILP formulation. This shouldn't really
 # make much of a difference.
-tensor_size(t::TensorWrapper) = tensor_size(sizeof(t))
+tensor_size(t::TensorDescriptor) = tensor_size(sizeof(t))
 tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
 function add_constraints!(F::Frame{<:ModelType})
@@ -714,7 +710,7 @@ end
 #####
 
 struct MoveAction
-    consumers::Vector{NodeWrapper}
+    consumers::Vector{NodeDescriptor}
     location::TensorLocation
     replace_incumbent::Bool
 end
@@ -728,14 +724,14 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     _cleanup!(fn)
 
     # Get the locations of the tensors currently in the graph
-    config = Dict{TensorWrapper, TensorLocation}()
+    config = Dict{TensorDescriptor, TensorLocation}()
 
     # Process the move node chains
     schedule = get_schedule(frame)
-    action_map = Dict{TensorWrapper, Vector{MoveAction}}()
+    action_map = Dict{TensorDescriptor, Vector{MoveAction}}()
 
-    child_tensors = Dict{TensorWrapper, Vector{TensorWrapper}}()
-    parent_tensors = Dict{TensorWrapper, TensorWrapper}()
+    child_tensors = Dict{TensorDescriptor, Vector{TensorDescriptor}}()
+    parent_tensors = Dict{TensorDescriptor, TensorDescriptor}()
     
 
     for (tensor, vertices) in schedule
@@ -753,11 +749,11 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
         action_map[tensor] = actions
 
         producer = _producer(tensor, data)
-        producer_output = _find(isequal(tensor), outputs(producer))
+        producer_output = findonly(isequal(tensor), outputs(producer))
 
         for action in actions
             consumers = action.consumers
-            consumer_inputs = [_find(isequal(tensor), inputs(n)) for n in consumers]
+            consumer_inputs = [findonly(isequal(tensor), inputs(n)) for n in consumers]
 
             move_node = insert_move_node!(producer, producer_output, consumers, consumer_inputs)
 
@@ -766,8 +762,8 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
             # If moving to PMEM, perform this action as soon as possible after the node
             # generating the argument.
             if action.location == PMEM
-                nGraph.set_input_affinity(unwrap(move_node))
-                nGraph.add_associate(unwrap(move_node), name(producer))
+                nGraph.set_input_affinity(move_node)
+                nGraph.add_associate(move_node, name(producer))
 
                 # Perform a sanity check. Should not move data to PMEM if it already
                 # started in PMEM.
@@ -777,9 +773,9 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
             # associates to this list because scheduling may be reordered after inserting
             # the move nodes.
             elseif action.location == DRAM
-                nGraph.set_output_affinity(unwrap(move_node))
+                nGraph.set_output_affinity(move_node)
                 for consumer in consumers
-                    nGraph.add_associate(unwrap(move_node), name(consumer))
+                    nGraph.add_associate(move_node, name(consumer))
                 end
             else
                 error()
@@ -809,9 +805,9 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
 
     # Iterate over each node and each output tensor for each node. Each output tensor should
     # have an assigned location
-    for node in fn, output in outputs(NodeWrapper(node))
+    for node in fn, output in outputs(NodeDescriptor(node))
         if config[output] == PMEM
-            make_persistent(fex, data, output)
+            make_persistent(output)
         end
     end
 
@@ -834,7 +830,7 @@ function get_schedule(F::Frame{<:ModelType})
     data = F.profile_data
     model_graphs = F.model[:tensor_graphs]
 
-    schedule = Dict{TensorWrapper, Vector{VertexMetadata}}()
+    schedule = Dict{TensorDescriptor, Vector{VertexMetadata}}()
 
     for tensor in tensors(data)
         g = graph(descriptor(F, tensor))
@@ -873,7 +869,7 @@ end
 
 # Consume all of the PKEEP nodes.
 function getkeeps(vertices::Vector{VertexMetadata}, index)
-    keeps = NodeWrapper[]
+    keeps = NodeDescriptor[]
     while checkbounds(Bool, vertices, index) && vertices[index].location == LOC_DRAM
         push!(keeps, vertices[index].op)
         index += 1
@@ -938,7 +934,7 @@ function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Synchronous
 
     move_time = zero(Float64)
     for _node in fex.ex.ngraph_function
-        node = NodeWrapper(_node)
+        node = NodeDescriptor(_node)
         if description(node) == "Move"
             tensor = first(outputs(node))
             if is_persistent(tensor)
@@ -957,7 +953,7 @@ function profile_moves(fex)
     timing_data = read_timing_data(fex.ex.ngraph_function)
     computed_stats = Dict{String, NamedTuple}()
     for node_unwrapped in fex.ex.ngraph_function
-        node = NodeWrapper(node_unwrapped)
+        node = NodeDescriptor(node_unwrapped)
         ismove(node) || continue
 
         time = timing_data[findfirst(x -> x["name"] == name(node), timing_data)]["dur"]
