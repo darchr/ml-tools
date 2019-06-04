@@ -83,11 +83,17 @@ include("opt/opt.jl")
 include("models/simple.jl")
 include("profiler/profile.jl")
 include("verifier.jl")
-#include("visualizer/analyzer.jl")
+
+# Analysis routines
+include("analysis/conditional.jl")
+
+# visualization routines
 include("visualizer/reuse.jl")
 include("visualizer/performance_plots.jl")
 include("visualizer/allocation_plots.jl")
 include("visualizer/analysis.jl")
+
+# top level entry for scripts
 include("top.jl")
 
 JuMP.name(n::nGraph.NodeLike) = nGraph.name(n)

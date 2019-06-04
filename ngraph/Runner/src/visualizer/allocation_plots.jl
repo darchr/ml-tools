@@ -1,101 +1,6 @@
 rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
 
-struct PlotSeries
-    # Rectangles representing tensors during their live range as well as colors
-    # for each rectangle
-    start_index::Int64
-    rectangles::Vector{Tuple{Vector{Float64}, Vector{Float64}}}
-    rectangle_colors::Vector{Symbol}
-
-    markers::Vector{Tuple{Float64, Float64}}
-    marker_colors::Vector{Symbol}
-end
-
-# Holder for metadata to pass around during building
-struct PlotBuilder
-    # The tensor currently being emitted
-    tensor::TensorDescriptor
-    newlist_index::Int
-    y_start::Int
-
-    # Timing of sequential nodes
-    node_times::Vector{Float64}
-    node_to_index::Dict{NodeDescriptor, Int64}
-end
-
-_color(x) = x == DRAM ? :blue : :red
-_color_marker(x) = x == DRAM ? :black : :darkgreen
-
-function emit_series(frame::Frame, pb::PlotBuilder, metadata::Dict{TensorDescriptor, Vector{MoveAction}})
-    # Unpack
-    data = frame.profile_data
-    node_times = pb.node_times
-    node_to_index = pb.node_to_index
-    tensor = pb.tensor
-
-    # Get the y-coordinates out of the way
-    y_start = pb.y_start
-    height = sizeof(tensor)
-
-    # Initialize rectangle vectors
-    rectangles = Tuple{Vector{Float64},Vector{Float64}}[]
-    rectangle_colors = Symbol[]
-
-    markers = Tuple{Float64, Float64}[]
-    marker_colors = Symbol[]
-
-    # Begin emitting rectangles by stroling through the move actions.
-    moves = get(metadata, tensor, MoveAction[])
-    start_index = pb.newlist_index
-    x_start = isone(pb.newlist_index) ? 0.0 : node_times[pb.newlist_index-1]
-
-    rolling_index = start_index
-    if approx_one(get_tensor_in_dram(frame, tensor, nodes(data, rolling_index)))
-        incumbent_location = DRAM
-    else
-        incumbent_location = PMEM
-    end
-    for action in moves
-        # Color up to the first affected consumer
-        x_stop = node_times[rolling_index]
-        push!(rectangles, rectangle(x_start, y_start, x_stop - x_start, height))
-        push!(rectangle_colors, _color(incumbent_location))
-        x_start = x_stop
-
-        rolling_index = node_to_index[last(action.consumers)] + 1
-        # Emit markers
-        push!(markers, (x_stop, y_start + height / 2))
-        push!(marker_colors, _color_marker(action.location))
-
-        # Color the conumsers
-        if action.replace_incumbent
-            incumbent_location = action.location
-        else
-            x_stop = node_times[node_to_index[last(action.consumers)]]
-            push!(rectangles, rectangle(x_start, y_start, x_stop - x_start, height))
-            push!(rectangle_colors, _color(action.location))
-            x_start = x_stop
-        end
-    end
-
-    # Emit the last rectangle to the end of this tensors live range
-    lastind = findfirst(x -> in(tensor, x), data.freelist)
-    x_stop = isnothing(lastind) ? last(node_times) : node_times[lastind]
-
-    push!(rectangles, rectangle(x_start, y_start, x_stop - x_start, height))
-    push!(rectangle_colors, _color(incumbent_location))
-
-    return PlotSeries(
-        start_index,
-        rectangles,
-        rectangle_colors,
-        markers,
-        marker_colors
-    ), y_start + height
-end
-
-
-@recipe function f(frame::Frame, metadata)
+@recipe function f(fex::nGraph.FluxExecutable, frame::Frame, tensor_map::TensorMap)
     # Pre processing
     legend := :none
     xlabel := "Runtime (s)"
@@ -115,12 +20,12 @@ end
     data = frame.profile_data
 
     # Get the execution times for the intermediate ops
+    timing_data = read_timing_data(fex.ex.ngraph_function)
     node_times = map(nodes(data)) do node
-        config = getconfig(node)
+        hasprofile(node) || return 0.0
 
-        # Nodes we didn't profile have no timing information, so just return a default
-        # zero time for those nodes
-        return minimum(get(node.timings, config, 0.0))
+        index = findonly(x -> x["name"] == name(node), timing_data)
+        return timing_data[index]["dur"]
     end |> cumsum |> x -> x ./ 1E6
 
     node_to_index = Dict(n => i for (i,n) in enumerate(nodes(data)))
@@ -128,55 +33,52 @@ end
     # Keep a rolling tally of y-coordinates
     subplot := 1
     y_start = 0.0
+
+    # Map tensors to their "y" coordinate. Used for tracking move nodes.
+    tensor_to_y = Dict{TensorDescriptor, Float64}()
     for (index, newlist) in enumerate(data.newlist)
         x_start = node_times[index]
 
         isempty(newlist) && continue
 
-        plot_series = PlotSeries[]
+        rectangles = Tuple{Vector{Float64}, Vector{Float64}}[]  # Inconvenient data type ...
+        colors = Symbol[]
         for tensor in newlist
+            # If this is a parent, make a new bar.
+            if isparent(tensor_map, tensor) 
+                this_y = y_start
+                tensor_to_y[tensor] = this_y
+                y_start += sizeof(tensor)
 
-            builder = PlotBuilder(tensor, index, y_start, node_times, node_to_index)
-            ps, y_start = emit_series(frame, builder, metadata)
-            push!(plot_series, ps)
+            # Otherwise, figure out the appropriate y-coordinate for this tensor.
+            else
+                parent = getparent(tensor_map, tensor)
+                this_y = tensor_to_y[parent]
+
+                # Sanity check. Make sure sizes are preserved
+                @assert sizeof(parent) == sizeof(tensor)
+            end
+
+            # Get the start time
+            height = sizeof(tensor)  
+            x_start = node_times[index]
+            x_stop = node_times[node_to_index[_consumer(tensor, data)]]
+
+            push!(rectangles, rectangle(x_start, this_y, x_stop - x_start, height))
+            push!(colors, nGraph.is_persistent(tensor) ? :red : :blue)
         end
-
-        # Sort the tensors for prettiness
-        sort!(plot_series; by = x -> x.start_index)
 
         # Plot the tensor indices
         seriestype := :shape
         linewidth := 0
         linealpha := 0
 
-        for ps in plot_series
-            for (rectangle, color) in zip(ps.rectangles, ps.rectangle_colors)
-                @series begin
-                    c := color
-
-                    x = first(rectangle)
-                    y = last(rectangle)
-
-                    x, y
-                end
-            end
-        end
-
-        seriestype := :scatter
-        markerstrokealpha := 0.0
-
-        for ps in plot_series
-            isempty(ps.markers) && continue
+        for (rectangle, color) in zip(rectangles, colors)
             @series begin
-                x = Float64[]
-                y = Float64[]
-                colors = Symbol[]
-                for (pair, color) in zip(ps.markers, ps.marker_colors)
-                    push!(x, first(pair))
-                    push!(y, last(pair))
-                    push!(colors, color)
-                end
-                c := colors
+                c := color
+
+                x = first(rectangle)
+                y = last(rectangle)
 
                 x, y
             end
@@ -208,14 +110,14 @@ end
         if !ismove(node)
             # Tally up inputs and outputs
             for input in inputs(node)
-                if is_persistent(input)
+                if nGraph.is_persistent(input)
                     vals[:pmem_read][end] += sizeof(input)
                 else
                     vals[:dram_read][end] += sizeof(input)
                 end
             end
             for output in outputs(node)
-                if is_persistent(output)
+                if nGraph.is_persistent(output)
                     vals[:pmem_write][end] += sizeof(output)
                 else
                     vals[:dram_write][end] += sizeof(output)
@@ -224,7 +126,7 @@ end
         else
             input = first(inputs(node))
             @show sizeof(input)
-            if is_persistent(input)
+            if nGraph.is_persistent(input)
                 vals[:pmem_to_dram][end] += sizeof(input)
             else
                 vals[:dram_to_pmem][end] += sizeof(input)
@@ -243,6 +145,7 @@ end
 
     # Generate the plot
     subplot_index = 2
+
     for sym in syms
         @series begin
             subplot := subplot_index

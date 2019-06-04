@@ -705,6 +705,38 @@ function add_constraints!(F::Frame{<:ModelType})
     return
 end
 
+
+# Struct for keeping track of what tensors are moved.
+#
+# children: Maps a tensor `t` to the collection tensors that are the results of "Move" 
+#   instructions ultimately beginning at `t`.
+# parent: Maps a tensor `t` to its parent tensor. The following should hold: `t ∈ children[parent[t]]`
+struct TensorMap
+    children::Dict{TensorDescriptor, Vector{TensorDescriptor}}
+    parent::Dict{TensorDescriptor, TensorDescriptor}
+end
+TensorMap() = TensorMap(
+    Dict{TensorDescriptor, Vector{TensorDescriptor}}(),
+    Dict{TensorDescriptor, TensorDescriptor}()
+)
+
+function addtensor!(M::TensorMap, d::TensorDescriptor)
+    @assert !haskey(M.children, d)
+    @assert !haskey(M.parent, d)
+
+    M.children[d] = TensorDescriptor[]
+    M.parent[d] = d
+end
+
+function addchild!(M::TensorMap, parent::TensorDescriptor, child::TensorDescriptor)
+    push!(M.children[parent], child)
+    M.parent[child] = parent
+end
+
+getchildren(M::TensorMap, parent) = M.children[parent]
+getparent(M::TensorMap, child) = M.parent[child]
+isparent(M::TensorMap, tensor) = getparent(M, tensor) == tensor
+
 #####
 ##### Conifiguration
 #####
@@ -728,13 +760,11 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
 
     # Process the move node chains
     schedule = get_schedule(frame)
-    action_map = Dict{TensorDescriptor, Vector{MoveAction}}()
-
-    child_tensors = Dict{TensorDescriptor, Vector{TensorDescriptor}}()
-    parent_tensors = Dict{TensorDescriptor, TensorDescriptor}()
+    tensor_map = TensorMap()
     
-
     for (tensor, vertices) in schedule
+        addtensor!(tensor_map, tensor)
+
         initial_location = first(vertices).location
         if initial_location == LOC_PMEM
             config[tensor] = PMEM
@@ -746,16 +776,21 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
 
         # Get a list of move actions that we will have to perform.
         actions = getactions(vertices)
-        action_map[tensor] = actions
 
         producer = _producer(tensor, data)
         producer_output = findonly(isequal(tensor), outputs(producer))
+        incumbent = tensor
 
         for action in actions
             consumers = action.consumers
-            consumer_inputs = [findonly(isequal(tensor), inputs(n)) for n in consumers]
+            consumer_inputs = [findonly(isequal(incumbent), inputs(n)) for n in consumers]
 
             move_node = insert_move_node!(producer, producer_output, consumers, consumer_inputs)
+
+            # Add the new output tensor tothe tensor map
+            for output in outputs(move_node)
+                addchild!(tensor_map, tensor, output)
+            end
 
             # Determine associate from the action location.
             #
@@ -790,12 +825,10 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
                 # Since we're just inserting move nodes, the output index will now always
                 # be 1
                 producer_output = 1
-                tensor = output_tensor
+                incumbent = output_tensor
             end
         end
     end
-
-    @assert action_verification(frame.modeltype, action_map)
 
     #####
     ##### Apply the config
@@ -813,17 +846,15 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
 
     fex = nGraph.recompile(fex)
 
+    # Update ProfileData in Frame for the newly compiled function
+    frame.profile_data = profile(fex)
+
     #####
     ##### Now, we do some checking to make sure everything is scheduled correctly
     #####
-    #verify_moves(fex, move_nodes_created)
 
-    return fex, action_map
+    return fex, tensor_map
 end
-
-# For the static formulation, we must make sure that no move ops were emitted
-action_verification(::Static, action_map) = all(isempty, values(action_map))
-action_verification(::ModelType, action_map) = true
 
 # Get the path of the tensor traced through the graph
 function get_schedule(F::Frame{<:ModelType})
