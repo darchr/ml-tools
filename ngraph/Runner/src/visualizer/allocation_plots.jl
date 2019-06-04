@@ -22,7 +22,9 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
     # Get the execution times for the intermediate ops
     timing_data = read_timing_data(fex.ex.ngraph_function)
     node_times = map(nodes(data)) do node
-        hasprofile(node) || return 0.0
+        if !hasprofile(node) && !ismove(node)
+            return 0.0
+        end
 
         index = findonly(x -> x["name"] == name(node), timing_data)
         return timing_data[index]["dur"]
@@ -62,7 +64,8 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
             # Get the start time
             height = sizeof(tensor)  
             x_start = node_times[index]
-            x_stop = node_times[node_to_index[_consumer(tensor, data)]]
+            _idx = min(length(node_times), node_to_index[_consumer(tensor, data)]+1)
+            x_stop = node_times[_idx]
 
             push!(rectangles, rectangle(x_start, this_y, x_stop - x_start, height))
             push!(colors, nGraph.is_persistent(tensor) ? :red : :blue)

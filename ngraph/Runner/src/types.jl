@@ -7,6 +7,7 @@ struct ProfileData
 
     # Stored in program order.
     nodes::Vector{NodeDescriptor}
+    node_to_index::Dict{NodeDescriptor, Int}
     timings::Dict{NodeDescriptor, Dict{IOConfig, Float64}}
 
     # Liveness Analysis
@@ -84,6 +85,7 @@ function ProfileData(fex::nGraph.FluxExecutable)
     PD = ProfileData(
         tensors,
         nodes,
+        Dict(n => i for (i,n) in enumerate(nodes)),
         Dict{NodeDescriptor, Dict{IOConfig, Float64}}(),
         liveness.new_list,
         liveness.free_list,
@@ -247,4 +249,27 @@ function _cleanup!(node::nGraph.Node)
         nGraph.make_volatile(descriptor)
         nGraph.reset_offset(descriptor)
     end
+end
+
+#####
+##### For gathering statistics
+#####
+
+count_moves(fex::nGraph.FluxExecutable) = count(ismove, fex.ex.ngraph_function)
+count_nodes(data) = count(hasprofile, nodes(data))
+
+count_tensor_inputs(data) = _count(inputs, data)
+count_tensor_outputs(data) = _count(outputs, data)
+
+count_tensor_dram_inputs(data) = _count(x -> filter(!nGraph.is_persistent, inputs(x)), data)
+count_tensor_dram_outputs(data) = _count(x -> filter(!nGraph.is_persistent, outputs(x)), data)
+
+function _count(f, data)
+    count = 0
+    for node in nodes(data) 
+        for tensor in f(node)
+            count += 1
+        end
+    end
+    return count
 end

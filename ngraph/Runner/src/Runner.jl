@@ -85,12 +85,13 @@ include("profiler/profile.jl")
 include("verifier.jl")
 
 # Analysis routines
-include("analysis/conditional.jl")
+include("analysis/correlations.jl")
 
 # visualization routines
 include("visualizer/reuse.jl")
 include("visualizer/performance_plots.jl")
 include("visualizer/allocation_plots.jl")
+include("visualizer/statistics_plots.jl")
 include("visualizer/analysis.jl")
 
 # top level entry for scripts

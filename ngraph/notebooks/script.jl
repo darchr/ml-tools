@@ -1,5 +1,5 @@
 #using Pkg; Pkg.activate(".")
-using Runner, Zoo, Serialization, nGraph, JuMP
+using Runner, Zoo, Serialization, nGraph, JuMP, Plots
 
 _savedir() = abspath("./serials")
 
@@ -106,15 +106,14 @@ end
 #####
 
 
-#=
 # Setup functions to Test
 fns = (
-    RHN(2, 4, 20, 5000, 512),
+    #RHN(2, 4, 20, 5000, 512),
     #RHN(4, 4, 10, 10000, 1024),
     #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
     #Resnet(128, Zoo.Resnet50()),
-    #Inception_v4(256),
+    Inception_v4(256),
 )
 
 # Setup FUnctions
@@ -134,22 +133,21 @@ reverse!(fractions)
 
 opts = Iterators.flatten((
     (MySynchronous(f) for f in fractions),
-    (MyStatic(f) for f in fractions),
+#    (MyStatic(f) for f in fractions),
 ))
 
 # Launch the test
-Runner.entry(fns, opts)
+#Runner.entry(fns, opts; calibrate = false)
 
 #####
 ##### Run Asynchronous Tests
 #####
 
-opts = (MyAsynchronous(f) for f in fractions)
-
-for f in fns
-    for opt in opts
-        savefile = joinpath(Runner.savedir(f), join((Runner.name(f), Runner.name(opt), "estimate"), "_") * ".jls")
-        Runner.compare(f, opt; statspath = savefile, skip_run = true, skip_configure = true)
-    end
-end
-=#
+# opts = (MyAsynchronous(f) for f in fractions)
+# 
+# for f in fns
+#     for opt in opts
+#         savefile = joinpath(Runner.savedir(f), join((Runner.name(f), Runner.name(opt), "estimate"), "_") * ".jls")
+#         Runner.compare(f, opt; statspath = savefile, skip_run = true, skip_configure = true)
+#     end
+# end

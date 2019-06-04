@@ -968,7 +968,7 @@ function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Synchronous
         node = NodeDescriptor(_node)
         if description(node) == "Move"
             tensor = first(outputs(node))
-            if is_persistent(tensor)
+            if nGraph.is_persistent(tensor)
                 move_time += sizeof(tensor) / write_bandwidth
             else
                 move_time += sizeof(tensor) / read_bandwidth
@@ -994,7 +994,7 @@ function profile_moves(fex)
         computed_stats[name(node)] = (
             bytes = bytes,
             bandwidth = bandwidth,
-            write_to_pmem = !is_persistent(first(inputs(node))),
+            write_to_pmem = !nGraph.is_persistent(first(inputs(node))),
         )
     end
 

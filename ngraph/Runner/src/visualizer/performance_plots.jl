@@ -48,18 +48,18 @@ struct PerformancePlot end
         end
         data = deserialize(savefile)
 
-        io_size = data.io_sizes[]
+        io_size = data.io_size[]
 
         # If using predicted runtimes - correct for microsecond to second conversion.
         runtimes = plot_type == __ACTUAL_PLOT ? 
-            data.actual_runtimes : 
-            (data.predicted_runtimes ./ 1E6)
+            data.runs.actual_runtime : 
+            (data.runs.predicted_runtime ./ 1E6)
 
         dram_performance = first(runtimes)
 
         dram_sizes = plot_type == __ACTUAL_PLOT ?
-            ((data.dram_alloc_size .+ io_size) ./ 1E9) :
-            ((data.dram_limits ./ 1E3) .+ (io_size ./ 1E9))
+            ((data.runs.dram_alloc_size .+ io_size) ./ 1E9) :
+            ((data.runs.dram_limit ./ 1E3) .+ (io_size ./ 1E9))
 
         # Attributes
         marker := markers[formulation]

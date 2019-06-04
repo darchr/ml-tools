@@ -15,19 +15,24 @@ function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 2
 end
 
 _base_stats() = (
-    # Runtimes
-    predicted_runtimes = Float64[],
-    actual_runtimes = Float64[],
-    kernel_times = Vector{Any}[],
-    move_time = Float64[],
-
-    # Tensor Sizes
-    io_sizes = Ref(0),
-    default_alloc_size = Ref(0),
-    dram_limits = Int64[],
-    dram_alloc_size = Int64[],
-    pmem_alloc_size = Int64[],
+    io_size = Ref(0),
+    default_alloc_size = Ref(0),     
+    runs = Vector{NamedTuple}(),
 )
+# _base_stats() = (
+#     # Runtimes
+#     predicted_runtimes = Float64[],
+#     actual_runtimes = Float64[],
+#     kernel_times = Vector{Any}[],
+#     move_time = Float64[],
+# 
+#     # Tensor Sizes
+#     io_sizes = Ref(0),
+#     default_alloc_size = Ref(0),
+#     dram_limits = Int64[],
+#     dram_alloc_size = Int64[],
+#     pmem_alloc_size = Int64[],
+# )
 
 """
     compare(f, opt_iter; kw...)
@@ -46,7 +51,7 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt, ctx = OnlyIntermediate(); 
+function compare(f, opt; 
                  cache = CPUKernelCache(BASE_CACHE_PATH), 
                  statspath = nothing,
                  skip_run = false,
@@ -67,13 +72,13 @@ function compare(f, opt, ctx = OnlyIntermediate();
     # This will hopefully cleanup any previous Executables and the large memory buffers
     # associated with them.
     GC.gc()
-    _compare!(stats, f, opt, ctx; cache = cache, skip_run = skip_run, skip_configure = skip_configure)
+    _compare!(stats, f, opt; cache = cache, skip_run = skip_run, skip_configure = skip_configure)
     isnothing(statspath) || serialize(statspath, stats)
 
     if !skip_run
         @info """
-        Predicted Run Time: $(last(stats.predicted_runtimes))
-        Actual Run Time: $(last(stats.actual_runtimes))
+        Predicted Run Time: $(last(stats.runs.predicted_runtime))
+        Actual Run Time: $(last(stats.runs.actual_runtime))
         """
     end
 
@@ -84,33 +89,52 @@ function initialize!(stats, f)
     # Instantiate the function
     fex, args = f()
 
-    io_sizes = sum(sizeof, input_tensors(fex)) + sum(sizeof, output_tensors(fex))
-    stats.io_sizes[] = io_sizes
+    stats.io_size[] = sum(sizeof, input_tensors(fex)) + sum(sizeof, output_tensors(fex))
     stats.default_alloc_size[] = nGraph.get_temporary_pool_size(fex.ex.ngraph_function)
     return nothing
 end
 
-function _compare!(stats, f, opt, ctx; skip_run = false, skip_configure = false, kw...)
-    fex, args, frame, _metadata = factory(f, opt, ctx; skip_configure = skip_configure, kw...)
+function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw...)
+    fex, args, frame, _metadata = factory(f, opt; skip_configure = skip_configure, kw...)
     GC.gc()
 
-    skip = in(limit(frame.modeltype), stats.dram_limits)
+    seen_limits = getproperty.(stats.runs, :dram_limit) 
+    skip = in(limit(frame.modeltype), seen_limits)
 
     # Get the predicted run time and then the actual run time
     if !skip 
-        push!(stats.predicted_runtimes, Runner.predict(frame))
-        push!(stats.dram_limits, limit(frame.modeltype))
+        nt = (
+            predicted_runtimes = Runner.predict(frame),
+            dram_limit = limit(frame.modeltype),
+        )
+
         if !skip_configure
-            push!(stats.dram_alloc_size, nGraph.get_temporary_pool_size(fex.ex.ngraph_function))
-            push!(stats.pmem_alloc_size, nGraph.get_pmem_pool_size(fex.ex.ngraph_function))
-            push!(stats.move_time, estimate_move_time(fex, frame))
+            nt_new = (
+                # Some statistics on nodes and tensors
+                num_move_nodes = count_moves(fex),
+                num_kernels = count_nodes(frame.profile_data),
+                num_input_tensors = count_tensor_inputs(frame.profile_data),
+                num_output_tensors = count_tensor_outputs(frame.profile_data),
+                num_dram_input_tensors = count_tensor_dram_inputs(frame.profile_data),
+                num_dram_output_tensors = count_tensor_dram_outputs(frame.profile_data),
+
+                # Info on global allocations
+                dram_alloc_size = nGraph.get_temporary_pool_size(fex.ex.ngraph_function),
+                pmem_alloc_size = nGraph.get_pmem_pool_size(fex.ex.ngraph_function),
+                move_time = estimate_move_time(fex, frame),
+            )
+            nt = merge(nt, nt_new)
         end
 
         if !skip_run
-            push!(stats.actual_runtimes, gettime(fex))
-            push!(stats.kernel_times, read_timing_data(fex.ex.ngraph_function))
+            nt_new = (
+                actual_runtime = gettime(fex),
+                kernel_times = read_timing_data(fex.ex.ngraph_function)
+            )
+            nt = merge(nt, nt_new)
         end
 
+        push!(stats.runs, nt)
     end
 
     return nothing
@@ -242,7 +266,7 @@ end
 # In such cases, we may have to perform a post-per-node profiling step where we execute the
 # whole graph and customize our nodes times for that graph.
 _err(expected, actual) = abs(expected /1E6 - actual) / actual
-function calibrate(f, opt, ctx = OnlyIntermediate(); 
+function calibrate(f, opt; 
         cache = CPUKernelCache(BASE_CACHE_PATH),
         tol = 0.10,
         max_iterations = 20,
@@ -250,7 +274,7 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
     )
 
     # Enter loop
-    fex, args, frame, _metadata = factory(f, opt, ctx; cache = cache)
+    fex, args, frame, _metadata = factory(f, opt; cache = cache)
     expected_runtime = Runner.predict(frame)
     actual_runtime = gettime(fex)
 
@@ -292,7 +316,7 @@ function calibrate(f, opt, ctx = OnlyIntermediate();
         iterations > max_iterations && break 
 
         # Try again
-        fex, args, frame, _metadata = factory(f, opt, ctx; cache = cache)
+        fex, args, frame, _metadata = factory(f, opt; cache = cache)
         expected_runtime = Runner.predict(frame)
         actual_runtime = gettime(fex)
 

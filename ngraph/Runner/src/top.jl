@@ -3,21 +3,23 @@ using Plots
 function title end
 function savedir end
 
-function entry(fns, opts)
+function entry(fns, opts; calibrate = true)
     for f in fns
         # Generate the reuse plot and heap allocation plots
         #_reuse_plot(f)
         #_allocation_plot(f)
 
         # Run for the product of functions and optimization targets.
-        for opt in opts
-            iterations = calibrate(f, opt)
+        if calibrate
+            for opt in opts
+                iterations = calibrate(f, opt)
 
-            @info """
-            Function: $(name(f))
-            Opt: $(name(opt))
-            Iterations: $iterations
-            """
+                @info """
+                Function: $(name(f))
+                Opt: $(name(opt))
+                Iterations: $iterations
+                """
+            end
         end
         for opt in opts
             _entry(f, opt)
