@@ -69,10 +69,10 @@ struct CPUKernelCache
     file::String
     cache::Dict{Tuple{CPUKernelParams, IOConfig}, Float64}
 end
-function CPUKernelCache(file)::CPUKernelCache
+function CPUKernelCache(file; force_new = false)::CPUKernelCache
     # If the cache path already exists, just return the existing object.
     # The type assertion for the function will make sure we don't return something weird.
-    if ispath(file)
+    if (force_new == false) && ispath(file)
         cache = deserialize(file)::CPUKernelCache
         if cache.file == file
             return cache

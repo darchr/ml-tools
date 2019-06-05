@@ -1,0 +1,11 @@
+name = "Benchmarks"
+uuid = "2872347e-87d4-11e9-20ee-f9ca3e795edd"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+PGFPlotsX = "8314cec4-20b6-5062-9cdb-752b83310925"
+Runner = "4a6e9825-ed04-540b-82d3-f33d0e8d45fb"
+Zoo = "ad488d5b-cec8-5120-91ab-e40a257560e6"
+nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"

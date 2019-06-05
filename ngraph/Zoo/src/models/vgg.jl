@@ -5,20 +5,20 @@ struct Vgg416 <: AbstractVgg end
 vgg19() = Chain(
         # First Layer
         Conv((3,3), 3 => 64, relu; pad = 1),
-        Conv((3,3), 64 => 128, relu; pad = 1),
+        Conv((3,3), 64 => 64, relu; pad = 1),
         MaxPool((2,2)),
         # Second Layer
+        Conv((3,3), 64 => 128, relu; pad = 1),
         Conv((3,3), 128 => 128, relu; pad = 1),
-        Conv((3,3), 128 => 256, relu; pad = 1),
         MaxPool((2,2)),
         # Third Layer
+        Conv((3,3), 128 => 256, relu; pad = 1),
         Conv((3,3), 256 => 256, relu; pad = 1),
         Conv((3,3), 256 => 256, relu; pad = 1),
         Conv((3,3), 256 => 256, relu; pad = 1),
-        Conv((3,3), 256 => 512, relu; pad = 1),
         MaxPool((2,2)),
         # Fourth Layer
-        Conv((3,3), 512 => 512, relu; pad = 1),
+        Conv((3,3), 256 => 512, relu; pad = 1),
         Conv((3,3), 512 => 512, relu; pad = 1),
         Conv((3,3), 512 => 512, relu; pad = 1),
         Conv((3,3), 512 => 512, relu; pad = 1),

@@ -1,0 +1,6 @@
+[submodule "ngraph/nGraph.jl"]
+	path = ngraph/nGraph.jl
+	url = https://github.com/hildebrandmw/nGraph.jl
+[submodule "ngraph/nGraph"]
+	path = ngraph/nGraph
+	url = https://github.com/hildebrandmw/nGraph.jl
