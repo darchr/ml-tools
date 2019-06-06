@@ -68,7 +68,7 @@ function stringify(c::Runner.IOConfig)
     return "$ins $outs"
 end
 
-_coordinates(d::Dict, configs::Vector{Runner.IOConfig}) = [(stringify(c), d[c]) for c in configs]
+_coordinates(d::Dict, configs::Vector{Runner.IOConfig}) = [(stringify(c), d[c] / 1E3) for c in configs]
 function gen_plot(::Type{Kernel}, data; file = "plot.tex", preamble = true)
     # Sort by number of threads.
     sort!(data; by = x -> x.nthreads)
@@ -84,19 +84,28 @@ function gen_plot(::Type{Kernel}, data; file = "plot.tex", preamble = true)
             ybar,
             legend_style =
             {
-                 at = Coordinate(0.95, 0.05),
+                 at = Coordinate(0.5, 1.15),
                  anchor = "south east",
+                 legend_columns = -1
             },
             symbolic_x_coords=stringify.(configs),
             #nodes_near_coords,
             nodes_near_coords_align={vertical},
-            ylabel=raw"Runtime ($\mu$s)",
+            ylabel=raw"Runtime ($m$s)",
             ymin=0,
             xlabel="IO Configuration",
             xtick="data",
             xticklabel_style={
-                rotate = 90,
-            }
+                rotate = 75,
+                #"/pgf/number format/1000 sep=",
+            },
+            yticklabel_style={
+                "/pgf/number format/fixed",
+                "/pgf/number format/precision=5",
+            },
+            bar_width="4pt",
+            width = "15cm",
+            height = "5cm",
         },
         plots...,
         Legend(legend),
