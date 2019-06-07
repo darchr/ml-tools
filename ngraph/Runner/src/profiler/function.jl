@@ -16,23 +16,9 @@ end
 
 _base_stats() = (
     io_size = Ref(0),
-    default_alloc_size = Ref(0),     
-    runs = Vector{NamedTuple}(),
+    default_alloc_size = Ref(0),
+    runs = Vector{Dict{Symbol,Any}}(),
 )
-# _base_stats() = (
-#     # Runtimes
-#     predicted_runtimes = Float64[],
-#     actual_runtimes = Float64[],
-#     kernel_times = Vector{Any}[],
-#     move_time = Float64[],
-# 
-#     # Tensor Sizes
-#     io_sizes = Ref(0),
-#     default_alloc_size = Ref(0),
-#     dram_limits = Int64[],
-#     dram_alloc_size = Int64[],
-#     pmem_alloc_size = Int64[],
-# )
 
 """
     compare(f, opt_iter; kw...)
@@ -51,13 +37,13 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt; 
-                 cache = CPUKernelCache(BASE_CACHE_PATH), 
+function compare(f, opt;
+                 cache = CPUKernelCache(BASE_CACHE_PATH),
                  statspath = nothing,
                  skip_run = false,
                  skip_configure = false
     )
-    if (isnothing(statspath) || !ispath(statspath)) 
+    if (isnothing(statspath) || !ispath(statspath))
         stats = _base_stats()
         initialize!(stats, f)
     else
@@ -77,8 +63,8 @@ function compare(f, opt;
 
     if !skip_run
         @info """
-        Predicted Run Time: $(last(stats.runs.predicted_runtime))
-        Actual Run Time: $(last(stats.runs.actual_runtime))
+        Predicted Run Time: $(last(stats.runs)[:predicted_runtime])
+        Actual Run Time: $(last(stats.runs)[:actual_runtime])
         """
     end
 
@@ -98,38 +84,73 @@ function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw..
     fex, args, frame, _metadata = factory(f, opt; skip_configure = skip_configure, kw...)
     GC.gc()
 
-    seen_limits = getproperty.(stats.runs, :dram_limit) 
+    seen_limits = getindex.(stats.runs, :dram_limit)
     skip = in(limit(frame.modeltype), seen_limits)
 
     # Get the predicted run time and then the actual run time
-    if !skip 
-        nt = (
-            predicted_runtimes = Runner.predict(frame),
-            dram_limit = limit(frame.modeltype),
+    if !skip
+        nt = Dict(
+            :predicted_runtime => Runner.predict(frame),
+            :dram_limit => limit(frame.modeltype),
         )
 
         if !skip_configure
-            nt_new = (
+            data = frame.profile_data
+            nt_new = Dict(
                 # Some statistics on nodes and tensors
-                num_move_nodes = count_moves(fex),
-                num_kernels = count_nodes(frame.profile_data),
-                num_input_tensors = count_tensor_inputs(frame.profile_data),
-                num_output_tensors = count_tensor_outputs(frame.profile_data),
-                num_dram_input_tensors = count_tensor_dram_inputs(frame.profile_data),
-                num_dram_output_tensors = count_tensor_dram_outputs(frame.profile_data),
+
+                # Number of move nodes plus bytes moved around
+                :num_move_nodes => count(_move_filter(), nodes(data)),
+                :num_pmem_move_nodes => count(_move_filter(PMEM), nodes(data)),
+                :num_dram_move_nodes => count(_move_filter(DRAM), nodes(data)),
+
+                :bytes_moved => _count(inputs, sizeof, data; filt = _move_filter()),
+                :bytes_moved_pmem => _count(inputs, sizeof, data; filt = _move_filter(PMEM)),
+                :bytes_moved_dram => _count(inputs, sizeof, data; filt = _move_filter(DRAM)),
+
+                # Total number of kernels
+                :num_kernels => count(hasprofile, nodes(data)),
+                :num_input_tensors => _count(inputs, data; filt = hasprofile),
+                :num_output_tensors => _count(outputs, data; filt = hasprofile),
+
+                :num_dram_input_tensors => _count(
+                    x -> filter(!nGraph.is_persistent, inputs(x)),
+                    data; filt = hasprofile
+                ),
+                :num_dram_output_tensors => _count(
+                    x -> filter(!nGraph.is_persistent, outputs(x)),
+                    data; filt = hasprofile
+                ),
+
+                # Get the sizes of the input and output tensors
+                :bytes_input_tensors => _count(inputs, sizeof, data; filt = hasprofile),
+                :bytes_output_tensors => _count(outputs, sizeof, data; filt = hasprofile),
+
+                :bytes_dram_input_tensors => _count(
+                    x -> filter(!nGraph.is_persistent, inputs(x)),
+                    sizeof,
+                    data; 
+                    filt = hasprofile
+                ),
+                :bytes_dram_output_tensors => _count(
+                    x -> filter(!nGraph.is_persistent, outputs(x)),
+                    sizeof,
+                    data; 
+                    filt = hasprofile
+                ),
 
                 # Info on global allocations
-                dram_alloc_size = nGraph.get_temporary_pool_size(fex.ex.ngraph_function),
-                pmem_alloc_size = nGraph.get_pmem_pool_size(fex.ex.ngraph_function),
-                move_time = estimate_move_time(fex, frame),
+                :dram_alloc_size => nGraph.get_temporary_pool_size(fex.ex.ngraph_function),
+                :pmem_alloc_size => nGraph.get_pmem_pool_size(fex.ex.ngraph_function),
+                :move_time => estimate_move_time(fex, frame),
             )
             nt = merge(nt, nt_new)
         end
 
         if !skip_run
-            nt_new = (
-                actual_runtime = gettime(fex),
-                kernel_times = read_timing_data(fex.ex.ngraph_function)
+            nt_new = Dict(
+                :actual_runtime => gettime(fex),
+                :kernel_times => read_timing_data(fex.ex.ngraph_function)
             )
             nt = merge(nt, nt_new)
         end
@@ -260,13 +281,13 @@ end
 ##### Calibration
 #####
 
-# Sometimes, after profiling, the results from the pure profiling step are wildly 
+# Sometimes, after profiling, the results from the pure profiling step are wildly
 # inaccurate.
 #
 # In such cases, we may have to perform a post-per-node profiling step where we execute the
 # whole graph and customize our nodes times for that graph.
 _err(expected, actual) = abs(expected /1E6 - actual) / actual
-function calibrate(f, opt; 
+function calibrate(f, opt;
         cache = CPUKernelCache(BASE_CACHE_PATH),
         tol = 0.10,
         max_iterations = 20,
@@ -296,7 +317,7 @@ function calibrate(f, opt;
         for kernel_time in kernel_times
             expected = minimum(kernel_time.expected)
             actual = kernel_time.actual
-            if _err(expected, actual) > tol 
+            if _err(expected, actual) > tol
                 config = kernel_time.config
                 params = CPUKernelParams(kernel_time.node)
                 # Update and save the cache
@@ -313,7 +334,7 @@ function calibrate(f, opt;
 
         println("Updated $kernels_updated kernels on this iteration")
 
-        iterations > max_iterations && break 
+        iterations > max_iterations && break
 
         # Try again
         fex, args, frame, _metadata = factory(f, opt; cache = cache)

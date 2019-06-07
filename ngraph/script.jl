@@ -111,8 +111,8 @@ fns = (
     #RHN(2, 4, 20, 5000, 512),
     #RHN(4, 4, 10, 10000, 1024),
     #DenseNet(128),
-    #Vgg(128, Zoo.Vgg19()),
-    #Resnet(128, Zoo.Resnet50()),
+    Vgg(128, Zoo.Vgg19()),
+    Resnet(128, Zoo.Resnet50()),
     Inception_v4(256),
 )
 
@@ -133,7 +133,7 @@ reverse!(fractions)
 
 opts = Iterators.flatten((
     (MySynchronous(f) for f in fractions),
-#    (MyStatic(f) for f in fractions),
+    (MyStatic(f) for f in fractions),
 ))
 
 # Launch the test

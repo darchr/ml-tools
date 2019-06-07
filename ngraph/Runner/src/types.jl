@@ -255,20 +255,30 @@ end
 ##### For gathering statistics
 #####
 
-count_moves(fex::nGraph.FluxExecutable) = count(ismove, fex.ex.ngraph_function)
-count_nodes(data) = count(hasprofile, nodes(data))
+_move_filter() = x -> ismove(x)
+function _move_filter(dest)
+    is_persistent_result = (dest == PMEM) ? true : false
 
-count_tensor_inputs(data) = _count(inputs, data)
-count_tensor_outputs(data) = _count(outputs, data)
+    return x -> ismove(x) && nGraph.is_persistent(first(outputs(x))) == is_persistent_result
+end
 
-count_tensor_dram_inputs(data) = _count(x -> filter(!nGraph.is_persistent, inputs(x)), data)
-count_tensor_dram_outputs(data) = _count(x -> filter(!nGraph.is_persistent, outputs(x)), data)
+# # Count metrics
+# count_moves(fex::nGraph.FluxExecutable) = count(ismove, fex.ex.ngraph_function)
+# 
+# count_nodes(data) = count(hasprofile, nodes(data))
+# 
+# count_tensor_inputs(data) = _count(inputs, data)
+# count_tensor_outputs(data) = _count(outputs, data)
+# 
+# count_tensor_dram_inputs(data) = _count(x -> filter(!nGraph.is_persistent, inputs(x)), data)
+# count_tensor_dram_outputs(data) = _count(x -> filter(!nGraph.is_persistent, outputs(x)), data)
 
-function _count(f, data)
+_count(f, data; kw...) = _count(f, x -> 1, data; kw...)
+function _count(f, g, data; filt = x -> true)
     count = 0
-    for node in nodes(data) 
+    for node in filter(filt, nodes(data))
         for tensor in f(node)
-            count += 1
+            count += g(tensor)
         end
     end
     return count

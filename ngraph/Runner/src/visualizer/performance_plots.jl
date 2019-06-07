@@ -52,14 +52,14 @@ struct PerformancePlot end
 
         # If using predicted runtimes - correct for microsecond to second conversion.
         runtimes = plot_type == __ACTUAL_PLOT ? 
-            data.runs.actual_runtime : 
-            (data.runs.predicted_runtime ./ 1E6)
+            (getindex.(data.runs, :actual_runtime)) : 
+            (getindex.(data.runs, :predicted_runtime) ./ 1E6)
 
         dram_performance = first(runtimes)
 
         dram_sizes = plot_type == __ACTUAL_PLOT ?
-            ((data.runs.dram_alloc_size .+ io_size) ./ 1E9) :
-            ((data.runs.dram_limit ./ 1E3) .+ (io_size ./ 1E9))
+            ((getindex.(data.runs, :dram_alloc_size) .+ io_size) ./ 1E9) :
+            ((getindex.(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9))
 
         # Attributes
         marker := markers[formulation]

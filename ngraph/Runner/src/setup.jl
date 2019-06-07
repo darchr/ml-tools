@@ -18,22 +18,39 @@ end
 ##### Setup Affinities
 #####
 
+# For whatever reason, we have to set up the number of threads before the first 
+# compilation of an nGraph executable.
+#
+# After that, changes in the number of threads won't be seen by nGraph
 function setup_affinities(num_threads = 24)
+    if nGraph.have_compiled() == true
+        @error """
+        The nGraph compiler has already been invoked.
+
+        The number of threads WILL NOT change.
+        """
+        return nothing
+    end
+
     ENV["KMP_AFFINITY"] = "compact,granularity=fine"
 
     # Use the first 24 cores - 1 threads for each core
     # Send to numa-node 1 for a hopefully more quiet system
     #
-    # See docs/runner/kmp.md for syntax documentation
-    #ENV["KMP_HW_SUBSET"] = "1s@1,1t"
+    # See docs/src/runner/kmp.md for syntax documentation
     ENV["KMP_HW_SUBSET"] = "1s@1,$(num_threads)c,1t" 
 
     # 1 Threads for each core
     ENV["OMP_NUM_THREADS"] = num_threads
-    #ENV["OMP_DYNAMIC"] = true
+    return nothing
 end
 
 teardown_affinities() = delete!.(Ref(ENV), ("KMP_AFFINITY", "KMP_HW_SUBSET", "OMP_NUM_THREADS"))
+
+_env_context() = (
+    kmp_hw_subset = ENV["KMP_HW_SUBSET"]::String,
+    omp_num_threads = ENV["OMP_NUM_THREADS"]::String,
+)
 
 function setup_profiling()
     nGraph.enable_codegen()

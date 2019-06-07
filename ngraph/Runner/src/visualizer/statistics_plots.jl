@@ -1,4 +1,4 @@
-getname(v, s::Symbol) = getproperty.(v, s)
+getname(v, s::Symbol) = getindex.(v, s)
 
 function stats_plot(f)
     savefile = joinpath(savedir(f), join((name(f), "synchronous"), "_") * ".jls")
@@ -12,21 +12,23 @@ function stats_plot(f)
     io_size = data.io_size[] 
     dram_sizes = (getname(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
 
-    x = dram_sizes
-    y = getname(data.runs, :num_move_nodes)
+    x = [dram_sizes, dram_sizes]
+    y = [
+        getname(data.runs, :bytes_moved_pmem) ./ 1E6,
+        getname(data.runs, :bytes_moved_dram) ./ 1E6,
+    ]
 
     plt = plot(
         x, 
         y, 
-        lab = "Number of Move Nodes (L)",
+        lab = ["Moved to PMEM", "Moved to DRAM"],
         xlabel = "DRAM Size (GiB)",
-        ylabel = "Number of Move Nodes",
+        ylabel = "MiB of Memory Moved",
         title = titlecase(replace(name(f), "_" => " ")),
         legend = :bottomleft,
         linewidth = 5,
         marker = :x,
         markersize = 10,
-        color = :black,
         left_margin = 20mm,
         right_margin = 20mm,
         bottom_margin = 10mm,
@@ -39,7 +41,7 @@ function stats_plot(f)
     subplt = twinx()
 
     x = dram_sizes
-    y = getname(data.runs, :num_dram_input_tensors) ./ getname(data.runs, :num_input_tensors)
+    y = getname(data.runs, :bytes_dram_input_tensors) ./ getname(data.runs, :bytes_input_tensors)
     plot!(subplt, x, y,
         linewidth = 5,
         legend = :right,
@@ -54,7 +56,13 @@ function stats_plot(f)
 
     # Plot the percent of output tensors in DRAM @series begin
     x = dram_sizes
-    y = getname(data.runs, :num_dram_output_tensors) ./ getname(data.runs, :num_output_tensors)
+    y = getname(data.runs, :bytes_dram_output_tensors) ./ getname(data.runs, :bytes_output_tensors)
+
+    @show getname(data.runs, :bytes_dram_output_tensors)
+    @show getname(data.runs, :bytes_output_tensors)
+    @show getname(data.runs, :num_dram_output_tensors)
+    @show getname(data.runs, :num_output_tensors)
+
     plot!(subplt, x, y,
         linewidth = 5,
         marker = :square,

@@ -71,7 +71,7 @@ function create_model(modeltype::ModelType, profile_data::ProfileData)
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 600, MIPGap = 0.001))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60, MIPGap = 0.01))
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
@@ -111,7 +111,13 @@ function create_model(modeltype::ModelType, profile_data::ProfileData)
 end
 
 ## Metadata For graph creation
-@enum VertexLocation LOC_PMEM LOC_DRAM LOC_SOURCE LOC_SINK
+@enum VertexLocation LOC_PMEM LOC_DRAM LOC_DRAM_PRE LOC_SOURCE LOC_SINK
+
+ispmem(loc::VertexLocation) = loc == LOC_PMEM
+isdram(loc::VertexLocation) = loc == LOC_DRAM || loc == LOC_DRAM_PRE
+issource(loc::VertexLocation) = loc == LOC_SOURCE
+issink(loc::VertexLocation) = loc == LOC_SINK
+
 @enum EdgeType begin
     EDGE_NONE
     EDGE_SYNC_READ
@@ -230,17 +236,27 @@ function edge_metadata(src, dst, s, d, src_move_type)
     end
 
     # Determine if an edge should be added and what kind of edge it is.
-    if (src, dst) == (LOC_SOURCE, LOC_DRAM)
+    if (src, dst) == (LOC_SOURCE, LOC_DRAM_PRE)
         isone(d) && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_SOURCE, LOC_PMEM)
         isone(d) && return EdgeMetadata(EDGE_NONE)
+
     # LOC_DRAM as source
     elseif (src, dst) == (LOC_DRAM, LOC_DRAM)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_DRAM, LOC_PMEM)
-        s == d-1 && return EdgeMetadata(edge_write_type)
+        s == d-1 && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_DRAM, LOC_SINK)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
+
+    # LOC_DRAM_PRE as source
+    elseif (src, dst) == (LOC_DRAM_PRE, LOC_PMEM)  
+        s == d-1 && return EdgeMetadata(edge_write_type)
+    elseif (src, dst) == (LOC_DRAM_PRE, LOC_DRAM_PRE)
+        s == d-1 && return EdgeMetadata(EDGE_NONE)
+    elseif (src, dst) == (LOC_DRAM_PRE, LOC_SINK)
+        s == d-1 && return EdgeMetadata(EDGE_NONE)
+
     # LOC_PMEM as source
     elseif (src, dst) == (LOC_PMEM, LOC_DRAM)
         (s == d) && !isone(s) && return EdgeMetadata(edge_read_type)
@@ -286,12 +302,17 @@ function preprocess!(S::ModelType, data::ProfileData)
             # then filtering takes care of that
             for location in locations(data, tensor)
                 if location == DRAM
-                    # Add DRAM node
-                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type))
+                    # Add DRAM nodes
+                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM_PRE, move_type))
+
+                    # only add a DRAM node if there could have been a write to PMEM
+                    if count > 1
+                        add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type))
+                    end
                 end
 
                 if location == PMEM
-                    # Add pre and post PMEM nodes
+                    # PMEM node
                     add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type))
                 end
             end
@@ -391,20 +412,29 @@ function add_tensors!(frame::Frame{<:ModelType})
         Bin
     )
 
+    @variable(frame.model,
+        tensor_in_dram_post[
+            tensor = tensors(data),
+            user = name.(users(descriptor(frame, tensor)))
+        ],
+        Bin
+    )
+
     # A tensor in DRAM is live if any of its incoming edges are used.
     for tensor in tensors(data)
         desc = descriptor(frame, tensor)
         g = graph(desc)
 
         for user in users(desc)
-            # Get the DRAM and PREAD vertices for this op.
-            vertex = find_vertex(
-                g,
-                (g,v) -> _meta(g, v).location == LOC_DRAM && _meta(g, v).op == user
+            # Get the DRAM for this op.
+            verts = filter(
+                v -> isdram(_meta(g,v).location) && _meta(g,v).op == user,
+                vertices(g)
             )
 
             # Map `inedges` to `vertex_iter` and iterats over all those edges
-            for e in inedges(g, vertex)
+            _iter = Iterators.flatten(inedges.(Ref(g), verts))
+            for e in _iter
                 @constraint(
                     frame.model, 
                     tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e]
@@ -413,8 +443,30 @@ function add_tensors!(frame::Frame{<:ModelType})
 
             # If all incoming edges are not taken, tensor MUST not be in DRAM.
             @constraint(frame.model,
-                sum(tensor_graphs[tensor, e] for e in inedges(g, vertex)) >=
+                sum(tensor_graphs[tensor, e] for e in _iter) >=
                     tensor_in_dram[tensor, name(user)]
+            )
+
+            # Similary, set the post DRAM constraints
+            _edges = filter(
+                e -> (isdram(_meta(g, src(e)).location) && 
+                    # Need to check "LOC_SINK" for the static case
+                    (
+                        isdram(_meta(g, dst(e)).location) || 
+                        _meta(g, dst(e)).location == LOC_SINK
+                    ) && _meta(g, src(e)).op == user),
+                collect(edges(g))
+            )
+            for e in _edges
+                @constraint(
+                    frame.model,
+                    tensor_in_dram_post[tensor, name(user)] >= tensor_graphs[tensor, e]
+                )
+            end
+
+            @constraint(frame.model,
+                sum(tensor_graphs[tensor, e] for e in _edges) >=
+                    tensor_in_dram_post[tensor, name(user)]
             )
         end
     end
@@ -464,51 +516,6 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
         sync_writes = _find_edges(g, EDGE_SYNC_WRITE)
         async_reads = _find_edges(g, EDGE_ASYNC_READ)
         async_writes = _find_edges(g, EDGE_ASYNC_WRITE)
-        starts_in_pmem = find_edge(g,
-            (g,e) ->
-                _meta(g, src(e)).location == LOC_SOURCE &&
-                _meta(g, dst(e)).location == LOC_PMEM
-        )
-
-        #####
-        ##### Add constraints on the edges
-        #####
-        
-        ## NOTE: this constraint has dubious effect on performance.
-
-        # Write edges and read edges between synchronous moves can be at most 1
-        #
-        # Use IterTools.partition to taken consecutive edges
-        for (sync_edge_1, sync_edge_2) in IterTools.partition(sync_reads, 2, 1)
-            v_1 = src(sync_edge_1)
-            v_2 = src(sync_edge_2)
-
-            # Find all async reads between sync_edge_1 and sync_edge_2
-            async_edges = [e for e in async_reads if v_1 < src(e) < v_2]
-
-            if !isempty(async_edges)
-                @constraint(
-                    frame.model, 
-                    tensor_graphs[tensor, sync_edge_1] + sum(tensor_graphs[tensor, e] for e in async_edges) <= 1
-                )
-            end
-        end
-
-        # Repeat for write edges
-        for (sync_edge_1, sync_edge_2) in IterTools.partition(sync_writes, 2, 1)
-            v_1 = src(sync_edge_1)
-            v_2 = src(sync_edge_2)
-
-            # Find all async writes between sync_edge_1 and sync_edge_2
-            async_edges = [e for e in async_writes if v_1 < src(e) < v_2]
-
-            if !isempty(async_edges)
-                @constraint(
-                    frame.model, 
-                    tensor_graphs[tensor, sync_edge_1] + sum(tensor_graphs[tensor, e] for e in async_edges) <= 1
-                )
-            end
-        end
 
         #####
         ##### Constraints for sync write variable
@@ -516,18 +523,9 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
 
         # No Sync write if any async write
         for e in sync_writes
-            # gather up all the asynchronous write variables
-            if isempty(async_writes)
-                _expr = 0
-            else
-                _expr = @expression(
-                    frame.model,
-                    sum(tensor_graphs[tensor, x] for x in async_writes)
-                )
-            end
             @constraint(
                 frame.model, 
-                tensor_write[tensor] >= tensor_graphs[tensor, e] - tensor_graphs[tensor, starts_in_pmem] - _expr
+                tensor_write[tensor] >= tensor_graphs[tensor, e]
             )
         end
 
@@ -537,14 +535,8 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
             tensor_write[tensor] <= sum(tensor_graphs[tensor, e] for e in sync_writes)
         )
 
-        # No sync write if tensor starts in PMEM
-        @constraint(
-            frame.model,
-            tensor_write[tensor] <= 1 - tensor_graphs[tensor, starts_in_pmem]
-        )
-
         #####
-        ##### Constrants on async write variables
+        ##### Constraints on async write variables
         #####
 
         # Assign each edge to the kernel it overlaps with.
@@ -559,25 +551,9 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
         end
 
         # Create write variables.
-        #
-        # Because these are created in order, we can just iterate through sequentially.
-        gen_vars = VariableRef[]
         for e in async_writes
-            var = @variable(frame.model, binary = true)
-            @constraint(frame.model, var <= tensor_graphs[tensor, e])
-            if isempty(gen_vars)
-                @constraint(frame.model, var >= tensor_graphs[tensor, e] - tensor_write[tensor])
-            else
-                @constraint(
-                    frame.model,
-                    var >= tensor_graphs[tensor, e] - tensor_write[tensor] - sum(gen_vars)
-                )
-            end
-            push!(gen_vars, var)
-
-            # Add this move cost
-            _expr = tensor_async_dict[name(kernels[e])]
-            add_to_expression!(_expr, write_cost, var)
+            _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
+            add_to_expression!(_expr, write_cost, tensor_graphs[tensor, e])
         end
 
         #####
@@ -605,20 +581,7 @@ function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorDescriptor, nod
     if in(node, users(desc))
         return F.model[:tensor_in_dram][tensor, name(node)]
     else
-        ref = get_reference(desc, node)
-        edge = find_edge(
-            desc.graph,
-            # Source vertex must be in DRAM.
-            # Destination can be in DRAM or SINK.
-            #
-            # We expect the SINK case to only apply the Static case.
-            (g,e) -> _meta(g, src(e)).location == LOC_DRAM &&
-                _meta(g, src(e)).op == ref &&
-                in(_meta(g, dst(e)).location, (LOC_DRAM, LOC_SINK))
-        )
-
-        # Return the edge in question
-        return F.model[:tensor_graphs][tensor, edge]
+        return F.model[:tensor_in_dram_post][tensor, name(get_reference(desc, node))]
     end
 end
 
@@ -768,7 +731,7 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
         initial_location = first(vertices).location
         if initial_location == LOC_PMEM
             config[tensor] = PMEM
-        elseif initial_location == LOC_DRAM
+        elseif isdram(initial_location)
             config[tensor] = DRAM
         else
             error("$(initial_location)???")
@@ -802,7 +765,7 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
 
                 # Perform a sanity check. Should not move data to PMEM if it already
                 # started in PMEM.
-                @assert initial_location == LOC_DRAM
+                @assert isdram(initial_location)
 
             # Otherwise, make this happen as late as possible. Add all of the output
             # associates to this list because scheduling may be reordered after inserting
@@ -901,7 +864,7 @@ end
 # Consume all of the PKEEP nodes.
 function getkeeps(vertices::Vector{VertexMetadata}, index)
     keeps = NodeDescriptor[]
-    while checkbounds(Bool, vertices, index) && vertices[index].location == LOC_DRAM
+    while checkbounds(Bool, vertices, index) && isdram(vertices[index].location)
         push!(keeps, vertices[index].op)
         index += 1
     end
@@ -909,32 +872,25 @@ function getkeeps(vertices::Vector{VertexMetadata}, index)
 end
 
 # Return `true` if there is an implied write to
-write_to_pmem(a, b) = a == LOC_DRAM && b == LOC_PMEM
-read_from_pmem(a, b) = a == LOC_PMEM && b == LOC_DRAM
+write_to_pmem(a, b) = a == LOC_DRAM_PRE && ispmem(b)
+read_from_pmem(a, b) = ispmem(a) && isdram(b)
 
 function getactions(vertices::Vector{VertexMetadata})
     actions = MoveAction[]
-
-    data_in_pmem = false
-    isfirst = true
+    written_to_pmem = false
 
     for i in Iterators.drop(eachindex(vertices), 1)
         a, b = vertices[i-1].location, vertices[i].location
 
-        # If we're on the first iteration and the location of `b` is PMEM, then we
-        # will never write to PMEM
-        if isfirst
-            if a == LOC_PMEM
-                data_in_pmem = true
+        if write_to_pmem(a, b)
+            if written_to_pmem
+                @show actions
+                error()
             end
-            isfirst = false
-        end
-
-        if !data_in_pmem && write_to_pmem(a, b)
             # All downstream users are consumers
             consumers = unique(vertices[i].op for i in i:length(vertices))
             push!(actions, MoveAction(consumers, PMEM, true))
-            data_in_pmem = true
+            written_to_pmem = true
         end
 
         if read_from_pmem(a, b)

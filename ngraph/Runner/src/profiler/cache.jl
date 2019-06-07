@@ -73,11 +73,12 @@ function CPUKernelCache(file; force_new = false)::CPUKernelCache
     # If the cache path already exists, just return the existing object.
     # The type assertion for the function will make sure we don't return something weird.
     if (force_new == false) && ispath(file)
-        cache = deserialize(file)::CPUKernelCache
-        if cache.file == file
-            return cache
-        end
-        error("Cache Corruption.")
+        # Deserialize the file.
+        cache_db = deserialize(file)
+
+        # Check if we have a key for the current environment context
+        ctx = _env_context() 
+        haskey(cache_db, ctx) && return cache_db[ctx]::CPUKernelCache
     end
 
     # Otherwise, create the object.
@@ -95,7 +96,17 @@ function save(cache::CPUKernelCache)
     # Make the directory for this cache if needed.
     dir = dirname(cache.file)
     ispath(dir) || mkdir(dir)
-    serialize(cache.file, cache)
+
+    # Deserialize the existing cache.
+    ctx = _env_context()
+    if ispath(cache.file) 
+        cache_db = deserialize(cache.file)::Dict
+        cache_db[ctx] = cache
+    else
+        cache_db = Dict(ctx => cache)
+    end
+
+    serialize(cache.file, cache_db)
 end
 
 unsafe_load_cache(file) = deserialize(file)

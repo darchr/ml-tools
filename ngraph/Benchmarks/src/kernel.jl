@@ -68,20 +68,34 @@ function stringify(c::Runner.IOConfig)
     return "$ins $outs"
 end
 
-_coordinates(d::Dict, configs::Vector{Runner.IOConfig}) = [(stringify(c), d[c] / 1E3) for c in configs]
-function gen_plot(::Type{Kernel}, data; file = "plot.tex", preamble = true)
+struct AlwaysTrue end
+Base.getindex(::AlwaysTrue, args...) = true
+
+_coordinates(d::Dict, configs::Vector{Runner.IOConfig}, normalization) = [(stringify(c), d[c] / normalization) for c in configs]
+function gen_plot(::Type{Kernel}, data; 
+        file = "plot.tex", 
+        preamble = true,
+        config_mask = AlwaysTrue(),
+    )
     # Sort by number of threads.
     sort!(data; by = x -> x.nthreads)
 
     # Collect and sort all of the IO configurations for this kernel
     configs = first(data).timings |> keys |> collect |> sort 
 
-    plots = [Plot(Coordinates(_coordinates(d.timings, configs))) for d in data]
+    # Filter out configs specified by the config mask
+    configs = unique(x -> [x[i] for i in 1:length(x) if config_mask[i]], configs)
+    @show configs
+
+    # Normalize to the fastest kernel
+    normalization = minimum(minimum.(values.(getproperty.(data, :timings))))
+    plots = [Plot(Coordinates(_coordinates(d.timings, configs, normalization))) for d in data]
     legend = ["$(d.nthreads) Threads" for d in data]
 
     plt = @pgf Axis(
         {
             ybar,
+            enlarge_x_limits=0.20,
             legend_style =
             {
                  at = Coordinate(0.5, 1.15),
@@ -89,10 +103,13 @@ function gen_plot(::Type{Kernel}, data; file = "plot.tex", preamble = true)
                  legend_columns = -1
             },
             symbolic_x_coords=stringify.(configs),
-            #nodes_near_coords,
             nodes_near_coords_align={vertical},
-            ylabel=raw"Runtime ($m$s)",
+            ylabel="Performance relative to\\\\24 threadswith all IO in DRAM",
+            ymajorgrids,
             ymin=0,
+            ylabel_style={
+                align = "center",
+            },
             xlabel="IO Configuration",
             xtick="data",
             xticklabel_style={
@@ -103,7 +120,7 @@ function gen_plot(::Type{Kernel}, data; file = "plot.tex", preamble = true)
                 "/pgf/number format/fixed",
                 "/pgf/number format/precision=5",
             },
-            bar_width="4pt",
+            bar_width="20pt",
             width = "15cm",
             height = "5cm",
         },
