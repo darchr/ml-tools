@@ -94,14 +94,21 @@ include("visualizer/allocation_plots.jl")
 include("visualizer/statistics_plots.jl")
 include("visualizer/analysis.jl")
 
+# async
+include("async_tests.jl")
+
 # top level entry for scripts
 include("top.jl")
 
 JuMP.name(n::nGraph.NodeLike) = nGraph.name(n)
 
-hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move"))
+hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move", "MoveAsync"))
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 hasprofile(x::NodeDescriptor) = hasprofile(nGraph.description(x))
+
+is_memory_intensive(op_description::String) = in(op_description, ("MatmulBias",))
+is_memory_intensive(op::nGraph.Node) = is_memory_intensive(nGraph.description(op))
+is_memory_intensive(op::NodeDescriptor) = is_memory_intensive(nGraph.description(op))
 
 ismove(description::String) = startswith(description, "Move")
 ismove(op::nGraph.Node) = ismove(nGraph.description(op))
@@ -112,7 +119,10 @@ isconstant(x::nGraph.Node) = isconstant(nGraph.description(x))
 isconstant(x::NodeDescriptor) = isconstant(nGraph.description(x))
 
 # TODO: These might not be perfect ...
-isparam(t::NodeDescriptor) = startswith(nGraph.description(t), "Parameter")
-isresult(t::NodeDescriptor) = startswith(nGraph.description(t), "Result")
+isparam(str::String) = startswith(str, "Parameter")
+isparam(t) = isparam(nGraph.description(t))
+
+isresult(str::String) = startswith(str, "Result")
+isresult(t) = isresult(nGraph.description(t))
 
 end # module

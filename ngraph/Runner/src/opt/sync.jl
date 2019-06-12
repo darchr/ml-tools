@@ -30,8 +30,9 @@ users(S::TensorMeta) = S.users
 mutable struct Static <: ModelType
     dram_limit::Int64
     descriptors::Dict{TensorDescriptor, TensorMeta}
+    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}}
 end
-Static(a) = Static(a, Dict{TensorDescriptor,TensorMeta}())
+Static(a) = Static(a, Dict{TensorDescriptor,TensorMeta}(), Dict{NodeDescriptor, Vector{JuMP.VariableRef}}())
 
 # Synchronous: Can move, but cannot overlap movement with computation
 mutable struct Synchronous <: ModelType
@@ -43,18 +44,38 @@ mutable struct Synchronous <: ModelType
 
     # The names of all tensors in the function
     descriptors::Dict{TensorDescriptor, TensorMeta}
+
+    # Dummy temp field - TODO: refactor Static/Synchronous/Asynchronous types
+    # in order to reduce duplicate code.
+    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}} 
 end
-Synchronous(a,b,c) = Synchronous(a,b,c, Dict{TensorDescriptor,TensorMeta}())
+
+Synchronous(a,b,c) = Synchronous(a,b,c,
+    Dict{TensorDescriptor,TensorMeta}(),
+    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
+)
 
 # Asynchronous: Can overlap movcement with computation
 mutable struct Asynchronous <: ModelType
     dram_limit::Int64
     read_bandwidth::Int64
     write_bandwidth::Int64
+    read_bandwidth_async::Int64
+    write_bandwidth_async::Int64
 
     descriptors::Dict{TensorDescriptor, TensorMeta}
+
+    # Map nodes to move variables that indicate an asynchronous data transfer.
+    # Used to restrict asynchronous movement to the case where all node inputs and outputs
+    # are in DRAM.
+    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}}
 end
-Asynchronous(args...) = Asynchronous(args..., Dict{TensorDescriptor, TensorMeta}())
+
+Asynchronous(args...) = Asynchronous(
+    args...,
+    Dict{TensorDescriptor, TensorMeta}(),
+    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}()
+)
 
 # Common Methods
 limit(S::ModelType) = S.dram_limit
@@ -71,7 +92,7 @@ function create_model(modeltype::ModelType, profile_data::ProfileData)
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 60, MIPGap = 0.01))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 600, MIPGap = 0.01))
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
@@ -125,6 +146,8 @@ issink(loc::VertexLocation) = loc == LOC_SINK
     EDGE_ASYNC_READ
     EDGE_ASYNC_WRITE
 end
+isasync(et::EdgeType) = in(et, (EDGE_ASYNC_READ, EDGE_ASYNC_WRITE))
+
 @enum MoveType MOVE_NONE MOVE_SYNC MOVE_ASYNC
 
 # Metadata to assign to each node in the liveness graph for tensors.
@@ -137,11 +160,14 @@ struct VertexMetadata
     location::VertexLocation
     # What type of moves this vertex allows
     move_type::MoveType
+    isuser::Bool
+    vertex_number::Int
 end
 
 struct EdgeMetadata
     edgetype::EdgeType
 end
+isasync(em::EdgeMetadata) = isasync(em.edgetype)
 
 #####
 ##### Preprocessing
@@ -165,8 +191,16 @@ function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
     # Build the referece map
     reference_map = Dict{NodeDescriptor, NodeDescriptor}()
     ref = first(users)
-    bound = 5
 
+    # To decide if a node should be considered as an aynchronous move point, we check to see
+    # if the node is with `bound` distance of a user of the tensor.
+    #
+    # The intuition here is that moves will probably be located closer to their producers or
+    # consumers rather than further.
+    #
+    # Making `bound` larger increased the search space of the formulation, which may lead to
+    # better results at the cost of a larger mode.
+    bound = 50
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
         node = nodes(data, ind)
@@ -175,9 +209,9 @@ function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
             ref = node
 
         # Check if there is a user node within `bound`. If so, make this an async move node.
-        elseif hasprofile(node) && 
+        elseif hasprofile(node) && !is_memory_intensive(node) &&
             any(
-                in(users), 
+                in(users),
                 (nodes(data, i) for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
             )
 
@@ -250,7 +284,7 @@ function edge_metadata(src, dst, s, d, src_move_type)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
 
     # LOC_DRAM_PRE as source
-    elseif (src, dst) == (LOC_DRAM_PRE, LOC_PMEM)  
+    elseif (src, dst) == (LOC_DRAM_PRE, LOC_PMEM)
         s == d-1 && return EdgeMetadata(edge_write_type)
     elseif (src, dst) == (LOC_DRAM_PRE, LOC_DRAM_PRE)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
@@ -277,24 +311,29 @@ function preprocess!(S::ModelType, data::ProfileData)
             #
             # 1. A named tuple (node::NodeDescriptor, move_type::MoveType)
             # 2. A dictionary implementing the `ref` function.
-            users, reference_map = _getgadgets(S, data, tensor)
+            gadgets, reference_map = _getgadgets(S, data, tensor)
         end
 
-        @assert !isempty(users)
+        @assert !isempty(gadgets)
 
         # Graph building time :D
         g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
 
+        # Get the users so we can annotate if a gadget node is a user
+        users = _users(tensor, data)
+
         # Add nodes for each region
-        @timeit TO "creating graph vertices" for (count, nt) in enumerate(users)
+        @timeit TO "creating graph vertices" for (count, nt) in enumerate(gadgets)
             # Unpacek the
             node = nt.node
             move_type = nt.move_type
-            islast = (count == length(users))
+            islast = (count == length(gadgets))
+
+            isuser = in(node, users)
 
             if count == 1
                 #add_vertex!(g, :metadata, VertexMetadata(0, node, LOC_SOURCE))
-                add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE, move_type))
+                add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE, move_type, isuser, nv(g)+1))
             end
             # Enumerate over locations that this tensor can live.
             #
@@ -303,22 +342,22 @@ function preprocess!(S::ModelType, data::ProfileData)
             for location in locations(data, tensor)
                 if location == DRAM
                     # Add DRAM nodes
-                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM_PRE, move_type))
+                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM_PRE, move_type, isuser, nv(g)+1))
 
                     # only add a DRAM node if there could have been a write to PMEM
                     if count > 1
-                        add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type))
+                        add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type, isuser, nv(g)+1))
                     end
                 end
 
                 if location == PMEM
                     # PMEM node
-                    add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type))
+                    add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type, isuser, nv(g)+1))
                 end
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK, move_type))
+                add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK, move_type, isuser, nv(g)+1))
             end
         end
 
@@ -345,7 +384,7 @@ function preprocess!(S::ModelType, data::ProfileData)
         end
 
         # Create the descriptor
-        S.descriptors[tensor] = TensorMeta(g, [u.node for u in users], reference_map)
+        S.descriptors[tensor] = TensorMeta(g, [g.node for g in gadgets], reference_map)
     end
 end
 
@@ -436,7 +475,7 @@ function add_tensors!(frame::Frame{<:ModelType})
             _iter = Iterators.flatten(inedges.(Ref(g), verts))
             for e in _iter
                 @constraint(
-                    frame.model, 
+                    frame.model,
                     tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e]
                 )
             end
@@ -449,10 +488,10 @@ function add_tensors!(frame::Frame{<:ModelType})
 
             # Similary, set the post DRAM constraints
             _edges = filter(
-                e -> (isdram(_meta(g, src(e)).location) && 
+                e -> (isdram(_meta(g, src(e)).location) &&
                     # Need to check "LOC_SINK" for the static case
                     (
-                        isdram(_meta(g, dst(e)).location) || 
+                        isdram(_meta(g, dst(e)).location) ||
                         _meta(g, dst(e)).location == LOC_SINK
                     ) && _meta(g, src(e)).op == user),
                 collect(edges(g))
@@ -482,6 +521,13 @@ _find_edges(g, edgetype) = sort(
 
 # Formulation specific move node stuff
 add_movement_formulations!(frame::Frame{Static}) = nothing
+
+_read_bandwidth_async(a::Synchronous) = 1
+_write_bandwidth_async(a::Synchronous) = 1
+_read_bandwidth_async(a::Asynchronous) = a.read_bandwidth_async
+_write_bandwidth_async(a::Asynchronous) = a.write_bandwidth_async
+
+
 function add_movement_formulations!(frame::Frame{<:ModelType})
     data = frame.profile_data
 
@@ -491,6 +537,8 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
     tensor_graphs = frame.model[:tensor_graphs]
     read_bandwidth = frame.modeltype.read_bandwidth
     write_bandwidth = frame.modeltype.write_bandwidth
+    read_bandwidth_async = _read_bandwidth_async(frame.modeltype)
+    write_bandwidth_async = _write_bandwidth_async(frame.modeltype)
 
     # A tensor is written to dram if:
     # - It was not created into PMEM
@@ -510,6 +558,9 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
 
         read_cost = round(Int, bytes / read_bandwidth)
         write_cost = round(Int, bytes / write_bandwidth)
+        read_cost_async = round(Int, bytes / read_bandwidth_async)
+        write_cost_async = round(Int, bytes / write_bandwidth_async)
+
 
         # Collect Edges according to type.
         sync_reads = _find_edges(g, EDGE_SYNC_READ)
@@ -524,7 +575,7 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
         # No Sync write if any async write
         for e in sync_writes
             @constraint(
-                frame.model, 
+                frame.model,
                 tensor_write[tensor] >= tensor_graphs[tensor, e]
             )
         end
@@ -547,13 +598,17 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
         # Create read variables expressions
         for e in async_reads
             _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
-            add_to_expression!(_expr, read_cost, tensor_graphs[tensor, e])
+            move_var = tensor_graphs[tensor, e]
+            add_to_expression!(_expr, read_cost_async, move_var)
+            dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
         end
 
         # Create write variables.
         for e in async_writes
             _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
-            add_to_expression!(_expr, write_cost, tensor_graphs[tensor, e])
+            move_var = tensor_graphs[tensor, e]
+            add_to_expression!(_expr, write_cost_async, move_var)
+            dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
         end
 
         #####
@@ -624,7 +679,16 @@ function add_nodes!(F::Frame{<:ModelType})
             @constraint(F.model, vars[config] + length(config.inputs) + length(config.outputs) >=
                 1 + expr)
 
+            # If this is an all DRAM config, constrain any asynchronous moves to only take
+            # place if all node inputs and outputs are in DRAM.
+            if all(isequal(DRAM), config) && haskey(F.modeltype.async_move_vars, node)
+                @info "Generating async move restriction for $(name(node))"
+                for (_jump_var) in F.modeltype.async_move_vars[node]
+                    @constraint(F.model, _jump_var <= vars[config])
+                end
+            end
         end
+
         # here, we're adding a valid contraint to help the solver
         @constraint(F.model, sum(vars[config] for config in configs) == 1)
 
@@ -671,7 +735,7 @@ end
 
 # Struct for keeping track of what tensors are moved.
 #
-# children: Maps a tensor `t` to the collection tensors that are the results of "Move" 
+# children: Maps a tensor `t` to the collection tensors that are the results of "Move"
 #   instructions ultimately beginning at `t`.
 # parent: Maps a tensor `t` to its parent tensor. The following should hold: `t ∈ children[parent[t]]`
 struct TensorMap
@@ -708,9 +772,12 @@ struct MoveAction
     consumers::Vector{NodeDescriptor}
     location::TensorLocation
     replace_incumbent::Bool
+    # Additional data needed for "asynchronous" moves
+    concurrent::Union{Nothing, NodeDescriptor}
 end
+isasync(M::MoveAction) = !isnothing(M.concurrent)
 
-configure!(fex::nGraph.FluxExecutable, frame::Frame{Asynchronous}) = fex, nothing
+#configure!(fex::nGraph.FluxExecutable, frame::Frame{Asynchronous}) = fex, nothing
 function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     # Unpack args
     data = frame.profile_data
@@ -724,11 +791,11 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     # Process the move node chains
     schedule = get_schedule(frame)
     tensor_map = TensorMap()
-    
-    for (tensor, vertices) in schedule
+
+    for (tensor, (tensor_graph, path)) in schedule
         addtensor!(tensor_map, tensor)
 
-        initial_location = first(vertices).location
+        initial_location = first(path).location
         if initial_location == LOC_PMEM
             config[tensor] = PMEM
         elseif isdram(initial_location)
@@ -738,17 +805,42 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
         end
 
         # Get a list of move actions that we will have to perform.
-        actions = getactions(vertices)
+        actions = getactions(tensor_graph, path)
 
         producer = _producer(tensor, data)
         producer_output = findonly(isequal(tensor), outputs(producer))
         incumbent = tensor
 
         for action in actions
+
             consumers = action.consumers
+
+            @show producer
+            @show consumers
+
             consumer_inputs = [findonly(isequal(incumbent), inputs(n)) for n in consumers]
 
-            move_node = insert_move_node!(producer, producer_output, consumers, consumer_inputs)
+            if isasync(action)
+                @show action.concurrent
+                move_node = insert_moveasync_node!(
+                    producer,
+                    producer_output,
+                    consumers,
+                    consumer_inputs,
+                    action.concurrent,
+                )
+
+                if !ismove(producer)
+                    @assert data.node_to_index[producer] < data.node_to_index[action.concurrent]
+                end
+            else
+                move_node = insert_move_node!(
+                    producer,
+                    producer_output,
+                    consumers,
+                    consumer_inputs,
+                )
+            end
 
             # Add the new output tensor tothe tensor map
             for output in outputs(move_node)
@@ -759,13 +851,22 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
             #
             # If moving to PMEM, perform this action as soon as possible after the node
             # generating the argument.
-            if action.location == PMEM
+            if action.location == PMEM || isasync(action)
                 nGraph.set_input_affinity(move_node)
-                nGraph.add_associate(move_node, name(producer))
+
+                # If this is an asynchronous move, we want to associate it with the 
+                # concurrent node.
+                #
+                # Otherwise, associate with the producer
+                if isasync(action)
+                    nGraph.add_associate(move_node, name(action.concurrent))
+                else
+                   nGraph.add_associate(move_node, name(producer))
+                end
 
                 # Perform a sanity check. Should not move data to PMEM if it already
                 # started in PMEM.
-                @assert isdram(initial_location)
+                !isasync(action) && @assert isdram(initial_location)
 
             # Otherwise, make this happen as late as possible. Add all of the output
             # associates to this list because scheduling may be reordered after inserting
@@ -824,7 +925,7 @@ function get_schedule(F::Frame{<:ModelType})
     data = F.profile_data
     model_graphs = F.model[:tensor_graphs]
 
-    schedule = Dict{TensorDescriptor, Vector{VertexMetadata}}()
+    schedule = Dict{TensorDescriptor, Tuple{MetaGraph, Vector{VertexMetadata}}}()
 
     for tensor in tensors(data)
         g = graph(descriptor(F, tensor))
@@ -855,7 +956,7 @@ function get_schedule(F::Frame{<:ModelType})
         popfirst!(path)
         pop!(path)
 
-        schedule[tensor] = path
+        schedule[tensor] = (g, path)
     end
 
     return schedule
@@ -865,22 +966,42 @@ end
 function getkeeps(vertices::Vector{VertexMetadata}, index)
     keeps = NodeDescriptor[]
     while checkbounds(Bool, vertices, index) && isdram(vertices[index].location)
-        push!(keeps, vertices[index].op)
+        vertex = vertices[index]
+        if vertex.isuser
+            push!(keeps, vertices[index].op)
+        end
         index += 1
     end
     return unique(keeps)
+end
+
+function isasync(tensor_graph, a::VertexMetadata, b::VertexMetadata)
+    # Get the vertex number from the metadata - construct the edge
+    src = a.vertex_number
+    dst = b.vertex_number
+    edge_metadata = _meta(tensor_graph, edgetype(tensor_graph)(src, dst))
+    return isasync(edge_metadata)
 end
 
 # Return `true` if there is an implied write to
 write_to_pmem(a, b) = a == LOC_DRAM_PRE && ispmem(b)
 read_from_pmem(a, b) = ispmem(a) && isdram(b)
 
-function getactions(vertices::Vector{VertexMetadata})
+function getactions(tensor_graph, vertices::Vector{VertexMetadata})
     actions = MoveAction[]
     written_to_pmem = false
 
     for i in Iterators.drop(eachindex(vertices), 1)
-        a, b = vertices[i-1].location, vertices[i].location
+        src = vertices[i-1]
+        dst = vertices[i]
+        a, b = src.location, dst.location
+
+        # Determine whether this is an asynchronous move
+        if isasync(tensor_graph, src, dst)
+            concurrent = src.op
+        else
+            concurrent = nothing
+        end
 
         if write_to_pmem(a, b)
             if written_to_pmem
@@ -888,14 +1009,24 @@ function getactions(vertices::Vector{VertexMetadata})
                 error()
             end
             # All downstream users are consumers
-            consumers = unique(vertices[i].op for i in i:length(vertices))
-            push!(actions, MoveAction(consumers, PMEM, true))
-            written_to_pmem = true
+            consumers = unique(vertices[i].op for i in i:length(vertices) if vertices[i].isuser)
+
+            # One solution to the ILP is to move data back and forth if it does not cause
+            # any additional overhead.
+            #
+            # Here, we just filter out these movements by checking if the consumers of a 
+            # move is empty
+            if !isempty(consumers)
+                push!(actions, MoveAction(consumers, PMEM, true, concurrent))
+                written_to_pmem = true
+            end
         end
 
         if read_from_pmem(a, b)
             consumers = getkeeps(vertices, i)
-            push!(actions, MoveAction(consumers, DRAM, false))
+            if !isempty(consumers)
+                push!(actions, MoveAction(consumers, DRAM, false, concurrent))
+            end
         end
     end
 
@@ -913,7 +1044,7 @@ end
 ##### Misc Stuff
 #####
 
-estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Static}) = zero(Float64)
+estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = zero(Float64)
 function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Synchronous})
     # Get the read and write bandwidths from the frame.
     write_bandwidth = frame.modeltype.write_bandwidth
@@ -945,7 +1076,7 @@ function profile_moves(fex)
 
         time = timing_data[findfirst(x -> x["name"] == name(node), timing_data)]["dur"]
         # Convert bytes to GB, time from μs to s
-        bytes = sizeof(first(inputs(node))) 
+        bytes = sizeof(first(inputs(node)))
         bandwidth = (bytes / 1E9) / (time / 1E6)
         computed_stats[name(node)] = (
             bytes = bytes,

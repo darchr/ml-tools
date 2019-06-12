@@ -29,5 +29,6 @@ CPUInfo() = CPUInfo(2, 24, true)
 
 include("stream.jl")
 include("kernel.jl")
+include("background_copy.jl")
 
 end # module

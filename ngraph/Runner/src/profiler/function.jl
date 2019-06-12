@@ -250,7 +250,7 @@ function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
     # Iterate through the kernels - find kernels with timing parameter, get their time,
     # and then find what the expected runtime is.
     for op in fex.ex.ngraph_function
-        op_wrapped = NodeWrapper(op)
+        op_wrapped = NodeDescriptor(op)
         if !hasprofile(op_wrapped) || description(op_wrapped) == "Move"
             continue
         end
@@ -264,7 +264,7 @@ function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
 
         # Get the expected run time
         index = findfirst(isequal(op_wrapped), nodes(data))
-        expected_time = nodes(data, index).timings[config]
+        expected_time = gettime(data, nodes(data, index), config)
 
         push!(results, (
             name = op_name,

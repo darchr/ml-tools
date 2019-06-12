@@ -125,3 +125,19 @@ function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{No
     
     return NodeDescriptor(move_node)
 end
+
+function insert_moveasync_node!(
+        producer::NodeDescriptor, 
+        index, 
+        consumers, 
+        consumer_inputs, 
+        concurrent
+    )
+
+    move_node = nGraph.moveasync(nGraph.Node(producer), index, nGraph.Node(concurrent))
+    for (consumer, input) in zip(consumers, consumer_inputs)
+        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
+    end
+    
+    return NodeDescriptor(move_node)
+end

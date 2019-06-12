@@ -55,6 +55,8 @@ struct PerformancePlot end
             (getindex.(data.runs, :actual_runtime)) : 
             (getindex.(data.runs, :predicted_runtime) ./ 1E6)
 
+        @show runtimes
+
         dram_performance = first(runtimes)
 
         dram_sizes = plot_type == __ACTUAL_PLOT ?
