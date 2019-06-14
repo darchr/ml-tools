@@ -30,10 +30,12 @@ end
 # if it doesn't exist.
 function create_container(image::AbstractDockerImage; kw...)
     instantiate(image)
-    return Docker.create_container(tag(image); kw...)
+    return create_container(tag(image); kw...)
 end
 
-create_container(image::AbstractString; kw...) = Docker.create_container(image; kw...)
+# Add "SYS_PTRACE" to all containers launched from here to support snooping them with vtune.
+create_container(image::AbstractString; kw...) = 
+    Docker.create_container(image; capadd = ["SYS_PTRACE"], kw...)
 
 #####
 ##### TensorflowBuilder
@@ -151,5 +153,28 @@ function build(::NGraphImage)
     finally
         cd(dir)
     end
+end
 
+##### 
+##### Tensorflow VTune
+#####
+
+struct TensorflowVTune <: AbstractDockerImage
+    args::NamedTuple
+    outfile::String
+end
+
+tag(::TensorflowVTune) = "darchr/tensorflow-vtune:latest"
+dependencies(::TensorflowVTune) = (TensorflowMKL(),)
+
+function build(::TensorflowVTune)
+    @info "Building Tensorflow VTune Image"
+    dir = pwd()
+    try
+        cd(joinpath(DOCKERDIR, "tensorflow-vtune"))
+        vtunes = glob(glob"*.tar.gz", pwd())
+        run(`./build-image.sh $(first(vtunes))`)
+    finally
+        cd(dir)
+    end
 end
