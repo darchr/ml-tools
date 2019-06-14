@@ -84,14 +84,17 @@ end
 function pgf_plot_performance(f;
         static = __ACTUAL_PLOT,
         synchronous = __ACTUAL_PLOT,
-        asynchronous = __ACTUAL_PLOT
+        asynchronous = __ACTUAL_PLOT,
+        file = "plot.tex",
     )
 
     nt = (static = static, synchronous = synchronous, asynchronous = asynchronous)
 
     coords = []
 
-    for formulation in (:static, :synchronous, :asynchronous)
+
+    formulations = (:static, :synchronous, :asynchronous)
+    for formulation in formulations
         plot_type = nt[formulation]
         plot_type == __NO_PLOT && continue
 
@@ -120,20 +123,47 @@ function pgf_plot_performance(f;
 
         # Create x and y coordinate, generate pairs
         x = dram_sizes
-        y = runtimes ./ dram(performance)
+        y = runtimes ./ dram_performance
 
         push!(coords, Coordinates(x, y))
     end
 
     plots = Plot.(coords)
+    legend = collect(string.(formulations))
 
     plt = @pgf Axis(
         {
+            grid = "major",
             ylabel = "Normalized Runtimes",
             xlabel = "Dram Limit (GB)",
         },
-        plots...
+        Plot(
+            {
+                thick,
+                color = "blue",
+                mark = "square*"
+            },
+            coords[1],
+        ),
+        Plot(
+            {
+                thick,
+                color = "red",
+                mark = "*"
+            },
+            coords[2],
+        ),
+        Plot(
+            {
+                thick,
+                color = "black",
+                mark = "triangle*"
+            },
+            coords[3],
+        ),
+        Legend(legend),
     )
 
-    return plt
+    pgfsave(file, plt)
+    return nothing
 end

@@ -1079,19 +1079,46 @@ function profile_moves(fex)
 
     # Summarize read and write bandwidth
     println("Read Bandwidths")
-    for (node_name, stats) in computed_stats
-        if stats.write_to_pmem == false
-            println("$node_name => $(stats.bandwidth) GB/s")
-            println("    size: $(stats.bytes) B")
+    for f in (ismoveasync, !ismoveasync)
+        s = 0
+        count = 0
+        for (node_name, stats) in computed_stats
+            f(node_name) || continue
+            if stats.write_to_pmem == false
+                println("$node_name => $(stats.bandwidth) GB/s")
+                println("    size: $(stats.bytes) B")
+
+                if !isinf(stats.bandwidth)
+                    s += stats.bandwidth
+                    count += 1
+                end
+            end
         end
+
+        println()
+        println("Average Bandwidth: ", s / count)
+        println()
     end
     println()
     println("Write Bandwidths")
-    for (node_name, stats) in computed_stats
-        if stats.write_to_pmem == true
-            println("$node_name => $(stats.bandwidth) GB/s")
-            println("    size: $(stats.bytes) B")
+    for f in (ismoveasync, !ismoveasync)
+        s = 0
+        count = 0
+        for (node_name, stats) in computed_stats
+            f(node_name) || continue
+            if stats.write_to_pmem == true
+                println("$node_name => $(stats.bandwidth) GB/s")
+                println("    size: $(stats.bytes) B")
+
+                if !isinf(stats.bandwidth)
+                    s += stats.bandwidth
+                    count += 1
+                end
+            end
         end
+        println()
+        println("Average Bandwidth: ", s / count)
+        println()
     end
 
     return computed_stats

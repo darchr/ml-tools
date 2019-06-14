@@ -87,15 +87,18 @@ function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw..
     seen_limits = getindex.(stats.runs, :dram_limit)
     skip = in(limit(frame.modeltype), seen_limits)
 
+    data = frame.profile_data
+
     # Get the predicted run time and then the actual run time
     if !skip
         nt = Dict(
             :predicted_runtime => Runner.predict(frame),
             :dram_limit => limit(frame.modeltype),
+            :tensor_size_map => Dict(nGraph.name(t) => sizeof(t) for t in tensors(data)),
+            :config_map => Dict(nGraph.name(n) => getconfig(nGraph.Node(n)) for n in nodes(data)),
         )
 
         if !skip_configure
-            data = frame.profile_data
             nt_new = Dict(
                 # Some statistics on nodes and tensors
 
@@ -107,6 +110,14 @@ function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw..
                 :bytes_moved => _count(inputs, sizeof, data; filt = _move_filter()),
                 :bytes_moved_pmem => _count(inputs, sizeof, data; filt = _move_filter(PMEM)),
                 :bytes_moved_dram => _count(inputs, sizeof, data; filt = _move_filter(DRAM)),
+
+                :num_async_move_nodes => count(_async_filter(), nodes(data)),
+                :num_pmem_async_move_nodes => count(_async_filter(PMEM), nodes(data)),
+                :num_dram_async_move_nodes => count(_async_filter(DRAM), nodes(data)),
+
+                :bytes_async_moved => _count(inputs, sizeof, data; filt = _async_filter()),
+                :bytes_async_moved_pmem => _count(inputs, sizeof, data; filt = _async_filter(PMEM)),
+                :bytes_async_moved_dram => _count(inputs, sizeof, data; filt = _async_filter(DRAM)),
 
                 # Total number of kernels
                 :num_kernels => count(hasprofile, nodes(data)),

@@ -119,6 +119,9 @@ ismove(description::String) = startswith(description, "Move")
 ismove(op::nGraph.Node) = ismove(nGraph.description(op))
 ismove(x::NodeDescriptor) = ismove(nGraph.description(x))
 
+ismoveasync(description::String) = startswith(description, "MoveAsync")
+ismoveasync(x::nGraph.NodeLike) = ismoveasync(nGraph.description(x))
+
 isconstant(description::String) = startswith(description, "Constant")
 isconstant(x::nGraph.Node) = isconstant(nGraph.description(x))
 isconstant(x::NodeDescriptor) = isconstant(nGraph.description(x))

@@ -255,11 +255,19 @@ end
 ##### For gathering statistics
 #####
 
-_move_filter() = x -> ismove(x)
+_move_filter() = x -> ismove(x) && !ismoveasync(x)
+_async_filter() = x -> ismoveasync(x)
+
 function _move_filter(dest)
     is_persistent_result = (dest == PMEM) ? true : false
 
     return x -> ismove(x) && nGraph.is_persistent(first(outputs(x))) == is_persistent_result
+end
+
+function _async_filter(dest)
+    is_persistent_result = (dest == PMEM) ? true : false
+
+    return x -> _async_filter()(x) && nGraph.is_persistent(first(outputs(x))) == is_persistent_result
 end
 
 # Count metrics

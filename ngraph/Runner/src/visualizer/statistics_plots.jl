@@ -74,3 +74,141 @@ function stats_plot(f)
     return plt
 end
 
+function pgf_stats_plot(f; file = "plot.tex")
+    savefile = joinpath(savedir(f), join((name(f), "asynchronous"), "_") * ".jls")
+    data = deserialize(savefile)
+
+    # Plot the number of move nodes.
+    io_size = data.io_size[] 
+    dram_sizes = (getname(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
+
+    x = dram_sizes
+
+    plot = TikzDocument()
+    scheme = "Spectral"
+    plotsets = """
+        \\pgfplotsset{
+            cycle list/$scheme,
+            cycle multiindex* list={
+                mark list*\\nextlist
+                $scheme\\nextlist
+            },
+        }
+    """
+    push!(plot, plotsets)
+
+    axs = @pgf Axis(
+        {
+            grid = "major",
+            xlabel = "DRAM Limit (GB)",
+            ylabel = "Memory Moved (GB)",
+        },
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(x, getname(data.runs, :bytes_moved_pmem) ./ 1E9)
+        ),
+        LegendEntry("sync DRAM to PMEM"),
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(x, getname(data.runs, :bytes_moved_dram) ./ 1E9)
+        ),
+        LegendEntry("sync PMEM to DRAM"),
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(x, getname(data.runs, :bytes_async_moved_pmem) ./ 1E9)
+        ),
+        LegendEntry("async DRAM to PMEM"),
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(x, getname(data.runs, :bytes_async_moved_dram) ./ 1E9)
+        ),
+        LegendEntry("async PMEM to DRAM"),
+    )
+
+    push!(plot, TikzPicture(axs))
+
+    empty!(PGFPlotsX.CUSTOM_PREAMBLE)
+    push!(PGFPlotsX.CUSTOM_PREAMBLE, "\\usepgfplotslibrary{colorbrewer}")
+
+    pgfsave(file, plot)
+
+    return nothing
+end
+
+function pgf_io_plot(f; file = "plot.tex")
+    savefile = joinpath(savedir(f), join((name(f), "asynchronous"), "_") * ".jls")
+    data = deserialize(savefile)
+
+
+    # Plot the number of move nodes.
+    io_size = data.io_size[] 
+    dram_sizes = (getname(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
+
+    x = dram_sizes
+
+    plot = TikzDocument()
+    scheme = "Spectral"
+    plotsets = """
+        \\pgfplotsset{
+            cycle list/$scheme,
+            cycle multiindex* list={
+                mark list*\\nextlist
+                $scheme\\nextlist
+            },
+        }
+    """
+    push!(plot, plotsets)
+
+    axs = @pgf Axis(
+        {
+            grid = "major",
+            xlabel = "DRAM Limit (GB)",
+            ylabel = "Percent of Kernel Arguments in DRAM",
+            # put legend on the bottom right
+            legend_style = {
+                at = Coordinate(1.0, 0.0),
+                anchor = "south east",
+            },
+        },
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(
+                x, 
+                getname(data.runs, :bytes_dram_input_tensors) ./ getname(data.runs, :bytes_input_tensors)
+            )
+        ),
+        LegendEntry("input tensors"),
+        PlotInc(
+             {
+                thick,
+             },
+             Coordinates(
+                x, 
+                getname(data.runs, :bytes_dram_output_tensors) ./ getname(data.runs, :bytes_output_tensors)
+            )
+        ),
+        LegendEntry("output tensors"),
+    )
+
+    push!(plot, TikzPicture(axs))
+
+    empty!(PGFPlotsX.CUSTOM_PREAMBLE)
+    push!(PGFPlotsX.CUSTOM_PREAMBLE, "\\usepgfplotslibrary{colorbrewer}")
+
+    pgfsave(file, plot)
+
+    return nothing
+end
+
+
+

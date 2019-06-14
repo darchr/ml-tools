@@ -1,10 +1,6 @@
 #using Pkg; Pkg.activate(".")
 using Runner, Zoo, Serialization, nGraph, JuMP, Plots
 Runner.setup_affinities(omp_num_threads = 23, reserved_cores = 24)
-#Runner.setup_affinities(omp_num_threads = 24, reserved_cores = 24)
-#Runner.setup_affinities(omp_num_threads = 24, reserved_cores = 24, threads_per_core = 2)
-
-
 _savedir() = abspath("./serials")
 
 # Resnet
@@ -102,7 +98,7 @@ function (M::MyAsynchronous)(data)
     bounds = Runner.allocation_bounds(data)
     x = round(Int, bounds.upper_bound * M.limit / 1E6)
     println("Trying to use $x MB of memory")
-    return Runner.Asynchronous(x, 29000, 12000, 2000, 3000)
+    return Runner.Asynchronous(x, 29000, 12000, 2000, 2500)
 end
 
 #####
@@ -115,8 +111,8 @@ fns = (
     #RHN(4, 4, 10, 10000, 1024),
     #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
-    Resnet(128, Zoo.Resnet50()),
-    # Inception_v4(256),
+    #Resnet(128, Zoo.Resnet50()),
+    Inception_v4(256),
 )
 
 # Setup FUnctions
@@ -134,9 +130,11 @@ reverse!(fractions)
 ##### Run Synchronous Tests
 #####
 
+# Temporarily get fewer threads
+fractions = fractions[4:end]
 opts = (
-    # (MyStatic(f) for f in fractions),
-    # (MySynchronous(f) for f in fractions),
+    #(MyStatic(f) for f in fractions),
+    #(MySynchronous(f) for f in fractions),
     (MyAsynchronous(f) for f in fractions),
 )
 
