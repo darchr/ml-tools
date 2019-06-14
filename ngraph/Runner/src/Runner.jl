@@ -12,6 +12,9 @@ using Dates, Random, Serialization, Statistics
 
 # deps
 using nGraph, Flux, JSON
+
+# for the beautiful plotting!
+using PGFPlotsX
 using JuMP, Gurobi
 using RecipesBase, Plots
 using LightGraphs
@@ -106,7 +109,9 @@ hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 hasprofile(x::NodeDescriptor) = hasprofile(nGraph.description(x))
 
+# Hook to exclude some nodes from computation overlap
 is_memory_intensive(op_description::String) = in(op_description, ("MatmulBias",))
+#is_memory_intensive(op_description::String) = false
 is_memory_intensive(op::nGraph.Node) = is_memory_intensive(nGraph.description(op))
 is_memory_intensive(op::NodeDescriptor) = is_memory_intensive(nGraph.description(op))
 

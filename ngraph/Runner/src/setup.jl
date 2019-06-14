@@ -22,7 +22,7 @@ end
 # compilation of an nGraph executable.
 #
 # After that, changes in the number of threads won't be seen by nGraph
-function setup_affinities(;omp_num_threads = 24, reserved_cores = omp_num_threads)
+function setup_affinities(;omp_num_threads = 24, reserved_cores = omp_num_threads, threads_per_core = 1)
     if nGraph.have_compiled() == true
         @error """
         The nGraph compiler has already been invoked.
@@ -38,7 +38,7 @@ function setup_affinities(;omp_num_threads = 24, reserved_cores = omp_num_thread
     # Send to numa-node 1 for a hopefully more quiet system
     #
     # See docs/src/runner/kmp.md for syntax documentation
-    ENV["KMP_HW_SUBSET"] = "1s@1,$(reserved_cores)c,1t" 
+    ENV["KMP_HW_SUBSET"] = "1s@1,$(reserved_cores)c,$(threads_per_core)t" 
 
     # 1 Threads for each core
     ENV["OMP_NUM_THREADS"] = omp_num_threads

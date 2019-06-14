@@ -716,7 +716,7 @@ uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 version = "0.11.1"
 
 [[Runner]]
-deps = ["AbstractPlotting", "Crayons", "DataStructures", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "Plots", "PrettyTables", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Serialization", "Statistics", "TimerOutputs", "Tracker", "Zoo", "nGraph"]
+deps = ["AbstractPlotting", "Crayons", "DataStructures", "Dates", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "MetaGraphs", "NNlib", "PGFPlotsX", "Plots", "PrettyTables", "ProgressMeter", "PyPlot", "Random", "RecipesBase", "Serialization", "Statistics", "TimerOutputs", "Tracker", "Zoo", "nGraph"]
 path = "Runner"
 uuid = "4a6e9825-ed04-540b-82d3-f33d0e8d45fb"
 version = "0.1.0"

@@ -1,6 +1,9 @@
 #using Pkg; Pkg.activate(".")
 using Runner, Zoo, Serialization, nGraph, JuMP, Plots
 Runner.setup_affinities(omp_num_threads = 23, reserved_cores = 24)
+#Runner.setup_affinities(omp_num_threads = 24, reserved_cores = 24)
+#Runner.setup_affinities(omp_num_threads = 24, reserved_cores = 24, threads_per_core = 2)
+
 
 _savedir() = abspath("./serials")
 
@@ -99,21 +102,20 @@ function (M::MyAsynchronous)(data)
     bounds = Runner.allocation_bounds(data)
     x = round(Int, bounds.upper_bound * M.limit / 1E6)
     println("Trying to use $x MB of memory")
-    return Runner.Asynchronous(x, 29000, 12000, 2400, 3600)
+    return Runner.Asynchronous(x, 29000, 12000, 2000, 3000)
 end
 
 #####
 ##### Test Routine
 #####
 
-
 # Setup functions to Test
 fns = (
     #RHN(2, 4, 20, 5000, 512),
     #RHN(4, 4, 10, 10000, 1024),
     #DenseNet(128),
-    Vgg(128, Zoo.Vgg19()),
-    # Resnet(128, Zoo.Resnet50()),
+    #Vgg(128, Zoo.Vgg19()),
+    Resnet(128, Zoo.Resnet50()),
     # Inception_v4(256),
 )
 
@@ -133,23 +135,11 @@ reverse!(fractions)
 #####
 
 opts = (
-    # (MySynchronous(f) for f in fractions),
     # (MyStatic(f) for f in fractions),
+    # (MySynchronous(f) for f in fractions),
     (MyAsynchronous(f) for f in fractions),
 )
 
 # Launch the test
 Runner.entry(fns, opts; calibrations = (false, false, false))
 
-#####
-##### Run Asynchronous Tests
-#####
-
-# opts = (MyAsynchronous(f) for f in fractions)
-# 
-# for f in fns
-#     for opt in opts
-#         savefile = joinpath(Runner.savedir(f), join((Runner.name(f), Runner.name(opt), "estimate"), "_") * ".jls")
-#         Runner.compare(f, opt; statspath = savefile, skip_run = true, skip_configure = true)
-#     end
-# end

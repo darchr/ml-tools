@@ -80,3 +80,60 @@ struct PerformancePlot end
         end
     end
 end
+
+function pgf_plot_performance(f;
+        static = __ACTUAL_PLOT,
+        synchronous = __ACTUAL_PLOT,
+        asynchronous = __ACTUAL_PLOT
+    )
+
+    nt = (static = static, synchronous = synchronous, asynchronous = asynchronous)
+
+    coords = []
+
+    for formulation in (:static, :synchronous, :asynchronous)
+        plot_type = nt[formulation]
+        plot_type == __NO_PLOT && continue
+
+        # Deserialize the data structure.
+        if plot_type == __PREDICTED_PLOT 
+            savefile = joinpath(savedir(f), join((name(f), formulation, "estimate"), "_") * ".jls")
+        else
+            savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
+        end
+        data = deserialize(savefile)
+
+        io_size = data.io_size[]
+
+        # If using predicted runtimes - correct for microsecond to second conversion.
+        runtimes = plot_type == __ACTUAL_PLOT ? 
+            (getindex.(data.runs, :actual_runtime)) : 
+            (getindex.(data.runs, :predicted_runtime) ./ 1E6)
+
+        @show runtimes
+
+        dram_performance = first(runtimes)
+
+        dram_sizes = plot_type == __ACTUAL_PLOT ?
+            ((getindex.(data.runs, :dram_alloc_size) .+ io_size) ./ 1E9) :
+            ((getindex.(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9))
+
+        # Create x and y coordinate, generate pairs
+        x = dram_sizes
+        y = runtimes ./ dram(performance)
+
+        push!(coords, Coordinates(x, y))
+    end
+
+    plots = Plot.(coords)
+
+    plt = @pgf Axis(
+        {
+            ylabel = "Normalized Runtimes",
+            xlabel = "Dram Limit (GB)",
+        },
+        plots...
+    )
+
+    return plt
+end

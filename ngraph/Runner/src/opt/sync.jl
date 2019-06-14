@@ -116,8 +116,6 @@ function create_model(modeltype::ModelType, profile_data::ProfileData)
         if isnothing(_async)
             add_to_expression!(objective_expr, node_times)
         else
-            println("Applying Overlap Constraint for $node_name")
-
             var = @variable(model, integer = true, lower_bound = 0)
             @constraint(model, var >= node_times)
             @constraint(model, var >= _async)
@@ -200,7 +198,7 @@ function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
     #
     # Making `bound` larger increased the search space of the formulation, which may lead to
     # better results at the cost of a larger mode.
-    bound = 50
+    bound = 10
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
         node = nodes(data, ind)
@@ -303,8 +301,8 @@ function edge_metadata(src, dst, s, d, src_move_type)
 end
 
 function preprocess!(S::ModelType, data::ProfileData)
-
     for tensor in tensors(data)
+
         # Get the users of this node
         @timeit TO "making gadgets" begin
             # Get two things from _getgadgets:
@@ -332,7 +330,6 @@ function preprocess!(S::ModelType, data::ProfileData)
             isuser = in(node, users)
 
             if count == 1
-                #add_vertex!(g, :metadata, VertexMetadata(0, node, LOC_SOURCE))
                 add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE, move_type, isuser, nv(g)+1))
             end
             # Enumerate over locations that this tensor can live.
@@ -351,6 +348,7 @@ function preprocess!(S::ModelType, data::ProfileData)
                 end
 
                 if location == PMEM
+                    @assert !startswith(nGraph.name(tensor), "Constant")
                     # PMEM node
                     add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type, isuser, nv(g)+1))
                 end
@@ -682,7 +680,6 @@ function add_nodes!(F::Frame{<:ModelType})
             # If this is an all DRAM config, constrain any asynchronous moves to only take
             # place if all node inputs and outputs are in DRAM.
             if all(isequal(DRAM), config) && haskey(F.modeltype.async_move_vars, node)
-                @info "Generating async move restriction for $(name(node))"
                 for (_jump_var) in F.modeltype.async_move_vars[node]
                     @constraint(F.model, _jump_var <= vars[config])
                 end
@@ -814,14 +811,9 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
         for action in actions
 
             consumers = action.consumers
-
-            @show producer
-            @show consumers
-
             consumer_inputs = [findonly(isequal(incumbent), inputs(n)) for n in consumers]
 
             if isasync(action)
-                @show action.concurrent
                 move_node = insert_moveasync_node!(
                     producer,
                     producer_output,
