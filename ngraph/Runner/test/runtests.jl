@@ -3,6 +3,9 @@ using Test
 using Serialization
 using Zoo
 
+include("allocator.jl")
+
+#=
 # @testset "Testing Simple Formulation" begin
 #     f = () -> Runner.simple_network()
 #     pass = function _dummy(fex)
@@ -59,3 +62,4 @@ using Zoo
    @show matches
    @test all(matches)
 end
+=#

@@ -26,24 +26,25 @@ function RHNCell(input_size, hidden_size, depth)
             push!(sigmoid_layers, Dense(hidden_size, hidden_size, sigmoid))
         end
     end
+    println("Created RHNCell")
 
     return RHNCell(tanh_layers, sigmoid_layers)
 end
 
-function (R::RHNCell)(input, current_state, noise_i, noise_h)
+function (R::RHNCell)(input, current_state)#, noise_i, noise_h)
     isfirst = true
     for (_tanh, _sigmoid) in zip(R.tanh_layers, R.sigmoid_layers)
-        noisy_state = current_state .* noise_h
+        #noisy_state = current_state .* noise_h
         if isfirst
             #noise_i_broadcast = broadcast(noise_i, size(input); axes = 2)
-            _cat = cat(input .* noise_i, noisy_state; dims = 1)
+            _cat = cat(input, current_state; dims = 1)
             h = _tanh(_cat)
             t = _sigmoid(_cat)
 
             isfirst = false
         else
-            h = _tanh(noisy_state)
-            t = _sigmoid(noisy_state)
+            h = _tanh(current_state)
+            t = _sigmoid(current_state)
         end
 
         # Update state
@@ -90,7 +91,7 @@ function rhn_model(;
     return RHNModel(embedding_table, rhn_cells, num_steps)
 end
 
-function (R::RHNModel)(input, targets, states, noise_x, noise_i, noise_h, noise_o)
+function (R::RHNModel)(input, targets, states)#, noise_x, noise_i, noise_h, noise_o)
     # Do the embedding lookup
     embedding = nGraph.constant(R.embedding_table) 
     #inputs = nGraph.embedding(input, embedding)
@@ -98,8 +99,8 @@ function (R::RHNModel)(input, targets, states, noise_x, noise_i, noise_h, noise_
     @show size(inputs)
 
     # Broadcast over the first dimension
-    noise_broadcast = broadcast(noise_x, size(inputs); axes = 1)
-    inputs = inputs .* noise_broadcast
+    #noise_broadcast = broadcast(noise_x, size(inputs); axes = 1)
+    inputs = inputs# .* noise_broadcast
 
     # Split inputs into an array for each timestep
     #
@@ -116,13 +117,15 @@ function (R::RHNModel)(input, targets, states, noise_x, noise_i, noise_h, noise_
 
     # Go through the unrolling
     for (layer, cell) in enumerate(R.rhn_cells)
-        _noise_i = reshape(noise_i[:, :, layer], (size(noise_i, 1), size(noise_i, 2)))
-        _noise_h = reshape(noise_h[:, :, layer], (size(noise_h, 1), size(noise_h, 2)))
+        println("Layer: $layer")
+        #_noise_i = reshape(noise_i[:, :, layer], (size(noise_i, 1), size(noise_i, 2)))
+        #_noise_h = reshape(noise_h[:, :, layer], (size(noise_h, 1), size(noise_h, 2)))
 
         state = states[layer]
         outputs = []
         for timestep in 1:R.num_steps
-            state = cell(inputs[timestep], state, _noise_i, _noise_h)
+            println("Timestep: $timestep")
+            state = cell(inputs[timestep], state)#, _noise_i, _noise_h)
             push!(outputs, state)
         end
 
@@ -134,8 +137,8 @@ function (R::RHNModel)(input, targets, states, noise_x, noise_i, noise_h, noise_
     reshaped = map(x -> reshape(x, size(x)..., 1), inputs) 
     reshaped = reduce((x,y) -> cat(x, y; dims = 3), reshaped)
     #reshaped = cat(map(x -> reshape(x, size(x)..., 1), inputs)...; dims = 3)
-    output = reshaped .* broadcast(noise_o, size(reshaped); axes = 3)
-    output = reshape(output, :, size(embedding, 1))
+    #output = reshaped .* broadcast(noise_o, size(reshaped); axes = 3)
+    output = reshape(reshaped, :, size(embedding, 1))
     #softmax_w = transpose(embedding)
 
     @show size(output)
@@ -163,10 +166,10 @@ function rhn_cell_tester(;
 
     input = rand(Float32, input_size, batchsize)
     state = rand(Float32, hidden_size, batchsize)
-    noise_i = rand(Float32, input_size, batchsize)
-    noise_h = rand(Float32, hidden_size, batchsize)
+    #noise_i = rand(Float32, input_size, batchsize)
+    #noise_h = rand(Float32, hidden_size, batchsize)
 
-    args = (input, state, noise_i, noise_h)
+    args = (input, state)#, noise_i, noise_h)
 
     backend = nGraph.Backend()
     tensors = nGraph.Tensor.(Ref(backend), args)
@@ -187,10 +190,10 @@ function rhn_model_tester(;
     ##### Create input arrays
     input_data = rand(Float32, hidden_size, batch_size, num_steps) 
     targets = rand(Float32, batch_size, num_steps)
-    noise_x = rand(Float32, batch_size, num_steps)
-    noise_i = rand(Float32, hidden_size, batch_size, num_layers)
-    noise_h = rand(Float32, hidden_size, batch_size, num_layers)
-    noise_o = rand(Float32, hidden_size, batch_size)
+    #noise_x = rand(Float32, batch_size, num_steps)
+    #noise_i = rand(Float32, hidden_size, batch_size, num_layers)
+    #noise_h = rand(Float32, hidden_size, batch_size, num_layers)
+    #noise_o = rand(Float32, hidden_size, batch_size)
     states = zeros(Float32, hidden_size, batch_size, num_layers)
 
     R = rhn_model(
@@ -202,7 +205,9 @@ function rhn_model_tester(;
         vocab_size = vocab_size
     )
 
-    args = (input_data, targets, states, noise_x, noise_i, noise_h, noise_o)
+    println("Model Materialized")
+
+    args = (input_data, targets, states)#, noise_x, noise_i, noise_h, noise_o)
     backend = nGraph.Backend()
 
     tensor_args = nGraph.Tensor.(Ref(backend), args)

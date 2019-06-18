@@ -59,6 +59,7 @@ limit(F::Frame) = limit(F.modeltype)
 JuMP.optimize!(F::Frame) = optimize!(F.model)
 
 include("sync.jl")
+include("modnn/modnn.jl")
 
 """
 - `f`: Function `() -> fex, args`: Return `FluxExecutable` and args.

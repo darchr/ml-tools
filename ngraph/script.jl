@@ -1,6 +1,7 @@
 #using Pkg; Pkg.activate(".")
 using Runner, Zoo, Serialization, nGraph, JuMP, Plots
-Runner.setup_affinities(omp_num_threads = 23, reserved_cores = 24)
+#Runner.setup_affinities(omp_num_threads = 23, reserved_cores = 24)
+Runner.setup_affinities(omp_num_threads = 24, reserved_cores = 24)
 _savedir() = abspath("./serials")
 
 # Resnet
@@ -108,11 +109,11 @@ end
 # Setup functions to Test
 fns = (
     #RHN(2, 4, 20, 5000, 512),
-    #RHN(4, 4, 10, 10000, 1024),
+    RHN(2, 4, 10, 10000, 1024),
     #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
     #Resnet(128, Zoo.Resnet50()),
-    Inception_v4(256),
+    #Inception_v4(256),
 )
 
 # Setup FUnctions
@@ -131,11 +132,11 @@ reverse!(fractions)
 #####
 
 # Temporarily get fewer threads
-fractions = fractions[4:end]
+#fractions = fractions[4:end]
 opts = (
-    #(MyStatic(f) for f in fractions),
-    #(MySynchronous(f) for f in fractions),
-    (MyAsynchronous(f) for f in fractions),
+    (MyStatic(f) for f in fractions),
+    (MySynchronous(f) for f in fractions),
+    #(MyAsynchronous(f) for f in fractions),
 )
 
 # Launch the test

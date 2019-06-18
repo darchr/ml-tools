@@ -774,11 +774,14 @@ struct MoveAction
 end
 isasync(M::MoveAction) = !isnothing(M.concurrent)
 
-#configure!(fex::nGraph.FluxExecutable, frame::Frame{Asynchronous}) = fex, nothing
 function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
+    fex, data, tensor_map = configure!(fex, frame.profile_data, get_schedule(frame))
+    frame.profile_data = data
+    return fex, tensor_map
+end
+
+function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
     # Unpack args
-    data = frame.profile_data
-    tensor_graphs = frame.model[:tensor_graphs]
     fn = fex.ex.ngraph_function
     _cleanup!(fn)
 
@@ -786,7 +789,6 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     config = Dict{TensorDescriptor, TensorLocation}()
 
     # Process the move node chains
-    schedule = get_schedule(frame)
     tensor_map = TensorMap()
 
     for (tensor, (tensor_graph, path)) in schedule
@@ -903,13 +905,13 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
     fex = nGraph.recompile(fex)
 
     # Update ProfileData in Frame for the newly compiled function
-    frame.profile_data = profile(fex)
+    profile_data = profile(fex)
 
     #####
     ##### Now, we do some checking to make sure everything is scheduled correctly
     #####
 
-    return fex, tensor_map
+    return fex, profile_data, tensor_map
 end
 
 # Get the path of the tensor traced through the graph
