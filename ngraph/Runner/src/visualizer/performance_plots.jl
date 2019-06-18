@@ -153,14 +153,14 @@ function pgf_plot_performance(f;
             },
             coords[2],
         ),
-        Plot(
-            {
-                thick,
-                color = "black",
-                mark = "triangle*"
-            },
-            coords[3],
-        ),
+        # Plot(
+        #     {
+        #         thick,
+        #         color = "black",
+        #         mark = "triangle*"
+        #     },
+        #     coords[3],
+        # ),
         Legend(legend),
     )
 

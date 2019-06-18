@@ -74,8 +74,8 @@ function stats_plot(f)
     return plt
 end
 
-function pgf_stats_plot(f; file = "plot.tex")
-    savefile = joinpath(savedir(f), join((name(f), "asynchronous"), "_") * ".jls")
+function pgf_stats_plot(f; file = "plot.tex", formulation = "synchronous")
+    savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
     data = deserialize(savefile)
 
     # Plot the number of move nodes.
@@ -143,8 +143,8 @@ function pgf_stats_plot(f; file = "plot.tex")
     return nothing
 end
 
-function pgf_io_plot(f; file = "plot.tex")
-    savefile = joinpath(savedir(f), join((name(f), "asynchronous"), "_") * ".jls")
+function pgf_io_plot(f; file = "plot.tex", formulation = "synchronous")
+    savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
     data = deserialize(savefile)
 
 

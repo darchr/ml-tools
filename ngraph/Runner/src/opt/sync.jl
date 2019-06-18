@@ -774,8 +774,29 @@ struct MoveAction
 end
 isasync(M::MoveAction) = !isnothing(M.concurrent)
 
+function _initial_loc(path)
+    initial_location = first(path).location
+    if initial_location == LOC_PMEM
+        return PMEM
+    elseif isdram(initial_location)
+        return DRAM
+    else
+        error("$(initial_location)???")
+    end
+end
+
 function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
-    fex, data, tensor_map = configure!(fex, frame.profile_data, get_schedule(frame))
+    # Get initial schedules for the frame
+    initial_schedule = get_schedule(frame) 
+
+    # Convert this into an appropriate format for the inner `configure!`
+    schedule = Dict(
+        t => (_initial_loc(path), getactions(tensor_graph, path)) 
+        for (t, (tensor_graph, path)) in initial_schedule
+    )
+
+    fex, data, tensor_map = configure!(fex, frame.profile_data, schedule)
+
     frame.profile_data = data
     return fex, tensor_map
 end
@@ -791,20 +812,9 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
     # Process the move node chains
     tensor_map = TensorMap()
 
-    for (tensor, (tensor_graph, path)) in schedule
+    for (tensor, (initial_location, actions)) in schedule
         addtensor!(tensor_map, tensor)
-
-        initial_location = first(path).location
-        if initial_location == LOC_PMEM
-            config[tensor] = PMEM
-        elseif isdram(initial_location)
-            config[tensor] = DRAM
-        else
-            error("$(initial_location)???")
-        end
-
-        # Get a list of move actions that we will have to perform.
-        actions = getactions(tensor_graph, path)
+        config[tensor] = initial_location
 
         producer = _producer(tensor, data)
         producer_output = findonly(isequal(tensor), outputs(producer))
@@ -860,7 +870,7 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
 
                 # Perform a sanity check. Should not move data to PMEM if it already
                 # started in PMEM.
-                !isasync(action) && @assert isdram(initial_location)
+                !isasync(action) && @assert initial_location == DRAM
 
             # Otherwise, make this happen as late as possible. Add all of the output
             # associates to this list because scheduling may be reordered after inserting

@@ -14,6 +14,17 @@ end
 MemoryAllocator(limit::Integer, alignment::Integer) = 
     MemoryAllocator([MemoryNode(true, limit)], alignment)
 
+function showfree(M::MemoryAllocator)
+    offset = 0
+    for node in M.node_list
+        if isfree(node)
+            @show (offset, sizeof(node))
+        end
+        offset += sizeof(node)
+    end
+    return nothing
+end
+
 function allocate(M::MemoryAllocator, sz)
     # Make the allocation size match the alignment
     sz = align(sz, M.alignment)

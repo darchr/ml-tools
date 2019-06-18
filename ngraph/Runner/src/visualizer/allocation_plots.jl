@@ -5,13 +5,13 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
     legend := :none
     xlabel := "Runtime (s)"
     ylabel := "Total Memory Allocated (MiB)"
-    layout := @layout [ allocations{0.4h}
-                       dram_read{0.1h}
-                       dram_write{0.1h}
-                       pmem_read{0.1h}
-                       pmem_write{0.1h}
-                       dram_to_pmem{0.1h}
-                       pmem_to_dram{0.1h} ]
+    # layout := @layout [ allocations{0.4h}
+    #                    dram_read{0.1h}
+    #                    dram_write{0.1h}
+    #                    pmem_read{0.1h}
+    #                    pmem_write{0.1h}
+    #                    dram_to_pmem{0.1h}
+    #                    pmem_to_dram{0.1h} ]
 
     size := (1000, 1000)
     left_margin := 20mm
@@ -33,7 +33,7 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
     node_to_index = Dict(n => i for (i,n) in enumerate(nodes(data)))
 
     # Keep a rolling tally of y-coordinates
-    subplot := 1
+    #subplot := 1
     y_start = 0.0
 
     # Map tensors to their "y" coordinate. Used for tracking move nodes.
@@ -92,72 +92,72 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
     ##### Create a secondary plot for displaying bandwidth
     #####
 
-    # Gather all data into a NamedTuple
-    x = Float64[0.0]
-    syms = (:dram_read, :dram_write, :pmem_read, :pmem_write, :dram_to_pmem, :pmem_to_dram)
-    vals = NamedTuple{syms}(ntuple(x -> Float64[], length(syms)))
+    # # Gather all data into a NamedTuple
+    # x = Float64[0.0]
+    # syms = (:dram_read, :dram_write, :pmem_read, :pmem_write, :dram_to_pmem, :pmem_to_dram)
+    # vals = NamedTuple{syms}(ntuple(x -> Float64[], length(syms)))
 
-    for i in eachindex(nodes(data))
-        node = nodes(data, i)
+    # for i in eachindex(nodes(data))
+    #     node = nodes(data, i)
 
-        # The `x` value is just the time of this node.
-        push!(x, node_times[i])
+    #     # The `x` value is just the time of this node.
+    #     push!(x, node_times[i])
 
-        # Append zero to each `y` value.
-        for sym in syms
-            arr = vals[sym]
-            push!(arr, zero(eltype(arr)))
-        end
+    #     # Append zero to each `y` value.
+    #     for sym in syms
+    #         arr = vals[sym]
+    #         push!(arr, zero(eltype(arr)))
+    #     end
 
-        # Treat moves and normal ops separately
-        if !ismove(node)
-            # Tally up inputs and outputs
-            for input in inputs(node)
-                if nGraph.is_persistent(input)
-                    vals[:pmem_read][end] += sizeof(input)
-                else
-                    vals[:dram_read][end] += sizeof(input)
-                end
-            end
-            for output in outputs(node)
-                if nGraph.is_persistent(output)
-                    vals[:pmem_write][end] += sizeof(output)
-                else
-                    vals[:dram_write][end] += sizeof(output)
-                end
-            end
-        else
-            input = first(inputs(node))
-            @show sizeof(input)
-            if nGraph.is_persistent(input)
-                vals[:pmem_to_dram][end] += sizeof(input)
-            else
-                vals[:dram_to_pmem][end] += sizeof(input)
-            end
-        end
-    end
+    #     # Treat moves and normal ops separately
+    #     if !ismove(node)
+    #         # Tally up inputs and outputs
+    #         for input in inputs(node)
+    #             if nGraph.is_persistent(input)
+    #                 vals[:pmem_read][end] += sizeof(input)
+    #             else
+    #                 vals[:dram_read][end] += sizeof(input)
+    #             end
+    #         end
+    #         for output in outputs(node)
+    #             if nGraph.is_persistent(output)
+    #                 vals[:pmem_write][end] += sizeof(output)
+    #             else
+    #                 vals[:dram_write][end] += sizeof(output)
+    #             end
+    #         end
+    #     else
+    #         input = first(inputs(node))
+    #         @show sizeof(input)
+    #         if nGraph.is_persistent(input)
+    #             vals[:pmem_to_dram][end] += sizeof(input)
+    #         else
+    #             vals[:dram_to_pmem][end] += sizeof(input)
+    #         end
+    #     end
+    # end
 
-    seriestype := :bar
-    linewidth := 1
-    linealpha := 1.0
+    # seriestype := :bar
+    # linewidth := 1
+    # linealpha := 1.0
 
-    # Bar_edges is not available for the GR backend.
-    # instead, compute the center of the bars
-    bar_centers = (x[1:end-1] .+ x[2:end]) ./ 2
-    widths = diff(x)
+    # # Bar_edges is not available for the GR backend.
+    # # instead, compute the center of the bars
+    # bar_centers = (x[1:end-1] .+ x[2:end]) ./ 2
+    # widths = diff(x)
 
-    # Generate the plot
-    subplot_index = 2
+    # # Generate the plot
+    # subplot_index = 2
 
-    for sym in syms
-        @series begin
-            subplot := subplot_index
-            title := titlecase(string(sym))
-            bar_width := widths
-            y = vals[sym] ./ 1E6
+    # for sym in syms
+    #     @series begin
+    #         subplot := subplot_index
+    #         title := titlecase(string(sym))
+    #         bar_width := widths
+    #         y = vals[sym] ./ 1E6
 
-            bar_centers, y
-        end
-        subplot_index += 1
-    end
+    #         bar_centers, y
+    #     end
+    #     subplot_index += 1
+    # end
 end
