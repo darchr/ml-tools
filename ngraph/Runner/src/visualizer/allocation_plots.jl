@@ -1,23 +1,14 @@
 rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
 
-@recipe function f(fex::nGraph.FluxExecutable, frame::Frame, tensor_map::TensorMap)
+@recipe function f(fex::nGraph.FluxExecutable, data::ProfileData, tensor_map::TensorMap)
     # Pre processing
     legend := :none
     xlabel := "Runtime (s)"
     ylabel := "Total Memory Allocated (MiB)"
-    # layout := @layout [ allocations{0.4h}
-    #                    dram_read{0.1h}
-    #                    dram_write{0.1h}
-    #                    pmem_read{0.1h}
-    #                    pmem_write{0.1h}
-    #                    dram_to_pmem{0.1h}
-    #                    pmem_to_dram{0.1h} ]
 
     size := (1000, 1000)
     left_margin := 20mm
     link := :x
-
-    data = frame.profile_data
 
     # Get the execution times for the intermediate ops
     timing_data = read_timing_data(fex.ex.ngraph_function)

@@ -286,8 +286,8 @@ function offloading_scheme(
 
     candidates = DataStructures.SortedDict(
         m.offset => (tensor, m) for (tensor, m) in meta
-        if (m.been_used) && 
-            !(used_next(tensor, data, node)) && 
+        #if (m.been_used) && 
+        if !(used_next(tensor, data, node)) && 
             !in(m.offset, blacklist) &&
             (m.location == ALLOCED_DRAM)
     )
@@ -368,6 +368,9 @@ function used_next(tensor, data::ProfileData, node)
     node_index = data.node_to_index[node]
     node_index == length(nodes(data)) && return false
 
-    next_node = nodes(data, node_index + 1)
-    return in(tensor, xinputs(next_node))
+    # Look forward 20 nodes
+    # next_node = nodes(data, node_index + 1) 
+    # return in(tensor, xinputs(next_node))
+    next_nodes = [nodes(data, ni) for ni in (node_index + 1):(min(node_index + 20, length(nodes(data))))]
+    return any(x -> in(tensor, xinputs(x)), next_nodes)
 end

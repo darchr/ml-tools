@@ -146,9 +146,10 @@ function (R::RHNModel)(input, targets, states)#, noise_x, noise_i, noise_h, nois
 
     # TODO: Loss function not implemented correctly.
     # Just doing this to obtain preliminary results.
-    logits = output * embedding
-    loss = logits .- broadcast(reshape(targets, :), size(logits); axes = 2)
-    return sum(loss)
+    logits = log.(max.(output * embedding, Float32(1e-9)))
+    targets_expanded = broadcast(reshape(targets, :), size(logits); axes = 2)
+     
+    return Flux.crossentropy(reshape(logits, :), reshape(targets_expanded, :))
 end
 
 #####

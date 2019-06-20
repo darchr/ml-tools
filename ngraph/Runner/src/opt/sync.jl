@@ -26,61 +26,142 @@ users(S::TensorMeta) = S.users
 ##### Model Types
 #####
 
-# Static: Assigns tensors to either PMEM or DRAM. No movement
-mutable struct Static <: ModelType
-    dram_limit::Int64
+# Singleton types for dispatching to different formulations
+abstract type ILPFormulationType end
+struct IsFixed <: ILPFormulationType end
+struct IsSynchronous <: ILPFormulationType end
+struct IsAsynchronous <: ILPFormulationType end
+
+mutable struct ILPHolder{T <: ILPFormulationType}
+    dram_limits::Vector{Int}
     descriptors::Dict{TensorDescriptor, TensorMeta}
     async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}}
-end
-Static(a) = Static(a, Dict{TensorDescriptor,TensorMeta}(), Dict{NodeDescriptor, Vector{JuMP.VariableRef}}())
+    node_to_limit_index::Dict{NodeDescriptor, Int}
 
-# Synchronous: Can move, but cannot overlap movement with computation
-mutable struct Synchronous <: ModelType
-    dram_limit::Int64
-    read_bandwidth::Int64
-    write_bandwidth::Int64
-
-    # Metadata to help model creation
-
-    # The names of all tensors in the function
-    descriptors::Dict{TensorDescriptor, TensorMeta}
-
-    # Dummy temp field - TODO: refactor Static/Synchronous/Asynchronous types
-    # in order to reduce duplicate code.
-    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}} 
-end
-
-Synchronous(a,b,c) = Synchronous(a,b,c,
-    Dict{TensorDescriptor,TensorMeta}(),
-    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
-)
-
-# Asynchronous: Can overlap movcement with computation
-mutable struct Asynchronous <: ModelType
-    dram_limit::Int64
+    # Bandwidths
     read_bandwidth::Int64
     write_bandwidth::Int64
     read_bandwidth_async::Int64
     write_bandwidth_async::Int64
-
-    descriptors::Dict{TensorDescriptor, TensorMeta}
-
-    # Map nodes to move variables that indicate an asynchronous data transfer.
-    # Used to restrict asynchronous movement to the case where all node inputs and outputs
-    # are in DRAM.
-    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}}
 end
 
-Asynchronous(args...) = Asynchronous(
-    args...,
+# Add factory methods
+exceeds_limit(fex, I::ILPHolder) =
+    (nGraph.get_temporary_pool_size(fex.ex.ngraph_function) / 1E6) > maxlimit(I)
+
+# The general idea is that heap fragmentation causes the actual allocated amount to 
+# exceed the limit.
+#
+# To deal with this, we take the FIRST instance where the memory limit is exceeded due
+# to fragmentation and reduce the DRAM limit for the node just BEFORE that instance.
+#
+# This should cause the ngraph allocator to free up some space so we don't go over the 
+# limit.
+function update(I::T, 
+            fex::nGraph.FluxExecutable, 
+            data::ProfileData,
+       ) where {T <: ILPHolder}
+
+    dram_limits = I.dram_limits
+    ml = maxlimit(I)
+
+    # Go through all of the live tensors - find the first that exceeds the limit
+    offending_tensors = TensorDescriptor[]
+    for live in live_tensors(data)  
+        # Find the DRAM tensors
+        dram_tensors = filter(!nGraph.is_persistent, live)
+        isempty(dram_tensors) && continue
+
+        # Find the first out of bounds tensor
+        for tensor in dram_tensors
+            sz = (nGraph.get_pool_offset(tensor) + sizeof(tensor)) / 1E6
+            if sz > ml
+                push!(offending_tensors, tensor)
+            end
+        end
+    end
+
+    # offsetsizes = map(live_tensors(data)) do live
+    #     dram_tensors = filter(!nGraph.is_persistent, live)
+    #     isempty(dram_tensors) && return Tuple{Int,Int}[] 
+
+    #     return sort([
+    #         (convert(Int, nGraph.get_pool_offset(t)) / 1E6, sizeof(t) / 1E6)
+    #         for t in dram_tensors
+    #     ])
+    # end
+
+    # Update the dram limits on all the producers
+    indices = Int[]
+    for tensor in offending_tensors 
+        for node in _users(tensor, data)
+            (ismove(node) || !hasprofile(node)) && continue
+            push!(indices, I.node_to_limit_index[node])
+
+            # j = data.node_to_index[node]
+            # for (o, s) in offsetsizes[j]
+            #     println("    $o  ->  $s")
+            # end
+        end
+    end
+
+    #@show unique(indices)
+    for idx in unique(indices)
+        dram_limits[idx] = round(Int, 0.95 * dram_limits[idx])
+    end
+
+    # Return a new ILHolder
+    return T(dram_limits,
+        Dict{TensorDescriptor, TensorMeta}(),
+        Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
+        Dict{NodeDescriptor, Int}(),
+        rb(I),
+        wb(I),
+        rba(I),
+        wba(I),
+    )
+end
+
+# Accessor methods
+rb(I::ILPHolder) = I.read_bandwidth
+wb(I::ILPHolder) = I.write_bandwidth
+rba(I::ILPHolder) = I.read_bandwidth_async
+wba(I::ILPHolder) = I.write_bandwidth_async
+
+static(dram_limits) = ILPHolder{IsFixed}(
+    dram_limits,
     Dict{TensorDescriptor, TensorMeta}(),
-    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}()
+    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
+    Dict{NodeDescriptor, Int}(),
+    1,1,1,1,
+)
+
+synchronous(dram_limits, a, b) = ILPHolder{IsSynchronous}(
+    dram_limits,
+    Dict{TensorDescriptor, TensorMeta}(),
+    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
+    Dict{NodeDescriptor, Int}(),
+    a,b,1,1,
+)
+
+asynchronous(dram_limits,a,b,c,d) = ILPHolder{IsAsynchronous}(
+    dram_limits,
+    Dict{TensorDescriptor, TensorMeta}(),
+    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
+    Dict{NodeDescriptor, Int}(),
+    a,b,c,d,
 )
 
 # Common Methods
-limit(S::ModelType) = S.dram_limit
-predict(F::Frame{<:ModelType}) = objective_value(F.model)
-descriptor(F::Frame{<:ModelType}, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
+
+# Length check because ngraph compilation is not 100 % consistent and can sometimes have
+# a few more nodes than it began with ...
+limit(F::Frame, args...) = limit(F.modeltype, args...)
+limit(S::ILPHolder, i) = i > length(S.dram_limits) ? maxlimit(S) : S.dram_limits[i]
+maxlimit(S::ILPHolder) = maximum(S.dram_limits)
+
+predict(F::Frame) = objective_value(F.model)
+descriptor(F::Frame, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
 
 #####
 ##### Entry Point
@@ -88,7 +169,7 @@ descriptor(F::Frame{<:ModelType}, tensor::TensorDescriptor) = F.modeltype.descri
 
 const _expr_type = typeof(AffExpr())
 
-function create_model(modeltype::ModelType, profile_data::ProfileData)
+function create_model(modeltype::ILPHolder, profile_data::ProfileData)
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
@@ -180,7 +261,7 @@ function _liverange(data::ProfileData, t::TensorDescriptor)
     return start:stop
 end
 
-function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
     users = _users(t, data)
@@ -222,7 +303,7 @@ function _getgadgets(A::Asynchronous, data::ProfileData, t::TensorDescriptor)
     return refs, reference_map
 end
 
-function _getgadgets(::Synchronous, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(::ILPHolder{IsSynchronous}, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
     users = _users(t, data)
@@ -245,7 +326,7 @@ function _getgadgets(::Synchronous, data::ProfileData, t::TensorDescriptor)
     return nt, reference_map
 end
 
-function _getgadgets(::Static, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(::ILPHolder{IsFixed}, data::ProfileData, t::TensorDescriptor)
     liverange = _liverange(data, t)
     producer = nodes(data, first(liverange))
 
@@ -300,7 +381,7 @@ function edge_metadata(src, dst, s, d, src_move_type)
     return nothing
 end
 
-function preprocess!(S::ModelType, data::ProfileData)
+function preprocess!(S::ILPHolder, data::ProfileData)
     for tensor in tensors(data)
 
         # Get the users of this node
@@ -390,7 +471,7 @@ end
 ##### Adding Tensors
 #####
 
-function add_tensors!(frame::Frame{<:ModelType})
+function add_tensors!(frame::Frame)
     data = frame.profile_data
     modeltype = frame.modeltype
 
@@ -518,25 +599,15 @@ _find_edges(g, edgetype) = sort(
 )
 
 # Formulation specific move node stuff
-add_movement_formulations!(frame::Frame{Static}) = nothing
-
-_read_bandwidth_async(a::Synchronous) = 1
-_write_bandwidth_async(a::Synchronous) = 1
-_read_bandwidth_async(a::Asynchronous) = a.read_bandwidth_async
-_write_bandwidth_async(a::Asynchronous) = a.write_bandwidth_async
-
-
-function add_movement_formulations!(frame::Frame{<:ModelType})
+add_movement_formulations!(frame::Frame{ILPHolder{IsFixed}}) = nothing
+function add_movement_formulations!(frame::Frame)
+    # Unpack variables
     data = frame.profile_data
+    modeltype = frame.modeltype
 
     tensor_sync_expr = frame.model[:tensor_sync]
     tensor_async_dict = frame.model[:tensor_async]
-
     tensor_graphs = frame.model[:tensor_graphs]
-    read_bandwidth = frame.modeltype.read_bandwidth
-    write_bandwidth = frame.modeltype.write_bandwidth
-    read_bandwidth_async = _read_bandwidth_async(frame.modeltype)
-    write_bandwidth_async = _write_bandwidth_async(frame.modeltype)
 
     # A tensor is written to dram if:
     # - It was not created into PMEM
@@ -554,11 +625,10 @@ function add_movement_formulations!(frame::Frame{<:ModelType})
         g = graph(descriptor(frame, tensor))
         bytes = sizeof(tensor)
 
-        read_cost = round(Int, bytes / read_bandwidth)
-        write_cost = round(Int, bytes / write_bandwidth)
-        read_cost_async = round(Int, bytes / read_bandwidth_async)
-        write_cost_async = round(Int, bytes / write_bandwidth_async)
-
+        read_cost = round(Int, bytes / rb(modeltype))
+        write_cost = round(Int, bytes / wb(modeltype))
+        read_cost_async = round(Int, bytes / rba(modeltype))
+        write_cost_async = round(Int, bytes / wba(modeltype))
 
         # Collect Edges according to type.
         sync_reads = _find_edges(g, EDGE_SYNC_READ)
@@ -628,7 +698,7 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorDescriptor, node::NodeDescriptor)
+function get_tensor_in_dram(F::Frame, tensor::TensorDescriptor, node::NodeDescriptor)
     desc = descriptor(F, tensor)
 
     if in(node, users(desc))
@@ -638,7 +708,7 @@ function get_tensor_in_dram(F::Frame{<:ModelType}, tensor::TensorDescriptor, nod
     end
 end
 
-function add_nodes!(F::Frame{<:ModelType})
+function add_nodes!(F::Frame)
     data = F.profile_data
 
     for node in nodes(data)
@@ -677,13 +747,13 @@ function add_nodes!(F::Frame{<:ModelType})
             @constraint(F.model, vars[config] + length(config.inputs) + length(config.outputs) >=
                 1 + expr)
 
-            # If this is an all DRAM config, constrain any asynchronous moves to only take
-            # place if all node inputs and outputs are in DRAM.
-            if all(isequal(DRAM), config) && haskey(F.modeltype.async_move_vars, node)
-                for (_jump_var) in F.modeltype.async_move_vars[node]
-                    @constraint(F.model, _jump_var <= vars[config])
-                end
-            end
+            # # If this is an all DRAM config, constrain any asynchronous moves to only take
+            # # place if all node inputs and outputs are in DRAM.
+            # if all(isequal(DRAM), config) && haskey(F.modeltype.async_move_vars, node)
+            #     for (_jump_var) in F.modeltype.async_move_vars[node]
+            #         @constraint(F.model, _jump_var <= vars[config])
+            #     end
+            # end
         end
 
         # here, we're adding a valid contraint to help the solver
@@ -709,7 +779,7 @@ end
 tensor_size(t::TensorDescriptor) = tensor_size(sizeof(t))
 tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
-function add_constraints!(F::Frame{<:ModelType})
+function add_constraints!(F::Frame)
     # Unpack some variables
     data = F.profile_data
 
@@ -717,16 +787,18 @@ function add_constraints!(F::Frame{<:ModelType})
         node = nodes(data, index)
         hasprofile(node) || continue
 
+        F.modeltype.node_to_limit_index[node] = index
+
         if !isempty(tensors)
             @constraint(F.model,
                 sum(tensor_size(t) * get_tensor_in_dram(F, t, node)
                     for t in tensors
-                    if !iszero(tensor_size(t))) <= limit(F)
+                    if !iszero(tensor_size(t))) <= limit(F, index)
             )
         end
     end
 
-    return
+    return nothing
 end
 
 
@@ -785,13 +857,13 @@ function _initial_loc(path)
     end
 end
 
-function configure!(fex::nGraph.FluxExecutable, frame::Frame{<:ModelType})
+function configure!(fex::nGraph.FluxExecutable, frame::Frame)
     # Get initial schedules for the frame
-    initial_schedule = get_schedule(frame) 
+    initial_schedule = get_schedule(frame)
 
     # Convert this into an appropriate format for the inner `configure!`
     schedule = Dict(
-        t => (_initial_loc(path), getactions(tensor_graph, path)) 
+        t => (_initial_loc(path), getactions(tensor_graph, path))
         for (t, (tensor_graph, path)) in initial_schedule
     )
 
@@ -858,14 +930,14 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
             if action.location == PMEM || isasync(action)
                 nGraph.set_input_affinity(move_node)
 
-                # If this is an asynchronous move, we want to associate it with the 
+                # If this is an asynchronous move, we want to associate it with the
                 # concurrent node.
                 #
                 # Otherwise, associate with the producer
                 if isasync(action)
                     nGraph.add_associate(move_node, name(action.concurrent))
                 else
-                   nGraph.add_associate(move_node, name(producer))
+                    nGraph.add_associate(move_node, name(producer))
                 end
 
                 # Perform a sanity check. Should not move data to PMEM if it already
@@ -925,7 +997,7 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
 end
 
 # Get the path of the tensor traced through the graph
-function get_schedule(F::Frame{<:ModelType})
+function get_schedule(F::Frame)
     data = F.profile_data
     model_graphs = F.model[:tensor_graphs]
 
@@ -1018,7 +1090,7 @@ function getactions(tensor_graph, vertices::Vector{VertexMetadata})
             # One solution to the ILP is to move data back and forth if it does not cause
             # any additional overhead.
             #
-            # Here, we just filter out these movements by checking if the consumers of a 
+            # Here, we just filter out these movements by checking if the consumers of a
             # move is empty
             if !isempty(consumers)
                 push!(actions, MoveAction(consumers, PMEM, true, concurrent))
@@ -1049,20 +1121,19 @@ end
 #####
 
 estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = zero(Float64)
-function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{Synchronous})
-    # Get the read and write bandwidths from the frame.
-    write_bandwidth = frame.modeltype.write_bandwidth
-    read_bandwidth = frame.modeltype.read_bandwidth
-
+function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{IsSynchronous}})
     move_time = zero(Float64)
     for _node in fex.ex.ngraph_function
         node = NodeDescriptor(_node)
+
+        # If this is a move, determine which direction data is being moved and add the move
+        # time estimate to the rolling counter.
         if description(node) == "Move"
             tensor = first(outputs(node))
             if nGraph.is_persistent(tensor)
-                move_time += sizeof(tensor) / write_bandwidth
+                move_time += sizeof(tensor) / wb(frame.modeltype)
             else
-                move_time += sizeof(tensor) / read_bandwidth
+                move_time += sizeof(tensor) / rb(frame.modeltype)
             end
         end
     end

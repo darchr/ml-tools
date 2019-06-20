@@ -66,40 +66,40 @@ Runner.savedir(R::RHN) = _savedir()
 #####
 ##### Optimization Generators
 #####
-struct MyStatic
+struct Static
     limit::Float64
 end
 
-Runner.name(::MyStatic) = "static"
-function (M::MyStatic)(data)
+Runner.name(::Static) = "static"
+function (M::Static)(data)
     bounds = Runner.allocation_bounds(data)
-    x = round(Int, bounds.upper_bound * M.limit / 1E6)
-    println("Trying to use $x MB of memory")
-    return Runner.Static(x)
+    x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
+    println("Trying to use $(maximum(x)) MB of memory")
+    return Runner.static(x)
 end
 
-struct MySynchronous
+struct Synchronous
     limit::Float64
 end
 
-Runner.name(::MySynchronous) = "synchronous"
-function (M::MySynchronous)(data)
+Runner.name(::Synchronous) = "synchronous"
+function (M::Synchronous)(data)
     bounds = Runner.allocation_bounds(data)
-    x = round(Int, bounds.upper_bound * M.limit / 1E6)
-    println("Trying to use $x MB of memory")
-    return Runner.Synchronous(x, 29000, 12000)
+    x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
+    println("Trying to use $(maximum(x)) MB of memory")
+    return Runner.synchronous(x, 29000, 12000)
 end
 
-struct MyAsynchronous
+struct Asynchronous
     limit::Float64
 end
 
-Runner.name(::MyAsynchronous) = "asynchronous"
-function (M::MyAsynchronous)(data)
+Runner.name(::Asynchronous) = "asynchronous"
+function (M::Asynchronous)(data)
     bounds = Runner.allocation_bounds(data)
     x = round(Int, bounds.upper_bound * M.limit / 1E6)
-    println("Trying to use $x MB of memory")
-    return Runner.Asynchronous(x, 29000, 12000, 2000, 2500)
+    println("Trying to use $(maximum(x)) MB of memory")
+    return Runner.asynchronous(x, 29000, 12000, 2000, 2500)
 end
 
 #####
@@ -134,9 +134,9 @@ reverse!(fractions)
 # Temporarily get fewer threads
 #fractions = fractions[4:end]
 opts = (
-    (MyStatic(f) for f in fractions),
-    (MySynchronous(f) for f in fractions),
-    #(MyAsynchronous(f) for f in fractions),
+    (Static(f) for f in fractions),
+    (Synchronous(f) for f in fractions),
+    #(Asynchronous(f) for f in fractions),
 )
 
 # Launch the test

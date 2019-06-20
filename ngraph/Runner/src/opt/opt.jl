@@ -44,11 +44,8 @@
 # (http://www.juliaopt.org/JuMP.jl/v0.19.0/expressions/) which we update with the
 # `add_to_expression!` function at each node in the graph.
 
-# For dispatch purposes
-abstract type ModelType end
-
 # Struct to be passed around since all these items are generally used together anyways.
-mutable struct Frame{T <: ModelType}
+mutable struct Frame{T}
     modeltype::T
     model::JuMP.Model
     profile_data::ProfileData
@@ -68,24 +65,39 @@ include("modnn/modnn.jl")
 """
 function factory(f, opt; 
         cache = CPUKernelCache(BASE_CACHE_PATH), 
-        skip_configure = false
     )
 
-    @timeit TO "building ngraph function" fex, args = f()
-    @timeit TO "getting profile data" data = profile(fex; cache = cache)
-
+    fex, args = f()
+    data = profile(fex; cache = cache)
     modeltype = opt(data)
-    @timeit TO "creating model" frame = create_model(modeltype, data)
-    @timeit TO "optimizing" optimize!(frame)
-    if !skip_configure
-        @info "Configuring"
-        @timeit TO "configuring" fex, _metadata = configure!(fex, frame) 
-        @info "Done Configuring"
-    else
-        _metadata = nothing
+
+    # Clone the underlying ngraph function to be able to reconstruct it with the 
+    # same order nodes.
+    #cloned_function = copy(fex.ex.function_copy)  
+
+    # Iterate until convergence
+    while true
+        # Optimize the function
+        frame = create_model(modeltype, data)
+        optimize!(frame)
+        fex, _metadata = configure!(fex, frame) 
+     
+        if exceeds_limit(fex, modeltype)
+            @info """
+            Limit Exceeded
+            Limit: $(maxlimit(modeltype))
+            Actual: $(convert(Int, nGraph.get_temporary_pool_size(fex.ex.ngraph_function)))
+            """
+
+            modeltype = update(modeltype, fex, frame.profile_data)
+
+            # Update the flux executable
+            fex, args = f()
+            data = profile(fex; cache = cache) 
+        else
+            return fex, args, frame, _metadata
+        end
     end
-    
-    return fex, args, frame, _metadata
 end
 
 #####
@@ -93,7 +105,6 @@ end
 #####
 
 function find_vertex(g, f)
-    #iter = filter_vertices(g, f) |> collect
     iter = filter(v -> f(g,v), collect(vertices(g)))
     # Make sure we only have one match
     @assert length(iter) == 1
@@ -101,7 +112,6 @@ function find_vertex(g, f)
 end
 
 function find_edge(g, f)
-    #iter = filter_edges(g, f) |> collect
     iter = filter(e -> f(g,e), collect(edges(g)))
 
     # Make sure we only have one match

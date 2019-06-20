@@ -22,6 +22,7 @@ using IterTools
 using ProgressMeter
 using TimerOutputs
 using DataStructures
+import Parameters
 
 # Import some names
 import nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
