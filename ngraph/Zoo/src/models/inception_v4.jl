@@ -228,14 +228,13 @@ function inception_v4_inference(batchsize)
     return f, (X,)
 end
 
-function inception_v4_training(batchsize; kw...)
+function inception_v4_training(batchsize; backend = nGraph.Backend(), kw...)
     x = rand(Float32, 299, 299, 3, batchsize)
     x = (x .- mean(x)) ./ std(x)
 
     y = rand(Float32, 1000, batchsize)
     random_labels!(y) 
 
-    backend = nGraph.Backend()
     X = nGraph.Tensor(backend, x)
     Y = nGraph.Tensor(backend, y)
 
