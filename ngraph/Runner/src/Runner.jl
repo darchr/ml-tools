@@ -3,9 +3,12 @@ module Runner
 function __init__()
     Runner.setup_affinities()
     Runner.setup_profiling()
-    Runner.setup_pmem()
+    #Runner.setup_pmem()
     Runner.setup_passes()
 end
+
+# In case we need to gracefully exit from a GPU compilation callback function
+struct GPUExit <: Exception end
 
 # stdlibs
 using Dates, Random, Serialization, Statistics

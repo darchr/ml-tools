@@ -1,8 +1,3 @@
-struct EmptyCache end
-
-Base.haskey(::EmptyCache, args...) = false
-Base.setindex!(::EmptyCache, args...) = nothing
-save(::EmptyCache) = nothing
 
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
@@ -29,6 +24,7 @@ filter_out_io(c::CPUKernelParams) = (
     c.output_types
 )
 
+# Get the MKL format string for an op
 mkldnn_string(x) = last(split(nGraph.Lib.get_mkldnn_string(x), ":"))
 
 function CPUKernelParams(node::nGraph.NodeLike)
@@ -64,12 +60,67 @@ function CPUKernelParams(node::nGraph.NodeLike)
     )
 end
 
-# The cache itself
-struct CPUKernelCache
+struct GPUKernelParams{IS, OS, IT, OT}
+    # The description of the op
+    description::String
+
+    # IO Sizes
+    input_sizes::IS
+    output_sizes::OS
+    input_types::IT
+    output_types::OT
+end
+function GPUKernelParams(node::nGraph.NodeLike)
+    description = nGraph.description(node)
+
+    # Input processing
+    num_inputs = nGraph.get_input_size(node)
+    input_sizes = ntuple(x -> nGraph.get_input_shape(node, x), num_inputs)
+    input_types = ntuple(x -> nGraph.get_input_element_type(node, x), num_inputs)
+
+    # output processing
+    num_outputs = nGraph.get_output_size(node)
+    output_sizes = ntuple(x -> nGraph.get_output_shape(node, x), num_outputs)
+    output_types = ntuple(x -> nGraph.get_output_element_type(node, x), num_outputs)
+
+    return GPUKernelParams(
+        description,
+        input_sizes,
+        output_sizes,
+        input_types,
+        output_types,
+    )
+end
+
+#####
+##### Caches
+#####
+
+abstract type AbstractKernelCache end
+
+Base.getindex(cache::AbstractKernelCache, args...) = getindex(cache.cache, args...)
+Base.setindex!(cache::AbstractKernelCache, args...) = setindex!(cache.cache, args...)
+Base.haskey(cache::AbstractKernelCache, args...) = haskey(cache.cache, args...)
+
+# NOTE: Keeping caches as separate types rather than parametric to be backwards compatible
+# with older serialized objects.
+struct CPUKernelCache <: AbstractKernelCache
     file::String
     cache::Dict{Tuple{CPUKernelParams, IOConfig}, Float64}
 end
-function CPUKernelCache(file; force_new = false)::CPUKernelCache
+
+struct GPUKernelCache <: AbstractKernelCache
+    file::String
+    cache::Dict{GPUKernelParams, Float64}
+end
+
+CPUKernelCache(file; kw...) = _make_cache(CPUKernelCache, file; kw...)::CPUKernelCache
+GPUKernelCache(file; kw...) = _make_cache(GPUKernelCache, file; kw...)::GPUKernelCache
+
+_forward(::Type{CPUKernelCache}) = Tuple{CPUKernelParams, IOConfig}
+_forward(::Type{GPUKernelCache}) = GPUKernelParams
+
+function _make_cache(::Type{T}, file; force_new = false) where {T}
     # If the cache path already exists, just return the existing object.
     # The type assertion for the function will make sure we don't return something weird.
     if (force_new == false) && ispath(file)
@@ -77,22 +128,19 @@ function CPUKernelCache(file; force_new = false)::CPUKernelCache
         cache_db = deserialize(file)
 
         # Check if we have a key for the current environment context
+        # TODO: Don't really need this for the GPU ... 
         ctx = _env_context() 
-        haskey(cache_db, ctx) && return cache_db[ctx]::CPUKernelCache
+        haskey(cache_db, ctx) && return cache_db[ctx]::T
     end
 
     # Otherwise, create the object.
-    return CPUKernelCache(
+    return T(
         file,
-        Dict{Tuple{CPUKernelParams, IOConfig},Float64}()
+        Dict{_forward(T), Float64}()
     )
 end
 
-Base.getindex(cache::CPUKernelCache, args...) = getindex(cache.cache, args...)
-Base.setindex!(cache::CPUKernelCache, args...) = setindex!(cache.cache, args...)
-Base.haskey(cache::CPUKernelCache, args...) = haskey(cache.cache, args...)
-
-function save(cache::CPUKernelCache)
+function save(cache::AbstractKernelCache)
     # Make the directory for this cache if needed.
     dir = dirname(cache.file)
     ispath(dir) || mkdir(dir)
@@ -112,7 +160,7 @@ end
 unsafe_load_cache(file) = deserialize(file)
 
 # Methods for working with and filtering caches.
-nt_filter(nt::NamedTuple, cache::CPUKernelCache) = nt_filter(nt, cache.cache)
+nt_filter(nt::NamedTuple, cache::AbstractKernelCache) = nt_filter(nt, cache.cache)
 function nt_filter(nt::NamedTuple, cache::Dict)
     param_config = collect(keys(cache)) 
     filter!(x -> all(getfield(first(x), k) == v for (k,v) in pairs(nt)), param_config)
@@ -125,73 +173,9 @@ function _filter(nt::NamedTuple, cache::Dict)
     return k
 end
 
-function choices(cache::CPUKernelCache, sym::Symbol, nt::NamedTuple = NamedTuple())
+function choices(cache::AbstractKernelCache, sym::Symbol, nt::NamedTuple = NamedTuple())
     # Iterate through the keys in the cache.
     k = _filter(nt, cache.cache)
     return unique(getfield.(k, sym))
 end
 
-#####
-##### Orthogonality of kernels
-#####
-
-function check_orthogonality(cache::CPUKernelCache)
-    all_keys = keys(cache.cache)
-    # Get all the unique configurations
-    ks = unique(first.(all_keys))
-
-    for k in ks
-        check_orthogonality(cache, all_keys, k)
-    end
-end
-
-function check_orthogonality(cache::CPUKernelCache, all_keys, param)
-    # Get all of the configurations
-    configs = sort(unique(last.(filter(x -> first(x) == param, all_keys))))
-
-    # Find the basis elements
-    basis = make_basis(eltype(configs)) 
-    base_runtime = get_base_runtime(cache.cache, param, eltype(configs))
-
-    # Run through each config. Decompose it into a basis, get the expected running time
-    # from the linear combination of basis elements, and compare to the actual result.
-    for config in configs
-        runtime = cache.cache[(param, config)]
-
-        logical_index = decompose(config)
-        elements = basis[logical_index]
-
-        linear_runtime = base_runtime
-        if !isempty(elements)
-            linear_runtime += sum(cache.cache[(param, x)] - base_runtime for x in elements)
-        end
-
-        @show length(elements)
-        @show linear_runtime
-        @show runtime
-    end
-end
-
-function get_base_runtime(cache::Dict, param, ::Type{IOConfig{N,M}}) where {N,M}
-    return cache[(param, IOConfig(ntuple(x -> DRAM, N), ntuple(x -> DRAM, M)))]
-end
-
-function make_basis(::Type{IOConfig{N,M}}) where {N,M}
-    basis = IOConfig{N,M}[]
-    # Generate a basis element - check if it is in the list of configs.
-    # If so, add it to the list of basis
-    for i in 1:N
-        inputs = ntuple(x -> x == i ? PMEM : DRAM, N)
-        outputs = ntuple(x -> DRAM, M)
-        push!(basis, IOConfig{N,M}(inputs, outputs))
-    end
-    for j in 1:M
-        inputs = ntuple(x -> DRAM, N)
-        outputs = ntuple(x -> x == j ? PMEM : DRAM, M)
-        push!(basis, IOConfig{N,M}(inputs, outputs))
-    end
-    return basis
-end
-
-# Return the basis indices
-decompose(config::IOConfig) = [x == PMEM ? true : false for x in config]

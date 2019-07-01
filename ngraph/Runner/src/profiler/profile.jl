@@ -14,12 +14,14 @@
 #   annotated as mkldnn and make sure we annotate the new node as such.
 
 const BASE_CACHE_PATH = joinpath(@__DIR__, ".cache", "timing_cache.jls")
+const BASE_GPU_CACHE_PATH = joinpath(@__DIR__, ".cache", "gpu_timing_cache.jls")
 
 include("cache.jl")
 include("function.jl")
+include("gpu.jl")
 
 """
-    profile(fex::nGraph.FluxExecutable; cache)
+    profile(args...)
 
 Profile all of the operations in `fex`.
 
@@ -28,18 +30,16 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-function profile(fex::nGraph.FluxExecutable;
+profile(fex::nGraph.FluxExecutable) = profile(fex.ex.ngraph_function, fex.ex.backend)
+function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
         cache = CPUKernelCache(BASE_CACHE_PATH)
     )
-
-    backend = fex.ex.backend
 
     # Go through each node
     # Create new parameters with the same input and outputs sizes
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
-    f = fex.ex.ngraph_function
-    data = ProfileData(fex)
+    data = ProfileData(f, nGraph.CPU)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -103,7 +103,7 @@ function profile(fex::nGraph.FluxExecutable;
 
         # Extract a subgraph with just this op
         @timeit TO "extracting node" begin
-            ex, inputs, outputs, copied_op = extract(nGraph.Node(node))
+            ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
         end
 
         # Profile the timings
@@ -143,7 +143,14 @@ end
 read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
 read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
 
-function record_time!(data, node::NodeDescriptor, function_name, op, expected_config)
+function record_time!(
+        data::ProfileData{nGraph.CPU}, 
+        node::NodeDescriptor, 
+        function_name, 
+        op, 
+        expected_config
+    )
+
     timings = read_timing_data(function_name)
     # Get the persistence config of this op
     config = getconfig(op)
@@ -171,7 +178,7 @@ function record_time!(data, node::NodeDescriptor, function_name, op, expected_co
     end
 end
 
-function extract(node::nGraph.Node; backend = nGraph.Backend())
+function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
     # Create parameters for the inputs
     params = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)

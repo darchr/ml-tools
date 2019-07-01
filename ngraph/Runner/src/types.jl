@@ -2,13 +2,13 @@
 ##### Profile Data
 #####
 
-struct ProfileData
+struct ProfileData{T,U}
     tensors::Vector{TensorDescriptor}
 
     # Stored in program order.
     nodes::Vector{NodeDescriptor}
     node_to_index::Dict{NodeDescriptor, Int}
-    timings::Dict{NodeDescriptor, Dict{IOConfig, Float64}}
+    timings::Dict{NodeDescriptor, U}
 
     # Liveness Analysis
     newlist::Vector{Vector{TensorDescriptor}}
@@ -20,17 +20,39 @@ struct ProfileData
     users::Dict{TensorDescriptor, Vector{NodeDescriptor}}
 end
 
-function settime!(P::ProfileData, N::NodeDescriptor, config, time) 
+# Some of the behavior of this type depends on the backend it represents.
+#
+# CPU Backends have an additional IOConfiguration that must be kept track of since various
+# inputs and outputs can be in PMEM or DRAM.
+#
+# In the GPU case, data can only be in the GPU DRAM.
+#
+# Unfortunately, the code for the CPU was developed first, so if this feels awkward and
+# hacked in ... that's why.
+_utype(::Type{nGraph.CPU}) = Dict{IOConfig, Float64}
+_utype(::Type{nGraph.GPU}) = Float64
+
+function settime!(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config, time) 
     d = get!(P.timings, N, Dict{IOConfig, Float64}())
     d[config] = time
 end
+settime!(P::ProfileData{nGraph.GPU}, N::NodeDescriptor, time) = (P.timings[N] = time)
 
-gettime(P::ProfileData, N::NodeDescriptor) = P.timings[N]
-gettime(P::ProfileData, N::NodeDescriptor, config) = P.timings[N][config]
+configs_for(P::ProfileData{nGraph.CPU}, N::NodeDescriptor) = collect(keys(P.timings[N]))
+# Only one config that we care about - generate the IOCOnfig lazily
+configs_for(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = IOConfig(
+    ntuple(x -> true, nGraph.get_input_size(N)),
+    ntuple(x -> true, nGraph.get_output_size(N))
+)
 
-hastime(P::ProfileData, N::NodeDescriptor, config) =
+gettime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) = P.timings[N][config]
+gettime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = P.timings[N]
+
+hastime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) =
     haskey(P.timings, N) && haskey(P.timings, config)
+hastime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = haskey(P.timings, N)
 
+# Move away from the backend-specific methods
 nodes(P::ProfileData) = P.nodes
 nodes(P::ProfileData, inds...) = getindex(P.nodes, inds...)
 
@@ -40,9 +62,8 @@ _producer(tensor::TensorDescriptor, P::ProfileData) = first(P.users[tensor])
 _consumer(tensor::TensorDescriptor, P::ProfileData) = last(P.users[tensor])
 _users(tensor::TensorDescriptor, P::ProfileData) = P.users[tensor]
 
-function ProfileData(fex::nGraph.FluxExecutable)
-    fn = fex.ex.ngraph_function
-
+ProfileData(fex::nGraph.FluxExecutable{T}) where {T} = ProfileData(fex.ex.ngraph_function, T)
+function ProfileData(fn::nGraph.NFunction, ::Type{T}) where {T}
     # Construct the tensors and nodes fields
     tensors = TensorDescriptor[]
     nodes = NodeDescriptor[]
@@ -82,11 +103,11 @@ function ProfileData(fex::nGraph.FluxExecutable)
         liveness = liveness_analysis(nodes, io_tensors, constant_tensors)
     end
 
-    PD = ProfileData(
+    PD = ProfileData{T,_utype(T)}(
         tensors,
         nodes,
         Dict(n => i for (i,n) in enumerate(nodes)),
-        Dict{NodeDescriptor, Dict{IOConfig, Float64}}(),
+        Dict{NodeDescriptor, _utype(T)}(),
         liveness.new_list,
         liveness.free_list,
         io_tensors,
@@ -97,7 +118,7 @@ function ProfileData(fex::nGraph.FluxExecutable)
 end
 
 #####
-##### Context Dependent Liveness Analysis
+##### Liveness Analysis
 #####
 
 _can_free(tensor::TensorDescriptor, freed, io, constants) =

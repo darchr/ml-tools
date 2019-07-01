@@ -716,8 +716,7 @@ function add_nodes!(F::Frame)
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
         hasprofile(node) || continue
-
-        configs = collect(keys(gettime(data, node)))
+        configs = configs_for(data, node) 
 
         # Create a variable for each config.
         vars = @variable(F.model, [config = configs], Bin)
@@ -762,7 +761,6 @@ function add_nodes!(F::Frame)
         # Create an expression for this node's expected running time.
         node_times = _expr_type()
         for config in configs
-            # For now, just use the Mean
             coeff = round(Int64, gettime(data, node, config))
             add_to_expression!(node_times, coeff, vars[config])
         end

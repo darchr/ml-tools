@@ -1,0 +1,151 @@
+# Some notes on the GPU implementation
+# ------------------------------------
+# While the CPU implmentation does its horrid hack of first compiling the graph, mutating
+# it, and recompiling with most of the passes disabled, the GPU implmentation takes a
+# different strategy.
+#
+# I've inserted a callback site in the GPU pass manager that lets us insert any `julia`
+# function with no arguments as a callback.
+#
+# This callback is done ``before`` the function finishes compilation, so we don't really
+# have to worry about function recompilation.
+#
+# The callback we insert is intended to
+# - profile all the nodes in the function
+# - determine which nodes have optional implementations and get the running time and
+#       workspace size of these kernels. (This has a lot of added code on the C++ side
+#       to facilitate this)
+# - perform the graph optimization
+#
+# The reason I didn't do this for the CPU code is because didn't really think of it at the
+# time. With some work, this strategy could be unified across CPU and GPu and would actually
+# probably reduce a lot of the cluster that is the CPU code :(
+
+
+# Hijack the GPU backend for profiling.
+#
+# Since the GPU backend doesn't have to deal with the whole configuration with DRAM and
+# PMEM business, this routine is much simpler.
+#
+# Why do we need to profile at all? The given graph may exceed the memory limit of the GPU,
+# so we need to profile kernel by kernel.
+function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
+        cache = GPUKernelCache(BASE_GPU_CACHE_PATH), 
+    )
+
+    data = ProfileData(f, nGraph.GPU)
+
+    # We follow a strategy similar to the CPU, except much less fancy.
+    #
+    # Simply
+    # - call `copy_with_new_args` on each node in question
+    # - make a function with the correct inputs and outputs
+    # - compile the function with no GPU callback
+    #
+    # NOTE: If `can_select_algo` for a node, we don't need to profile that node since
+    # - All the `can_select_algo` nodes are CUDNN kernels
+    # - CUDNN gives the expected performance of these kernels already :D
+    for (index, node) in enumerate(nodes(data))
+        hasprofile(node) || continue
+        @show index
+        @show nGraph.name(node)
+
+        # If we can select an algorithm for this node, just set it to zero for now
+        if  nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
+            nGraph.Lib.set_algo(nGraph.getpointer(node), zero(UInt), zero(UInt))
+        end
+
+        # Get the lookup key for this node
+        kernel_params = GPUKernelParams(node)
+        if haskey(cache, kernel_params)
+            settime!(data, node, cache[kernel_params])
+            continue
+        end
+        ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
+
+        # Sometimes, an initial call to some functions will result in an error, but 
+        # it will happily work on the next call.
+        #
+        # This here is a work arround for that
+        try
+            ex(inputs, outputs)
+        catch e
+            @warn "Experienced Runtime Error" e
+        end
+
+        # Run the function
+        for _ in 1:10
+            ex(inputs, outputs)
+        end
+
+        record_time!(data, node, ex, copied_op)
+        cache[kernel_params] = gettime(data, node)
+        save(cache)
+    end
+
+    return data
+end
+
+function record_time!(data::ProfileData{nGraph.GPU}, node, ex::nGraph.Executable, copied_op)
+    timing_dict = nGraph.get_performance(ex)
+
+    # Find the performance for the copied op in the timing dictionary
+    time = timing_dict[nGraph.name(copied_op)]
+    settime!(data, node, time)
+    return nothing
+end
+
+# GPU Node extraction
+function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.GPU})
+    params = nGraph.Node[]
+
+    # Create parameters that are the same size as the input to this node
+    for i in 1:nGraph.get_input_size(node)
+        A = rand(nGraph.get_input_element_type(node, i), nGraph.get_input_shape(node, i)...)
+        push!(params, nGraph.parameter(A))
+    end
+
+    # Copy the node with the newly created parameters
+    copied_node = copy(node, params)
+    paramvector = nGraph.ParameterVector(params...)
+
+    # install "get_output_element" nodes
+    outputs = nGraph.Node[]
+    if nGraph.get_output_size(copied_node) > 1
+        for i in 1:nGraph.get_output_size(copied_node)
+            push!(outputs, nGraph.get_output_element(copied_node, i))
+        end
+    else
+        push!(outputs, copied_node)
+    end
+
+    @show size.(params)
+    @show size.(outputs)
+
+    # Get an result output for each output of the node
+    nodevector = nGraph.NodeVector(outputs)
+
+    # First, we compile the function
+    #
+    # Make sure to emit timing.
+    ex = nGraph.compile(backend, paramvector, nodevector; emit_timing = true)
+
+    # Find the copied node in the new graph
+    local translated_node
+    found = false
+    for op in ex.ngraph_function
+        # Line it up by description and input/output sizes.
+        if GPUKernelParams(op) == GPUKernelParams(copied_node)
+            translated_node = op
+            found = true
+            break
+        end
+    end
+    @assert found
+
+    # Make these any to make them compatible with the inner call for nGraph.Executable
+    input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in params]
+    output_tensors = Any[nGraph.Tensor(backend, x).ptr for x in outputs]
+
+    return ex, input_tensors, output_tensors, translated_node
+end

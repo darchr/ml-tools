@@ -63,12 +63,9 @@ include("modnn/modnn.jl")
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt; 
-        cache = CPUKernelCache(BASE_CACHE_PATH), 
-    )
-
+function factory(f, opt)
     fex, args = f()
-    data = profile(fex; cache = cache)
+    data = profile(fex)
     modeltype = opt(data)
 
     # Clone the underlying ngraph function to be able to reconstruct it with the 
@@ -93,11 +90,27 @@ function factory(f, opt;
 
             # Update the flux executable
             fex, args = f()
-            data = profile(fex; cache = cache) 
+            data = profile(fex) 
         else
             return fex, args, frame, _metadata
         end
     end
+end
+
+function gpu_cb_test(f)
+    # add a callback that will populate a reference to a `ProfileData` type
+    dataref = Ref{ProfileData{nGraph.GPU, Float64}}()
+    backend = nGraph.Backend("GPU")
+
+    # Throw a function that profiles and then exits
+    function cb(f::nGraph.NFunction) 
+        # Capture `dataref` and `backend`
+        dataref[] = profile(f, backend)
+        return nothing
+    end
+
+    fex, args = f(;callback = cb, emit_timing = true)
+    return fex, args, dataref[]
 end
 
 #####

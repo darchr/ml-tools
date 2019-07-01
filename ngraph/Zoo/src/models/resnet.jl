@@ -128,12 +128,12 @@ function _resnet(version::AbstractResnet)
     end
 end
 
-function resnet_training(version::T, batchsize = 16; backend = nGraph.Backend()) where {T <: AbstractResnet}
+function resnet_training(version::T, batchsize = 16; backend = nGraph.Backend(), kw...) where {T <: AbstractResnet}
     X = nGraph.Tensor(backend, rand(Float32, 224, 224, 3, batchsize))
     Y = nGraph.Tensor(backend, rand(Float32, 1000, batchsize))
 
     g(x, y) = Flux.crossentropy(_resnet(version)(x), y)
-    f = nGraph.compile(backend, g, X, Y; optimizer = nGraph.SGD(Float32(0.0001)))
+    f = nGraph.compile(backend, g, X, Y; optimizer = nGraph.SGD(Float32(0.0001)), kw...)
     return f, (X, Y)
 end
 

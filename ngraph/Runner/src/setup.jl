@@ -22,7 +22,7 @@ end
 # compilation of an nGraph executable.
 #
 # After that, changes in the number of threads won't be seen by nGraph
-function setup_affinities(;omp_num_threads = 24, reserved_cores = omp_num_threads, threads_per_core = 1)
+function setup_affinities(;omp_num_threads = 10, reserved_cores = omp_num_threads, threads_per_core = 1)
     if nGraph.have_compiled() == true
         @error """
         The nGraph compiler has already been invoked.
