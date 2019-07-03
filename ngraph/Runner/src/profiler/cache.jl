@@ -1,3 +1,4 @@
+# TODO: Hold on to constant parameters such as padding and stride for Convolutions
 
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
@@ -60,6 +61,7 @@ function CPUKernelParams(node::nGraph.NodeLike)
     )
 end
 
+## GPU
 struct GPUKernelParams{IS, OS, IT, OT}
     # The description of the op
     description::String
@@ -70,6 +72,7 @@ struct GPUKernelParams{IS, OS, IT, OT}
     input_types::IT
     output_types::OT
 end
+
 function GPUKernelParams(node::nGraph.NodeLike)
     description = nGraph.description(node)
 
@@ -111,14 +114,14 @@ end
 
 struct GPUKernelCache <: AbstractKernelCache
     file::String
-    cache::Dict{GPUKernelParams, Float64}
+    cache::Dict{GPUKernelParams, Union{Float64, _ALGO_TUPLE}}
 end
+
+# Method to determine if we can select the algorithm for this kernel.
+can_select_algo(c::GPUKernelCache, p::GPUKernelParams) = _cs(c.cache[p])
 
 CPUKernelCache(file; kw...) = _make_cache(CPUKernelCache, file; kw...)::CPUKernelCache
 GPUKernelCache(file; kw...) = _make_cache(GPUKernelCache, file; kw...)::GPUKernelCache
-
-_forward(::Type{CPUKernelCache}) = Tuple{CPUKernelParams, IOConfig}
-_forward(::Type{GPUKernelCache}) = GPUKernelParams
 
 function _make_cache(::Type{T}, file; force_new = false) where {T}
     # If the cache path already exists, just return the existing object.
@@ -136,7 +139,7 @@ function _make_cache(::Type{T}, file; force_new = false) where {T}
     # Otherwise, create the object.
     return T(
         file,
-        Dict{_forward(T), Float64}()
+        last(fieldtypes(T))()
     )
 end
 

@@ -1,7 +1,22 @@
 #####
-##### Profile Data
+##### Some rough tools for dealing with kernels that can have multiple implementations
 #####
 
+const _ALGO_TUPLE = Vector{NamedTuple{(:enum, :time, :bytes),Tuple{UInt32,Float32,UInt64}}}
+get_enums(a::_ALGO_TUPLE) = map(x -> x.enum, a)
+function get_time(a::_ALGO_TUPLE, e::Integer)
+    ind = something(findfirst(x -> x.enum == e, a))
+    return a[ind].time
+end
+
+function get_bytes(a::_ALGO_TUPLE, e::Integer)
+    ind = something(findfirst(x -> x.enum == e, a))
+    return a[ind].bytes
+end
+
+#####
+##### Profile Data
+#####
 struct ProfileData{T,U}
     tensors::Vector{TensorDescriptor}
 
@@ -30,7 +45,11 @@ end
 # Unfortunately, the code for the CPU was developed first, so if this feels awkward and
 # hacked in ... that's why.
 _utype(::Type{nGraph.CPU}) = Dict{IOConfig, Float64}
-_utype(::Type{nGraph.GPU}) = Float64
+_utype(::Type{nGraph.GPU}) = Union{Float64, _ALGO_TUPLE}
+
+can_select_algo(p::ProfileData, node::NodeDescriptor) = _cs(p.timings[node])
+_cs(::Float64) = false
+_cs(::_ALGO_TUPLE) = true
 
 function settime!(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config, time) 
     d = get!(P.timings, N, Dict{IOConfig, Float64}())
@@ -40,13 +59,21 @@ settime!(P::ProfileData{nGraph.GPU}, N::NodeDescriptor, time) = (P.timings[N] = 
 
 configs_for(P::ProfileData{nGraph.CPU}, N::NodeDescriptor) = collect(keys(P.timings[N]))
 # Only one config that we care about - generate the IOCOnfig lazily
-configs_for(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = IOConfig(
-    ntuple(x -> true, nGraph.get_input_size(N)),
-    ntuple(x -> true, nGraph.get_output_size(N))
-)
+configs_for(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = (IOConfig(
+    ntuple(x -> DRAM, nGraph.get_input_size(N)),
+    ntuple(x -> DRAM, nGraph.get_output_size(N))
+),)
 
 gettime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) = P.timings[N][config]
-gettime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = P.timings[N]
+gettime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor, config = nothing) = P.timings[N]
+function gettime(
+    P::ProfileData{nGraph.GPU}, 
+    N::NodeDescriptor, 
+    config, #= Not used =#
+    enum)
+
+    return 10^3 * get_time(gettime(P, N), enum)
+end
 
 hastime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) =
     haskey(P.timings, N) && haskey(P.timings, config)
@@ -142,6 +169,25 @@ function liveness_analysis(nodes::Vector{NodeDescriptor}, io, constants)
                 push!(freed_tensors, tensor)
             end
         end
+    end
+
+    # Now, we need to do a cleanup phase.
+    #
+    # The BatchNorm pass can mess up some aspects of outputs from liveness analysis.
+    # Here, we check to see if any tensor shows up in the new list but not the free list.
+    # If so, we sets its free point to the place where it was created.
+    tensor_start = Dict{TensorDescriptor,Int}()
+    for (index, list) in enumerate(new_list), tensor in list
+        tensor_start[tensor] = index
+    end
+
+    for list in free_list, tensor in list
+        @assert haskey(tensor_start, tensor)
+        delete!(tensor_start, tensor)
+    end
+
+    for (tensor, index) in tensor_start
+        push!(free_list[index], tensor)
     end
 
     return (new_list = new_list, free_list = free_list)

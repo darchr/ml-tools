@@ -81,16 +81,6 @@ function update(I::T,
         end
     end
 
-    # offsetsizes = map(live_tensors(data)) do live
-    #     dram_tensors = filter(!nGraph.is_persistent, live)
-    #     isempty(dram_tensors) && return Tuple{Int,Int}[] 
-
-    #     return sort([
-    #         (convert(Int, nGraph.get_pool_offset(t)) / 1E6, sizeof(t) / 1E6)
-    #         for t in dram_tensors
-    #     ])
-    # end
-
     # Update the dram limits on all the producers
     indices = Int[]
     for tensor in offending_tensors 
@@ -181,7 +171,6 @@ function create_model(modeltype::ILPHolder, profile_data::ProfileData)
     model[:node_times] = Dict{String, _expr_type}()
     model[:tensor_async] = Dict{String, _expr_type}()
     model[:tensor_sync] = _expr_type()
-
 
     @timeit TO "adding tensors" add_tensors!(frame)
     @timeit TO "adding nodes" add_nodes!(frame)
@@ -700,22 +689,49 @@ end
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
 function get_tensor_in_dram(F::Frame, tensor::TensorDescriptor, node::NodeDescriptor)
     desc = descriptor(F, tensor)
-
     if in(node, users(desc))
-        return F.model[:tensor_in_dram][tensor, name(node)]
+        return F.model[:tensor_in_dram][tensor, nGraph.name(node)]
     else
-        return F.model[:tensor_in_dram_post][tensor, name(get_reference(desc, node))]
+        return F.model[:tensor_in_dram_post][tensor, nGraph.name(get_reference(desc, node))]
     end
 end
 
 function add_nodes!(F::Frame)
     data = F.profile_data
 
+    # Create decision variables for all nodes that have a choice of backend algorithm.
+    select_nodes = filter(x -> hasprofile(x) && can_select_algo(data, x), nodes(data))
+    if !isempty(select_nodes)
+        @info "Creating Algorithms Variables"
+        @variable(
+            F.model,
+            algo_var[
+                node = select_nodes,
+                enum = get_enums(gettime(data, node))
+            ],
+            Bin
+        )
+
+        # Constrain so only one algorithm may be selected.
+        for node in select_nodes
+            @constraint(
+                F.model,
+                sum(algo_var[node, e] for e in get_enums(gettime(data, node))) == 1
+            )
+        end
+    end
+
     for node in nodes(data)
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
         hasprofile(node) || continue
+
+        # The GPU path of this code will just return an all DRAM config - which will be
+        # useful for generating the constraint that all kernel IO for the GPU case must
+        # reside in GPU DRAM.
+        #
+        # The CPU path will yield a bunch of DRAM/PMEM combinations
         configs = configs_for(data, node) 
 
         # Create a variable for each config.
@@ -743,30 +759,41 @@ function add_nodes!(F::Frame)
                 end
             end
 
-            @constraint(F.model, vars[config] + length(config.inputs) + length(config.outputs) >=
-                1 + expr)
-
-            # # If this is an all DRAM config, constrain any asynchronous moves to only take
-            # # place if all node inputs and outputs are in DRAM.
-            # if all(isequal(DRAM), config) && haskey(F.modeltype.async_move_vars, node)
-            #     for (_jump_var) in F.modeltype.async_move_vars[node]
-            #         @constraint(F.model, _jump_var <= vars[config])
-            #     end
-            # end
+            @constraint(
+                F.model, 
+                vars[config] + length(config.inputs) + length(config.outputs) >= 1 + expr
+            )
         end
 
-        # here, we're adding a valid contraint to help the solver
+        # Add a valid contraint to help the solver
         @constraint(F.model, sum(vars[config] for config in configs) == 1)
 
         # Create an expression for this node's expected running time.
         node_times = _expr_type()
         for config in configs
-            coeff = round(Int64, gettime(data, node, config))
-            add_to_expression!(node_times, coeff, vars[config])
+            # If we can select the algorithm for this node, we need to generate some more
+            # variables to "AND" the config with the algorithm selection to ensure that
+            # we only get a single algorithm out at the end.
+            #
+            # If there are not multiple algorithms, then we don't have to worry about it.
+            if can_select_algo(data, node)
+                v = @variable(F.model, [enum = get_enums(gettime(data, node))], Bin)
+                for enum in get_enums(gettime(data, node))
+                    @constraint(F.model, v[enum] <= algo_var[node, enum])
+                    @constraint(F.model, v[enum] <= vars[config])
+                    @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
+
+                    coeff = round(Int64, gettime(data, node, config, enum))
+                    add_to_expression!(node_times, coeff, v[enum])
+                end
+            else
+                coeff = round(Int64, gettime(data, node, config))
+                add_to_expression!(node_times, coeff, vars[config])
+            end
         end
         F.model[:node_times][name(node)] = node_times
     end
-    return
+    return nothing
 end
 
 # Allocations in ngraph happen on 4096 bytes boundaries. For better accuracty, round
@@ -775,7 +802,7 @@ end
 # Take the floor to introduce more zeros into the ILP formulation. This shouldn't really
 # make much of a difference.
 tensor_size(t::TensorDescriptor) = tensor_size(sizeof(t))
-tensor_size(sz) = floor(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
+tensor_size(sz) = ceil(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
 function add_constraints!(F::Frame)
     # Unpack some variables
@@ -784,12 +811,26 @@ function add_constraints!(F::Frame)
     for (index, tensors) in enumerate(live_tensors(data))
         node = nodes(data, index)
         hasprofile(node) || continue
-
         F.modeltype.node_to_limit_index[node] = index
+
+        # Add DRAM constraint for the workspace
+        if can_select_algo(data, node)
+            v = F.model[:algo_var]
+            algo_expr = @expression(
+                F.model, 
+                sum(
+                    tensor_size(get_bytes(gettime(data, node), e)) * 
+                    v[node, e] for e in get_enums(gettime(data, node))
+                )
+            )
+            @show algo_expr
+        else
+            algo_expr = _expr_type()
+        end
 
         if !isempty(tensors)
             @constraint(F.model,
-                sum(tensor_size(t) * get_tensor_in_dram(F, t, node)
+                algo_expr + sum(tensor_size(t) * get_tensor_in_dram(F, t, node)
                     for t in tensors
                     if !iszero(tensor_size(t))) <= limit(F, index)
             )
@@ -855,7 +896,7 @@ function _initial_loc(path)
     end
 end
 
-function configure!(fex::nGraph.FluxExecutable, frame::Frame)
+function configure!(f, frame::Frame)
     # Get initial schedules for the frame
     initial_schedule = get_schedule(frame)
 
@@ -865,15 +906,53 @@ function configure!(fex::nGraph.FluxExecutable, frame::Frame)
         for (t, (tensor_graph, path)) in initial_schedule
     )
 
-    fex, data, tensor_map = configure!(fex, frame.profile_data, schedule)
+    # TODO: Move this into the innermost `configure!`
+    data = frame.profile_data
+    for node in nodes(data)
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
+            algo_var = frame.model[:algo_var]
+            count = 0
+            local algo_enum
+            for enum in get_enums(gettime(data, node))
+                if approx_one(algo_var[node,enum])
+                    count += 1
+                    algo_enum = enum
+                end
+            end
 
-    frame.profile_data = data
-    return fex, tensor_map
+            # Only one algorithm should be selected
+            @assert count == 1
+
+            @show nGraph.name(node)
+            @show convert(Int, algo_enum)
+            @show convert(Int, get_bytes(gettime(data, node), algo_enum))
+            @show get_time(gettime(data, node), algo_enum)
+            
+            nGraph.Lib.set_algo(
+                nGraph.getpointer(node),
+                convert(UInt, algo_enum),
+                convert(UInt, get_bytes(gettime(data, node), algo_enum))
+            )
+        end
+    end
+
+
+    return configure!(f, frame.profile_data, schedule)
 end
 
 function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
+    f = fex.ex.ngraph_function
+    tensor_map = configure!(f, data, schedule)
+
+    fex = nGraph.recompile(fex)
+    # Update ProfileData in Frame for the newly compiled function
+    profile_data = profile(fex)
+
+    return fex, profile_data, tensor_map
+end
+
+function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = nothing)
     # Unpack args
-    fn = fex.ex.ngraph_function
     _cleanup!(fn)
 
     # Get the locations of the tensors currently in the graph
@@ -972,8 +1051,6 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
     ##### Apply the config
     #####
 
-    nGraph.get_ordered_ops!(fn)
-
     # Iterate over each node and each output tensor for each node. Each output tensor should
     # have an assigned location
     for node in fn, output in outputs(NodeDescriptor(node))
@@ -982,16 +1059,9 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
         end
     end
 
-    fex = nGraph.recompile(fex)
+    # Set algorithms and workspaces
 
-    # Update ProfileData in Frame for the newly compiled function
-    profile_data = profile(fex)
-
-    #####
-    ##### Now, we do some checking to make sure everything is scheduled correctly
-    #####
-
-    return fex, profile_data, tensor_map
+    return tensor_map
 end
 
 # Get the path of the tensor traced through the graph

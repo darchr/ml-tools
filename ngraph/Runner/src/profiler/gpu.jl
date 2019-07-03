@@ -47,16 +47,41 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
     # - CUDNN gives the expected performance of these kernels already :D
     for (index, node) in enumerate(nodes(data))
         hasprofile(node) || continue
-        @show index
-        @show nGraph.name(node)
-
-        # If we can select an algorithm for this node, just set it to zero for now
-        if  nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
-            nGraph.Lib.set_algo(nGraph.getpointer(node), zero(UInt), zero(UInt))
-        end
+        # @show index
+        # @show nGraph.name(node)
 
         # Get the lookup key for this node
         kernel_params = GPUKernelParams(node)
+
+        # If we can select an algorithm for this node, use the built-in timings
+        # and skip the actual profiling.
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
+            if !haskey(cache, kernel_params)
+                enums = UInt32[]
+                times = Float32[]
+                bytes = UInt64[] 
+                nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes) 
+
+                algo_list = [
+                    (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
+                ]
+                cache[kernel_params] = algo_list
+            end
+
+            # # Unpack the algo list and set all of the algorithms to use the minimum
+            # # amount of memory
+            # algo_list = cache[kernel_params]::_ALGO_TUPLE
+            # _, index = findmin(map(x -> x.time, algo_list))
+            # algo = algo_list[index]
+
+            # nGraph.Lib.set_algo(
+            #     nGraph.getpointer(node), 
+            #     convert(UInt, algo.enum),
+            #     convert(UInt, algo.bytes)
+            # )
+        end
+
+        # Get saved data from the cache if it exists
         if haskey(cache, kernel_params)
             settime!(data, node, cache[kernel_params])
             continue
@@ -91,7 +116,7 @@ function record_time!(data::ProfileData{nGraph.GPU}, node, ex::nGraph.Executable
 
     # Find the performance for the copied op in the timing dictionary
     time = timing_dict[nGraph.name(copied_op)]
-    settime!(data, node, time)
+    settime!(data, node, convert(Float64, time))
     return nothing
 end
 
@@ -119,8 +144,8 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.GPU})
         push!(outputs, copied_node)
     end
 
-    @show size.(params)
-    @show size.(outputs)
+    # @show size.(params)
+    # @show size.(outputs)
 
     # Get an result output for each output of the node
     nodevector = nGraph.NodeVector(outputs)
