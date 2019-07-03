@@ -56,6 +56,7 @@ limit(F::Frame) = limit(F.modeltype)
 JuMP.optimize!(F::Frame) = optimize!(F.model)
 
 include("ilp.jl")
+include("configure.jl")
 include("modnn/modnn.jl")
 
 """
@@ -110,7 +111,8 @@ function gpu_factory(func, do_opt = true)
         # Capture `dataref` and `backend`
         data = profile(f, backend)
 
-        modeltype = synchronous([400 for _ in 1:length(nodes(data))], 16000, 16000)
+        modeltype = asynchronous([1000 for _ in 1:length(nodes(data))], 15000, 15000, 15000, 15000)
+        #modeltype = synchronous([500 for _ in 1:length(nodes(data))], 15000, 15000)
         frame = create_model(modeltype, data)
         optimize!(frame)
         tensor_map = configure!(f, frame)
@@ -173,7 +175,7 @@ function insert_moveasync_node!(
         index, 
         consumers, 
         consumer_inputs, 
-        concurrent
+        concurrent,
     )
 
     move_node = nGraph.moveasync(nGraph.Node(producer), index, nGraph.Node(concurrent))
