@@ -111,8 +111,8 @@ function gpu_factory(func, do_opt = true)
         # Capture `dataref` and `backend`
         data = profile(f, backend)
 
-        modeltype = asynchronous([1000 for _ in 1:length(nodes(data))], 15000, 15000, 15000, 15000)
-        #modeltype = synchronous([500 for _ in 1:length(nodes(data))], 15000, 15000)
+        #modeltype = asynchronous([5000 for _ in 1:length(nodes(data))], 15000, 15000, 15000, 15000)
+        modeltype = synchronous([9000 for _ in 1:length(nodes(data))], 15000, 15000)
         frame = create_model(modeltype, data)
         optimize!(frame)
         tensor_map = configure!(f, frame)

@@ -69,7 +69,7 @@ function configure!(f, frame::Frame)
     # TODO: Move this into the innermost `configure!`
     data = frame.profile_data
     for node in nodes(data)
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
             algo_var = frame.model[:algo_var]
             count = 0
             local algo_enum
@@ -87,7 +87,7 @@ function configure!(f, frame::Frame)
             # @show convert(Int, algo_enum)
             # @show convert(Int, get_bytes(gettime(data, node), algo_enum))
             # @show get_time(gettime(data, node), algo_enum)
-            
+
             nGraph.Lib.set_algo(
                 nGraph.getpointer(node),
                 convert(UInt, algo_enum),
@@ -124,7 +124,7 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
     # We find all nodes that are targets of a move to DRAM and insert a synchronization
     # barrier.
     #
-    # We only do this once for each target because a synchronization barrier will 
+    # We only do this once for each target because a synchronization barrier will
     # synchronize ALL asynchronous moves
     #
     # KEY: The node that has at least one input coming from an async move
@@ -155,6 +155,7 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
 
                 if !ismove(producer)
                     @assert data.node_to_index[producer] < data.node_to_index[action.concurrent]
+                    nGraph.set_sync(producer)
                 end
             else
                 move_node = insert_move_node!(
@@ -175,15 +176,15 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
             # If moving to PMEM, perform this action as soon as possible after the node
             # generating the argument.
             if action.location == PMEM || isasync(action)
-                nGraph.set_input_affinity(move_node)
-
                 # If this is an asynchronous move, we want to associate it with the
                 # concurrent node.
                 #
                 # Otherwise, associate with the producer
                 if isasync(action)
+                    nGraph.set_output_affinity(move_node)
                     nGraph.add_associate(move_node, name(action.concurrent))
                 else
+                    nGraph.set_input_affinity(move_node)
                     nGraph.add_associate(move_node, name(producer))
                 end
 
@@ -195,6 +196,8 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
             # associates to this list because scheduling may be reordered after inserting
             # the move nodes.
             elseif action.location == DRAM
+                # Set synchronization flag on the first consumer
+
                 nGraph.set_output_affinity(move_node)
                 for consumer in consumers
                     nGraph.add_associate(move_node, name(consumer))
