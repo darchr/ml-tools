@@ -155,7 +155,6 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
 
                 if !ismove(producer)
                     @assert data.node_to_index[producer] < data.node_to_index[action.concurrent]
-                    nGraph.set_sync(producer)
                 end
             else
                 move_node = insert_move_node!(
@@ -362,9 +361,9 @@ end
 #####
 
 estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = zero(Float64)
-function estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{IsSynchronous}})
+function estimate_move_time(f::nGraph.NFunction, frame::Frame{ILPHolder{IsSynchronous}})
     move_time = zero(Float64)
-    for _node in fex.ex.ngraph_function
+    for _node in f
         node = NodeDescriptor(_node)
 
         # If this is a move, determine which direction data is being moved and add the move

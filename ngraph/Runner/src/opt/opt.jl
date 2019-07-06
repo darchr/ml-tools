@@ -56,6 +56,7 @@ limit(F::Frame) = limit(F.modeltype)
 JuMP.optimize!(F::Frame) = optimize!(F.model)
 
 include("ilp.jl")
+include("inspect.jl")
 include("configure.jl")
 include("modnn/modnn.jl")
 
@@ -111,10 +112,11 @@ function gpu_factory(func, do_opt = true)
         # Capture `dataref` and `backend`
         data = profile(f, backend)
 
-        #modeltype = asynchronous([5000 for _ in 1:length(nodes(data))], 15000, 15000, 15000, 15000)
-        modeltype = synchronous([9000 for _ in 1:length(nodes(data))], 15000, 15000)
+        modeltype = asynchronous([2000 for _ in 1:length(nodes(data))], 12000, 12000, 12000, 12000)
+        #modeltype = synchronous([8000 for _ in 1:length(nodes(data))], 12000, 12000)
         frame = create_model(modeltype, data)
         optimize!(frame)
+        list_overlaps(frame)
         tensor_map = configure!(f, frame)
 
         dataref[] = data
@@ -129,8 +131,6 @@ function gpu_factory(func, do_opt = true)
         fex = nGraph.compile(backend, f, args...; emit_timing = true, kw...)
         return fex, nothing
     end
-
-    #return fex, dataref[]
 end
 
 #####

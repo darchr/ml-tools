@@ -87,11 +87,6 @@ function update(I::T,
         for node in _users(tensor, data)
             (ismove(node) || !hasprofile(node)) && continue
             push!(indices, I.node_to_limit_index[node])
-
-            # j = data.node_to_index[node]
-            # for (o, s) in offsetsizes[j]
-            #     println("    $o  ->  $s")
-            # end
         end
     end
 
@@ -157,6 +152,7 @@ descriptor(F::Frame, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
 ##### Entry Point
 #####
 
+# For procedurally building JuMP expressions for the ILP model
 const _expr_type = typeof(AffExpr())
 
 function create_model(modeltype::ILPHolder, profile_data::ProfileData)
@@ -268,7 +264,7 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorD
     #
     # Making `bound` larger increased the search space of the formulation, which may lead to
     # better results at the cost of a larger mode.
-    bound = 10
+    bound = 30
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
         node = nodes(data, ind)
@@ -409,23 +405,31 @@ function preprocess!(S::ILPHolder, data::ProfileData)
             for location in locations(data, tensor)
                 if location == DRAM
                     # Add DRAM nodes
-                    add_vertex!(g, VertexMetadata(count, node, LOC_DRAM_PRE, move_type, isuser, nv(g)+1))
+                    add_vertex!(g,
+                        VertexMetadata(count, node, LOC_DRAM_PRE, move_type, isuser, nv(g)+1)
+                    )
 
                     # only add a DRAM node if there could have been a write to PMEM
                     if count > 1
-                        add_vertex!(g, VertexMetadata(count, node, LOC_DRAM, move_type, isuser, nv(g)+1))
+                        add_vertex!(g, 
+                            VertexMetadata(count, node, LOC_DRAM, move_type, isuser, nv(g)+1)
+                        )
                     end
                 end
 
                 if location == PMEM
                     @assert !startswith(nGraph.name(tensor), "Constant")
                     # PMEM node
-                    add_vertex!(g, VertexMetadata(count, node, LOC_PMEM, move_type, isuser, nv(g)+1))
+                    add_vertex!(g,
+                        VertexMetadata(count, node, LOC_PMEM, move_type, isuser, nv(g)+1)
+                    )
                 end
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                add_vertex!(g, VertexMetadata(count + 1, node, LOC_SINK, move_type, isuser, nv(g)+1))
+                add_vertex!(g, 
+                    VertexMetadata(count + 1, node, LOC_SINK, move_type, isuser, nv(g)+1)
+                )
             end
         end
 
@@ -450,6 +454,22 @@ function preprocess!(S::ILPHolder, data::ProfileData)
 
             add_edge!(g, src, dst, metadata)
         end
+
+        # Temporary debug - WHY are batchnorm outputs being moved???
+        # if startswith(nGraph.name(tensor), "BatchNorm")
+        #     printstyled("Printing Graph for $(nGraph.name(tensor))\n"; color = :red)
+        #     printstyled("Vertices\n"; color = :green)
+        #     for v in vertices(g)
+        #         println("$v: ", _meta(g, v))
+        #     end
+        #     println()
+        #     printstyled("Edges\n"; color = :green)
+        #     for e in edges(g)
+        #         println("$e: ", _meta(g, e))
+        #     end
+        #     println()
+        #     println()
+        # end
 
         # Create the descriptor
         S.descriptors[tensor] = TensorMeta(g, [g.node for g in gadgets], reference_map)
@@ -614,10 +634,11 @@ function add_movement_formulations!(frame::Frame)
         g = graph(descriptor(frame, tensor))
         bytes = sizeof(tensor)
 
-        read_cost = round(Int, bytes / rb(modeltype))
-        write_cost = round(Int, bytes / wb(modeltype))
-        read_cost_async = round(Int, bytes / rba(modeltype))
-        write_cost_async = round(Int, bytes / wba(modeltype))
+        # Take the ceiling of all these to ensure there's always a cost to moving.
+        read_cost = ceil(Int, bytes / rb(modeltype))
+        write_cost = ceil(Int, bytes / wb(modeltype))
+        read_cost_async = ceil(Int, bytes / rba(modeltype))
+        write_cost_async = ceil(Int, bytes / wba(modeltype))
 
         # Collect Edges according to type.
         sync_reads = _find_edges(g, EDGE_SYNC_READ)
