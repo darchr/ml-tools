@@ -55,10 +55,12 @@ limit(F::Frame) = limit(F.modeltype)
 
 JuMP.optimize!(F::Frame) = optimize!(F.model)
 
+include("affinity.jl")
 include("ilp.jl")
 include("inspect.jl")
 include("configure.jl")
 include("modnn/modnn.jl")
+include("schedule.jl")
 
 """
 - `f`: Function `() -> fex, args`: Return `FluxExecutable` and args.
@@ -107,13 +109,17 @@ function gpu_factory(func, do_opt = true)
     dataref = Ref{ProfileData{nGraph.GPU, Union{Float64,_ALGO_TUPLE}}}()
     backend = nGraph.Backend("GPU")
 
-    # A callback that profiles the ngraph function
+    #A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction) 
+        # Do some minor editing the order of nodes in the graph to hopefully yield slightly 
+        # better memory characteristics
+        apply_affinity_heuristic!(f)
+
         # Capture `dataref` and `backend`
         data = profile(f, backend)
 
-        modeltype = asynchronous([2000 for _ in 1:length(nodes(data))], 12000, 12000, 12000, 12000)
-        #modeltype = synchronous([8000 for _ in 1:length(nodes(data))], 12000, 12000)
+        modeltype = asynchronous([7000 for _ in 1:length(nodes(data))], 12000, 12000, 12000, 12000)
+        #modeltype = synchronous([7000 for _ in 1:length(nodes(data))], 12000, 12000)
         frame = create_model(modeltype, data)
         optimize!(frame)
         list_overlaps(frame)
@@ -123,9 +129,12 @@ function gpu_factory(func, do_opt = true)
         return nothing
     end
 
+    gpu_callbacks = GPUCallback()
+    callback!(gpu_callbacks, cb)
+
     # Compile the function to a ngraph executable
     if (do_opt)
-        fex = nGraph.compile(backend, f, args...; callback = cb, emit_timing = true, kw...)
+        fex = nGraph.compile(backend, f, args...; callback = gpu_callbacks, emit_timing = true, kw...)
         return fex, dataref[]
     else
         fex = nGraph.compile(backend, f, args...; emit_timing = true, kw...)

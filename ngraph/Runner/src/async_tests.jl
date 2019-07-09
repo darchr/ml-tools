@@ -44,7 +44,7 @@ function test_conv_async(return_early = false)
     found = false
     for param in nGraph.get_parameters(fex.ex.ngraph_function)
         println(nGraph.name(param))
-        for output_vector in nGraph.get_outputs(param), output in output_vector
+        for output in nGraph.get_outputs(param)
             println(nGraph.name(output))
             if isresult(output)
                 target_input = param
@@ -113,7 +113,7 @@ function test_conv_add(return_early = false)
     found = false
     for param in nGraph.get_parameters(fex.ex.ngraph_function)
         println(nGraph.name(param))
-        for output_vector in nGraph.get_outputs(param), output in output_vector
+        for output in nGraph.get_outputs(param)
             println(nGraph.name(output))
             if isresult(output)
                 target_input = param

@@ -29,6 +29,25 @@
 #
 # Why do we need to profile at all? The given graph may exceed the memory limit of the GPU,
 # so we need to profile kernel by kernel.
+mutable struct GPUCallback
+    # Vector of callback functions
+    fns::Vector
+    # Number of times this has been invoked.
+    num_invocations::Int64  
+end
+GPUCallback() = GPUCallback([], 1)
+callback!(G::GPUCallback, f) = push!(G.fns, f)
+
+function (G::GPUCallback)(args...)
+    if G.num_invocations > length(G.fns)
+        return nothing
+    else
+        f = G.fns[G.num_invocations]
+        G.num_invocations += 1
+        return f(args...)
+    end
+end
+
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         cache = GPUKernelCache(BASE_GPU_CACHE_PATH), 
     )
@@ -45,10 +64,12 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
     # NOTE: If `can_select_algo` for a node, we don't need to profile that node since
     # - All the `can_select_algo` nodes are CUDNN kernels
     # - CUDNN gives the expected performance of these kernels already :D
+
+    # Work with all the `can_select_algo` nodes first.
+    # Finalizers for small GPU structs don't clean up properly yet, so trying to profile 
+    # these workloads runs out of memory
     for (index, node) in enumerate(nodes(data))
         hasprofile(node) || continue
-        # @show index
-        # @show nGraph.name(node)
 
         # Get the lookup key for this node
         kernel_params = GPUKernelParams(node)
@@ -57,35 +78,37 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         # and skip the actual profiling.
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
             if !haskey(cache, kernel_params)
+                @info "Getting CUDNN timings for $(nGraph.name(node)))"
+
                 enums = UInt32[]
                 times = Float32[]
                 bytes = UInt64[] 
                 nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes) 
-
                 algo_list = [
                     (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
                 ]
                 cache[kernel_params] = algo_list
             end
-
-            # # Unpack the algo list and set all of the algorithms to use the minimum
-            # # amount of memory
-            # algo_list = cache[kernel_params]::_ALGO_TUPLE
-            # _, index = findmin(map(x -> x.time, algo_list))
-            # algo = algo_list[index]
-
-            # nGraph.Lib.set_algo(
-            #     nGraph.getpointer(node), 
-            #     convert(UInt, algo.enum),
-            #     convert(UInt, algo.bytes)
-            # )
         end
+    end
+
+    for (index, node) in enumerate(nodes(data))
+        hasprofile(node) || continue
+
+        # Get the lookup key for this node
+        kernel_params = GPUKernelParams(node)
 
         # Get saved data from the cache if it exists
         if haskey(cache, kernel_params)
             settime!(data, node, cache[kernel_params])
             continue
         end
+
+        # Skip profiling if already performed
+        nGraph.Lib.can_select_algo(nGraph.getpointer(node)) && continue
+
+        # Extract the node in question and profile it
+        GC.gc() 
         ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
 
         # Sometimes, an initial call to some functions will result in an error, but 
@@ -143,9 +166,6 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.GPU})
     else
         push!(outputs, copied_node)
     end
-
-    # @show size.(params)
-    # @show size.(outputs)
 
     # Get an result output for each output of the node
     nodevector = nGraph.NodeVector(outputs)
