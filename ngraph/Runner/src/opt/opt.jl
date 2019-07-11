@@ -72,17 +72,17 @@ function factory(f, opt)
     data = profile(fex)
     modeltype = opt(data)
 
-    # Clone the underlying ngraph function to be able to reconstruct it with the 
+    # Clone the underlying ngraph function to be able to reconstruct it with the
     # same order nodes.
-    #cloned_function = copy(fex.ex.function_copy)  
+    #cloned_function = copy(fex.ex.function_copy)
 
     # Iterate until convergence
     while true
         # Optimize the function
         frame = create_model(modeltype, data)
         optimize!(frame)
-        fex, _metadata = configure!(fex, frame) 
-     
+        fex, _metadata = configure!(fex, frame)
+
         if exceeds_limit(fex, modeltype)
             @info """
             Limit Exceeded
@@ -90,56 +90,93 @@ function factory(f, opt)
             Actual: $(convert(Int, nGraph.get_temporary_pool_size(fex.ex.ngraph_function)))
             """
 
-            modeltype = update(modeltype, fex, frame.profile_data)
+            modeltype = update(modeltype, frame.profile_data)
 
             # Update the flux executable
             fex, args = f()
-            data = profile(fex) 
+            data = profile(fex)
         else
             return fex, args, frame, _metadata
         end
     end
 end
 
-function gpu_factory(func, do_opt = true)
+function gpu_factory(func)
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 
     # add a callback that will populate a reference to a `ProfileData` type
-    dataref = Ref{ProfileData{nGraph.GPU, Union{Float64,_ALGO_TUPLE}}}()
+    frame_ref = Ref{Frame}()
+    limits_ref = Ref{Vector{Int}}() 
+
     backend = nGraph.Backend("GPU")
 
     #A callback that profiles the ngraph function
-    function cb(f::nGraph.NFunction) 
-        # Do some minor editing the order of nodes in the graph to hopefully yield slightly 
+    function cb(f::nGraph.NFunction)
+        # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
         apply_affinity_heuristic!(f)
 
-        # Capture `dataref` and `backend`
         data = profile(f, backend)
 
-        modeltype = asynchronous([7000 for _ in 1:length(nodes(data))], 12000, 12000, 12000, 12000)
-        #modeltype = synchronous([7000 for _ in 1:length(nodes(data))], 12000, 12000)
+        # Initialize the node dram limits if needed
+        if !isdefined(limits_ref, :x)
+            limits_ref[] = [2500 for _ in 1:length(nodes(data))]
+        end
+
+        #modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
+        modeltype = synchronous(limits_ref[], 12000, 12000)
+
         frame = create_model(modeltype, data)
         optimize!(frame)
-        list_overlaps(frame)
         tensor_map = configure!(f, frame)
 
-        dataref[] = data
+        frame_ref[] = frame
         return nothing
     end
 
-    gpu_callbacks = GPUCallback()
-    callback!(gpu_callbacks, cb)
+    # Defrag callback - if a function needs defragging, throws a `GPUExit` exception to
+    # avoid nGraph trying to allocate too much GPU memory
+    function defrag(f::nGraph.NFunction)
+        if exceeds_limit(f, frame_ref[].modeltype)
+            # This is pretty ugly - sorry about that.
+            modeltype = update(frame_ref[].modeltype, profile(f, backend))
+            limits_ref[] = modeltype.dram_limits
+
+            throw(GPUExit())
+        end
+    end
 
     # Compile the function to a ngraph executable
-    if (do_opt)
-        fex = nGraph.compile(backend, f, args...; callback = gpu_callbacks, emit_timing = true, kw...)
-        return fex, dataref[]
-    else
-        fex = nGraph.compile(backend, f, args...; emit_timing = true, kw...)
-        return fex, nothing
+    local fex
+    retry = true
+    while retry
+        retry = false
+
+        # Setup callbacks
+        #
+        # If the function needs defragging, a `GPUExit` exception will be thrown and we
+        # will have to try again.
+        gpu_callbacks = GPUCallback()
+        callback!(gpu_callbacks, cb)
+        callback!(gpu_callbacks, defrag)
+
+        try
+            fex = nGraph.compile(
+                backend, 
+                f, 
+                args...;
+                callback = gpu_callbacks, 
+                emit_timing = true, 
+                kw...
+            )
+        catch e
+            isa(e, GPUExit) || rethrow(e)
+            retry = true
+        end
     end
+
+    return fex, frame_ref[]
 end
 
 #####
@@ -167,7 +204,7 @@ approx_one(x::JuMP.VariableRef) = approx_one(value(x))
 """
     insert_move_node!(producer, index, consumers) -> nGraph.Node
 
-Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly 
+Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly
 created node.
 """
 function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{NodeDescriptor}, consumer_inputs)
@@ -175,15 +212,15 @@ function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{No
     for (consumer, input) in zip(consumers, consumer_inputs)
         nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
     end
-    
+
     return NodeDescriptor(move_node)
 end
 
 function insert_moveasync_node!(
-        producer::NodeDescriptor, 
-        index, 
-        consumers, 
-        consumer_inputs, 
+        producer::NodeDescriptor,
+        index,
+        consumers,
+        consumer_inputs,
         concurrent,
     )
 
@@ -191,6 +228,6 @@ function insert_moveasync_node!(
     for (consumer, input) in zip(consumers, consumer_inputs)
         nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
     end
-    
+
     return NodeDescriptor(move_node)
 end

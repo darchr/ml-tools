@@ -4,11 +4,11 @@
 # sensible locations
 function apply_affinity_heuristic!(f::nGraph.NFunction; 
         output_affinities = ("Broadcast",),
-        input_affinities = ("Result", "Sum"),
+        input_affinities = ("Result",),
     )
 
     for node_unwrapped in f
-        node = NodeDescriptor(f)
+        node = NodeDescriptor(node_unwrapped)
         node_name = nGraph.name(node)
 
         # Apply appropriate affinties

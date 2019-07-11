@@ -46,28 +46,27 @@ mutable struct ILPHolder{T <: ILPFormulationType}
 end
 
 # Add factory methods
-exceeds_limit(fex, I::ILPHolder) =
-    (nGraph.get_temporary_pool_size(fex.ex.ngraph_function) / 1E6) > maxlimit(I)
+exceeds_limit(fex::nGraph.FluxExecutable, I::ILPHolder) =
+    exceeds_limit(fex.ex.ngraph_function, I)
+exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
+    (nGraph.get_temporary_pool_size(f) / 1E6) > maxlimit(I)
 
-# The general idea is that heap fragmentation causes the actual allocated amount to 
+# The general idea is that heap fragmentation causes the actual allocated amount to
 # exceed the limit.
 #
 # To deal with this, we take the FIRST instance where the memory limit is exceeded due
 # to fragmentation and reduce the DRAM limit for the node just BEFORE that instance.
 #
-# This should cause the ngraph allocator to free up some space so we don't go over the 
+# This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
-function update(I::T, 
-            fex::nGraph.FluxExecutable, 
-            data::ProfileData,
-       ) where {T <: ILPHolder}
+function update(I::T, data::ProfileData) where {T <: ILPHolder}
 
     dram_limits = I.dram_limits
     ml = maxlimit(I)
 
     # Go through all of the live tensors - find the first that exceeds the limit
     offending_tensors = TensorDescriptor[]
-    for live in live_tensors(data)  
+    for live in live_tensors(data)
         # Find the DRAM tensors
         dram_tensors = filter(!nGraph.is_persistent, live)
         isempty(dram_tensors) && continue
@@ -83,7 +82,7 @@ function update(I::T,
 
     # Update the dram limits on all the producers
     indices = Int[]
-    for tensor in offending_tensors 
+    for tensor in offending_tensors
         for node in _users(tensor, data)
             (ismove(node) || !hasprofile(node)) && continue
             push!(indices, I.node_to_limit_index[node])
@@ -92,7 +91,7 @@ function update(I::T,
 
     #@show unique(indices)
     for idx in unique(indices)
-        dram_limits[idx] = round(Int, 0.95 * dram_limits[idx])
+        dram_limits[idx] = round(Int, 0.85 * dram_limits[idx])
     end
 
     # Return a new ILHolder
@@ -411,7 +410,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
 
                     # only add a DRAM node if there could have been a write to PMEM
                     if count > 1
-                        add_vertex!(g, 
+                        add_vertex!(g,
                             VertexMetadata(count, node, LOC_DRAM, move_type, isuser, nv(g)+1)
                         )
                     end
@@ -427,7 +426,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
             end
             if islast
                 # Set the gadget number for the sink to one higher than the last count.
-                add_vertex!(g, 
+                add_vertex!(g,
                     VertexMetadata(count + 1, node, LOC_SINK, move_type, isuser, nv(g)+1)
                 )
             end
@@ -454,22 +453,6 @@ function preprocess!(S::ILPHolder, data::ProfileData)
 
             add_edge!(g, src, dst, metadata)
         end
-
-        # Temporary debug - WHY are batchnorm outputs being moved???
-        # if startswith(nGraph.name(tensor), "BatchNorm")
-        #     printstyled("Printing Graph for $(nGraph.name(tensor))\n"; color = :red)
-        #     printstyled("Vertices\n"; color = :green)
-        #     for v in vertices(g)
-        #         println("$v: ", _meta(g, v))
-        #     end
-        #     println()
-        #     printstyled("Edges\n"; color = :green)
-        #     for e in edges(g)
-        #         println("$e: ", _meta(g, e))
-        #     end
-        #     println()
-        #     println()
-        # end
 
         # Create the descriptor
         S.descriptors[tensor] = TensorMeta(g, [g.node for g in gadgets], reference_map)
@@ -753,7 +736,7 @@ function add_nodes!(F::Frame)
         # reside in GPU DRAM.
         #
         # The CPU path will yield a bunch of DRAM/PMEM combinations
-        configs = configs_for(data, node) 
+        configs = configs_for(data, node)
 
         # Create a variable for each config.
         vars = @variable(F.model, [config = configs], Bin)
@@ -781,7 +764,7 @@ function add_nodes!(F::Frame)
             end
 
             @constraint(
-                F.model, 
+                F.model,
                 vars[config] + length(config.inputs) + length(config.outputs) >= 1 + expr
             )
         end
@@ -838,9 +821,9 @@ function add_constraints!(F::Frame)
         if can_select_algo(data, node)
             v = F.model[:algo_var]
             algo_expr = @expression(
-                F.model, 
+                F.model,
                 sum(
-                    tensor_size(get_bytes(gettime(data, node), e)) * 
+                    tensor_size(get_bytes(gettime(data, node), e)) *
                     v[node, e] for e in get_enums(gettime(data, node))
                 )
             )

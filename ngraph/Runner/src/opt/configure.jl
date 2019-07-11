@@ -70,6 +70,10 @@ function configure!(f, frame::Frame)
     data = frame.profile_data
     for node in nodes(data)
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            # Only access this once we know that there is at least one node where the
+            # algorithm can be decided.
+            #
+            # Otherwise, `frame.model[:algo_var]` will not be defined.
             algo_var = frame.model[:algo_var]
             count = 0
             local algo_enum
@@ -88,6 +92,7 @@ function configure!(f, frame::Frame)
             # @show convert(Int, get_bytes(gettime(data, node), algo_enum))
             # @show get_time(gettime(data, node), algo_enum)
 
+            #algo_enum = 1
             nGraph.Lib.set_algo(
                 nGraph.getpointer(node),
                 convert(UInt, algo_enum),
@@ -95,7 +100,6 @@ function configure!(f, frame::Frame)
             )
         end
     end
-
 
     return configure!(f, frame.profile_data, schedule)
 end

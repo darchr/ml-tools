@@ -241,9 +241,11 @@ function inception_v4_training(batchsize; backend = nGraph.Backend(), kw...)
     forward = inception_v4(x)
 
     f(x, y) = Flux.crossentropy(forward(x), y)
+    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
 
-    g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)), kw...)
-    return g, (X, Y)
+    return f, (X,Y), kw
+    #g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)), kw...)
+    #return g, (X, Y)
 end
 
 #####
@@ -279,15 +281,14 @@ function mnist(batchsize = 16)
     backend = nGraph.Backend()
     x = rand(Float32, 28, 28, 1, batchsize)
     X = nGraph.Tensor(backend, x)
-    f = nGraph.compile(backend, model, X)
+    #f = nGraph.compile(backend, model, X)
 
     return f, (X,)
 end
 
 # Include an additional modifier to allow modifying the optimizer
-function mnist_train(batchsize = 16, modifier = identity)
+function mnist_train(batchsize = 16; backend = nGraph.Backend())
     model = _mnist()
-    backend = nGraph.Backend()
 
     x = rand(Float32, 28, 28, 1, batchsize)
     x = (x .- mean(x)) ./ std(x)
@@ -299,8 +300,10 @@ function mnist_train(batchsize = 16, modifier = identity)
     X = nGraph.Tensor(backend, x)
     Y = nGraph.Tensor(backend, y)
 
-    g = nGraph.compile(backend, f, X, Y; optimizer = modifier(nGraph.SGD(Float32(0.001))))
-    return g, (X, Y)
+    #g = nGraph.compile(backend, f, X, Y; optimizer = modifier(nGraph.SGD(Float32(0.001))))
+    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
+
+    return f, (X, Y), kw
 end
 
 function makeconv(; filter = (3,3), channels = 256, filters = 256)

@@ -194,3 +194,65 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.GPU})
 
     return ex, input_tensors, output_tensors, translated_node
 end
+
+#####
+##### Tools for checking profiling
+#####
+
+function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
+    # Read the profile data from the function
+    perf = nGraph.get_performance(fex.ex) 
+
+    data = frame.profile_data
+
+    expected_total = 0.0
+    actual_total = 0.0
+    for node in nodes(data)
+        hasprofile(node) || continue
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            algo_var = frame.model[:algo_var]
+            local algo_enum
+            for enum in get_enums(gettime(data, node))
+                if approx_one(algo_var[node, enum])
+                    algo_enum = enum
+                    break
+                end
+            end
+
+            actual = perf[nGraph.name(node)]
+            expected = 1000 * get_time(gettime(data, node), algo_enum)
+
+            expected_total += expected
+            actual_total += actual
+
+            # Print out the results for this node.
+            if !only_greater || actual > expected 
+                println("Algorithm selection for $(nGraph.name(node)): $algo_enum")
+                println("    Actual Time: $(actual)")
+                println("    Expected Time: $(expected)")
+                println()
+            end
+        else
+            actual = perf[nGraph.name(node)]
+            expected = gettime(data, node)
+
+            expected_total += expected
+            actual_total += actual
+
+            if !only_greater || actual > expected
+                println("No Algorithm selection for $(nGraph.name(node))")
+                println("    Actual Time: $(actual)")
+                println("    Expected Time: $(expected)")
+                println()
+            end
+        end
+    end
+
+    @info """
+    Expected Total Time: $expected_total
+    Actual Total Time: $actual_total
+    """
+
+    return nothing
+end
+
