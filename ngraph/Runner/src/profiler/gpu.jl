@@ -78,12 +78,14 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         # and skip the actual profiling.
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
             if !haskey(cache, kernel_params)
+                # Cleanup
                 @info "Getting CUDNN timings for $(nGraph.name(node)))"
 
                 enums = UInt32[]
                 times = Float32[]
                 bytes = UInt64[] 
                 nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes) 
+                GC.gc()
                 algo_list = [
                     (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
                 ]
@@ -108,18 +110,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         nGraph.Lib.can_select_algo(nGraph.getpointer(node)) && continue
 
         # Extract the node in question and profile it
-        GC.gc() 
         ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
-
-        # Sometimes, an initial call to some functions will result in an error, but 
-        # it will happily work on the next call.
-        #
-        # This here is a work arround for that
-        try
-            ex(inputs, outputs)
-        catch e
-            @warn "Experienced Runtime Error" e
-        end
 
         # Run the function
         for _ in 1:10
@@ -127,6 +118,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         end
 
         record_time!(data, node, ex, copied_op)
+        GC.gc() 
         cache[kernel_params] = gettime(data, node)
         save(cache)
     end
