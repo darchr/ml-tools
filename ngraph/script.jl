@@ -109,11 +109,11 @@ end
 # Setup functions to Test
 fns = (
     #RHN(2, 4, 20, 5000, 512),
-    RHN(2, 4, 10, 10000, 1024),
+    #RHN(2, 4, 10, 10000, 1024),
     #DenseNet(128),
     #Vgg(128, Zoo.Vgg19()),
     #Resnet(128, Zoo.Resnet50()),
-    #Inception_v4(256),
+    Inception_v4(256),
 )
 
 # Setup FUnctions
@@ -140,5 +140,5 @@ opts = (
 )
 
 # Launch the test
-#Runner.entry(fns, opts; calibrations = (false, false, false))
+Runner.entry(fns, opts; calibrations = (false, false, false))
 

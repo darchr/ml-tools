@@ -70,7 +70,7 @@ uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 version = "0.4.2"
 
 [[Benchmarks]]
-deps = ["Flux", "PGFPlotsX", "Runner", "Zoo", "nGraph"]
+deps = ["Cassette", "Flux", "PGFPlotsX", "Parameters", "Runner", "Zoo", "nGraph"]
 path = "Benchmarks"
 uuid = "2872347e-87d4-11e9-20ee-f9ca3e795edd"
 version = "0.1.0"
