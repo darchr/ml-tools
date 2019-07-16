@@ -92,14 +92,15 @@ include("profiler/profile.jl")
 include("verifier.jl")
 
 # Analysis routines
-include("analysis/correlations.jl")
+#include("analysis/correlations.jl")
 
 # visualization routines
-include("visualizer/reuse.jl")
-include("visualizer/performance_plots.jl")
-include("visualizer/allocation_plots.jl")
-include("visualizer/statistics_plots.jl")
-include("visualizer/analysis.jl")
+#include("visualizer/reuse.jl")
+#include("visualizer/performance_plots.jl")
+#include("visualizer/allocation_plots.jl")
+#include("visualizer/statistics_plots.jl")
+#include("visualizer/analysis.jl")
+include("visualizer/slack.jl")
 
 # async
 include("async_tests.jl")

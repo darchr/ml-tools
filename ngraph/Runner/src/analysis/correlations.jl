@@ -105,7 +105,6 @@ function correlation_analysis(fex::nGraph.FluxExecutable, frame, metadata;
     end
 end
 
-dict_push!(d, k, v) = haskey(d, k) ? push!(d[k], v) : (d[k] = [v])
 
 function add_data!(targets, features, tensor, kernel, io_type, io_index, data, tensor_map)
     ### Add Targets

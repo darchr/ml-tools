@@ -90,11 +90,12 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
     end
 
     #@show unique(indices)
+    radius = 5
     for idx in unique(indices)
         # Scale surrounding regions as well
-        for i in idx-2:idx+2
+        for i in (idx - radius):(idx + radius)
             if checkbounds(Bool, dram_limits, i)
-                dram_limits[i] = round(Int, 0.9 * dram_limits[i])
+                dram_limits[i] = round(Int, 0.95 * dram_limits[i])
             end
         end
     end
@@ -268,7 +269,7 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorD
     #
     # Making `bound` larger increased the search space of the formulation, which may lead to
     # better results at the cost of a larger mode.
-    bound = 30
+    bound = 15
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
         node = nodes(data, ind)

@@ -1,5 +1,3 @@
-rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
-
 @recipe function f(fex::nGraph.FluxExecutable, data::ProfileData, tensor_map::TensorMap)
     # Pre processing
     legend := :none
@@ -78,77 +76,4 @@ rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
             end
         end
     end
-
-    #####
-    ##### Create a secondary plot for displaying bandwidth
-    #####
-
-    # # Gather all data into a NamedTuple
-    # x = Float64[0.0]
-    # syms = (:dram_read, :dram_write, :pmem_read, :pmem_write, :dram_to_pmem, :pmem_to_dram)
-    # vals = NamedTuple{syms}(ntuple(x -> Float64[], length(syms)))
-
-    # for i in eachindex(nodes(data))
-    #     node = nodes(data, i)
-
-    #     # The `x` value is just the time of this node.
-    #     push!(x, node_times[i])
-
-    #     # Append zero to each `y` value.
-    #     for sym in syms
-    #         arr = vals[sym]
-    #         push!(arr, zero(eltype(arr)))
-    #     end
-
-    #     # Treat moves and normal ops separately
-    #     if !ismove(node)
-    #         # Tally up inputs and outputs
-    #         for input in inputs(node)
-    #             if nGraph.is_persistent(input)
-    #                 vals[:pmem_read][end] += sizeof(input)
-    #             else
-    #                 vals[:dram_read][end] += sizeof(input)
-    #             end
-    #         end
-    #         for output in outputs(node)
-    #             if nGraph.is_persistent(output)
-    #                 vals[:pmem_write][end] += sizeof(output)
-    #             else
-    #                 vals[:dram_write][end] += sizeof(output)
-    #             end
-    #         end
-    #     else
-    #         input = first(inputs(node))
-    #         @show sizeof(input)
-    #         if nGraph.is_persistent(input)
-    #             vals[:pmem_to_dram][end] += sizeof(input)
-    #         else
-    #             vals[:dram_to_pmem][end] += sizeof(input)
-    #         end
-    #     end
-    # end
-
-    # seriestype := :bar
-    # linewidth := 1
-    # linealpha := 1.0
-
-    # # Bar_edges is not available for the GR backend.
-    # # instead, compute the center of the bars
-    # bar_centers = (x[1:end-1] .+ x[2:end]) ./ 2
-    # widths = diff(x)
-
-    # # Generate the plot
-    # subplot_index = 2
-
-    # for sym in syms
-    #     @series begin
-    #         subplot := subplot_index
-    #         title := titlecase(string(sym))
-    #         bar_width := widths
-    #         y = vals[sym] ./ 1E6
-
-    #         bar_centers, y
-    #     end
-    #     subplot_index += 1
-    # end
 end

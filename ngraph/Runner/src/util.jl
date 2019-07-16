@@ -34,3 +34,8 @@ end
 
 make_persistent(tensor::TensorDescriptor) = nGraph.make_persistent(tensor)
 make_volatile(tensor::TensorDescriptor) = nGraph.make_volatile(tensor)
+
+dict_push!(d, k, v) = haskey(d, k) ? push!(d[k], v) : (d[k] = [v])
+
+# For plotting purposes
+rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
