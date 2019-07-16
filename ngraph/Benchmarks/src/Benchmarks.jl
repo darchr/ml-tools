@@ -1,9 +1,10 @@
 module Benchmarks
 
-export STREAM, Kernel
+export STREAM, Kernel, benchmark
 
 using PGFPlotsX
 using Flux, nGraph, Runner
+using Cassette
 
 # Pathing schenanigans
 const SRCDIR = @__DIR__
@@ -29,6 +30,6 @@ CPUInfo() = CPUInfo(2, 24, true)
 
 include("stream.jl")
 include("kernel.jl")
-include("background_copy.jl")
+#include("background_copy.jl")
 
 end # module

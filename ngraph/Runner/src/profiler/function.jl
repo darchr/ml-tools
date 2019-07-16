@@ -81,11 +81,11 @@ function initialize!(stats, f)
 end
 
 function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw...)
-    fex, args, frame, _metadata = factory(f, opt; skip_configure = skip_configure, kw...)
+    fex, args, frame, _metadata = factory(f, opt; kw...)
     GC.gc()
 
     seen_limits = getindex.(stats.runs, :dram_limit)
-    skip = in(limit(frame.modeltype), seen_limits)
+    skip = in(maxlimit(frame.modeltype), seen_limits)
 
     data = frame.profile_data
 
@@ -93,7 +93,7 @@ function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw..
     if !skip
         nt = Dict(
             :predicted_runtime => Runner.predict(frame),
-            :dram_limit => limit(frame.modeltype),
+            :dram_limit => maxlimit(frame.modeltype),
             :tensor_size_map => Dict(nGraph.name(t) => sizeof(t) for t in tensors(data)),
             :config_map => Dict(nGraph.name(n) => getconfig(nGraph.Node(n)) for n in nodes(data)),
         )
