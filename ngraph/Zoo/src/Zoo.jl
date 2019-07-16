@@ -8,6 +8,7 @@ include("models/vgg.jl")
 include("models/resnet.jl")
 include("models/densenet.jl")
 include("models/rhn.jl")
+include("models/transformer.jl")
 #include("models/unet.jl")
 
 end # module

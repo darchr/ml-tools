@@ -364,8 +364,8 @@ end
 ##### Misc Stuff
 #####
 
-estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = zero(Float64)
-function estimate_move_time(f::nGraph.NFunction, frame::Frame{ILPHolder{IsSynchronous}})
+estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{IsFixed}}) = zero(Float64)
+function estimate_move_time(f::nGraph.NFunction, frame::Frame)
     move_time = zero(Float64)
     for _node in f
         node = NodeDescriptor(_node)

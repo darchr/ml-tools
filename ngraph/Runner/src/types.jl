@@ -4,6 +4,8 @@
 
 const _ALGO_TUPLE = Vector{NamedTuple{(:enum, :time, :bytes),Tuple{UInt32,Float32,UInt64}}}
 get_enums(a::_ALGO_TUPLE) = map(x -> x.enum, a)
+get_times(a::_ALGO_TUPLE) = map(x -> x.time, a)
+
 function get_time(a::_ALGO_TUPLE, e::Integer)
     ind = something(findfirst(x -> x.enum == e, a))
     return a[ind].time

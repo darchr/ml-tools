@@ -265,7 +265,7 @@ _mnist() = Chain(
         Conv((3, 3), 512=>512, pad=(1,1), relu),
         MaxPool((2,2)),
 
-        # Reshape 3d tensor into a 2d one, at this point it should be (3, 3, 512, N)
+        # Reshape 4d tensor into a 2d one, at this point it should be (3, 3, 512, N)
         # which is where we get the 4608 in the `Dense` layer below:
         x -> reshape(x, :, size(x, 4)),
         Dense(4608, 10, relu),

@@ -79,7 +79,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
             if !haskey(cache, kernel_params)
                 # Cleanup
-                @info "Getting CUDNN timings for $(nGraph.name(node)))"
+                @info "Getting CUDNN timings for $(nGraph.name(node))"
 
                 enums = UInt32[]
                 times = Float32[]
@@ -108,6 +108,8 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
 
         # Skip profiling if already performed
         nGraph.Lib.can_select_algo(nGraph.getpointer(node)) && continue
+
+        @info "Profiling $(nGraph.name(node))"
 
         # Extract the node in question and profile it
         ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
@@ -248,3 +250,17 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
     return nothing
 end
 
+function fastest_time(frame)
+    data = frame.profile_data
+
+    time = 0.0
+    for node in filter(hasprofile, nodes(data))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            time += 1000 * minimum(get_times(gettime(data, node)))
+        else
+            time += gettime(data, node)
+        end
+    end
+
+    return time
+end

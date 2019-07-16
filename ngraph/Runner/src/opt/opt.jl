@@ -121,11 +121,11 @@ function gpu_factory(func)
 
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)
-            limits_ref[] = [7000 for _ in 1:length(nodes(data))]
+            limits_ref[] = [6000 for _ in 1:length(nodes(data))]
         end
 
-        modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
-        #modeltype = synchronous(limits_ref[], 12000, 12000)
+        #modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
+        modeltype = synchronous(limits_ref[], 12000, 12000)
 
         frame = create_model(modeltype, data)
         optimize!(frame)

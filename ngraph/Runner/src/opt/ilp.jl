@@ -91,7 +91,12 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
 
     #@show unique(indices)
     for idx in unique(indices)
-        dram_limits[idx] = round(Int, 0.85 * dram_limits[idx])
+        # Scale surrounding regions as well
+        for i in idx-2:idx+2
+            if checkbounds(Bool, dram_limits, i)
+                dram_limits[i] = round(Int, 0.9 * dram_limits[i])
+            end
+        end
     end
 
     # Return a new ILHolder
@@ -366,16 +371,14 @@ function edge_metadata(src, dst, s, d, src_move_type)
 end
 
 function preprocess!(S::ILPHolder, data::ProfileData)
-    for tensor in tensors(data)
+    @showprogress 1 "Making Tensor Graphs " for tensor in tensors(data)
 
         # Get the users of this node
-        @timeit TO "making gadgets" begin
-            # Get two things from _getgadgets:
-            #
-            # 1. A named tuple (node::NodeDescriptor, move_type::MoveType)
-            # 2. A dictionary implementing the `ref` function.
-            gadgets, reference_map = _getgadgets(S, data, tensor)
-        end
+        # Get two things from _getgadgets:
+        #
+        # 1. A named tuple (node::NodeDescriptor, move_type::MoveType)
+        # 2. A dictionary implementing the `ref` function.
+        gadgets, reference_map = _getgadgets(S, data, tensor)
 
         @assert !isempty(gadgets)
 
@@ -386,7 +389,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
         users = _users(tensor, data)
 
         # Add nodes for each region
-        @timeit TO "creating graph vertices" for (count, nt) in enumerate(gadgets)
+        for (count, nt) in enumerate(gadgets)
             # Unpacek the
             node = nt.node
             move_type = nt.move_type
@@ -435,7 +438,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
         # Use a quadratic complexity algorithm for doing edge assignment. It's not
         # perfect but it's simple, and as long as the graphs don't get too big should
         # run quickly enough for our purposes.
-        @timeit TO "creating graph edges" for src in vertices(g), dst in vertices(g)
+        for src in vertices(g), dst in vertices(g)
             src == dst && continue
 
             src_meta = _meta(g, src)
@@ -476,7 +479,7 @@ function add_tensors!(frame::Frame)
         Bin
     )
 
-    for tensor in tensors(data)
+    @showprogress 1 "Creating Flow Formulation " for tensor in tensors(data)
         g = graph(descriptor(frame, tensor))
         # Iterate through nodes in the graph - generating constraints based on the type
         # of node.
@@ -497,9 +500,10 @@ function add_tensors!(frame::Frame)
             else
                 oe = collect(outedges(g, v))
                 ie = collect(inedges(g, v))
-               @constraint(frame.model,
-                   sum(tensor_graphs[tensor, e] for e in oe) - sum(tensor_graphs[tensor, e] for e in ie) == 0
-               )
+                @constraint(frame.model,
+                    sum(tensor_graphs[tensor, e] for e in oe) - 
+                    sum(tensor_graphs[tensor, e] for e in ie) == 0
+                )
            end
         end
     end
@@ -531,7 +535,7 @@ function add_tensors!(frame::Frame)
     )
 
     # A tensor in DRAM is live if any of its incoming edges are used.
-    for tensor in tensors(data)
+    @showprogress 1 "Creating DRAM variables " for tensor in tensors(data)
         desc = descriptor(frame, tensor)
         g = graph(desc)
 
@@ -609,7 +613,7 @@ function add_movement_formulations!(frame::Frame)
     @variable(frame.model, tensor_write[tensor = tensors(data)], Bin)
 
     # Add objective terms for all read ops
-    for tensor in tensors(data)
+    @showprogress 1 "Adding Movement Formulations " for tensor in tensors(data)
         # Skip if this tensor can never be assigned to PMEM
         in(PMEM, locations(data, tensor)) || continue
 
@@ -725,7 +729,7 @@ function add_nodes!(F::Frame)
         end
     end
 
-    for node in nodes(data)
+    @showprogress 1 "Adding Nodes " for node in nodes(data)
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
@@ -812,7 +816,8 @@ function add_constraints!(F::Frame)
     # Unpack some variables
     data = F.profile_data
 
-    for (index, tensors) in enumerate(live_tensors(data))
+    iter = enumerate(live_tensors(data))
+    @showprogress 1 "Adding DRAM Constraints " for (index, tensors) in iter
         node = nodes(data, index)
         hasprofile(node) || continue
         F.modeltype.node_to_limit_index[node] = index

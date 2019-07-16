@@ -22,7 +22,7 @@ using JuMP, Gurobi
 using RecipesBase, Plots
 using LightGraphs
 using IterTools
-using ProgressMeter
+import ProgressMeter.@showprogress
 using TimerOutputs
 using DataStructures
 import Parameters

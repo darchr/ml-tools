@@ -6,7 +6,7 @@ function list_overlaps(frame::Frame)
         node_name = nGraph.name(node)
         haskey(node_times, node_name) || continue
         _async = get(model[:tensor_async], node_name, nothing)
-        if !isnothing(_async)
+        if !isnothing(_async) && !iszero(JuMP.value(_async))
             # Get the values of the asynchronous move times
             async_move_time = JuMP.value(_async)
             node_execution_time = JuMP.value(node_times[node_name])
