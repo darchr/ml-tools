@@ -50,7 +50,7 @@ _utype(::Type{nGraph.CPU}) = Dict{IOConfig, Float64}
 _utype(::Type{nGraph.GPU}) = Union{Float64, _ALGO_TUPLE}
 
 can_select_algo(p::ProfileData, node::NodeDescriptor) = _cs(p.timings[node])
-_cs(::Float64) = false
+_cs(x) = false
 _cs(::_ALGO_TUPLE) = true
 
 function settime!(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config, time) 

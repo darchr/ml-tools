@@ -93,6 +93,7 @@ function configure!(f, frame::Frame)
             # @show get_time(gettime(data, node), algo_enum)
 
             #algo_enum = 1
+            @info "Setting Algorithm"
             nGraph.Lib.set_algo(
                 nGraph.getpointer(node),
                 convert(UInt, algo_enum),
@@ -101,6 +102,7 @@ function configure!(f, frame::Frame)
         end
     end
 
+    @info "Calling Inner Configure"
     return configure!(f, frame.profile_data, schedule)
 end
 
@@ -108,6 +110,7 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
     f = fex.ex.ngraph_function
     tensor_map = configure!(f, data, schedule)
 
+    @info "Recompiling Function"
     fex = nGraph.recompile(fex)
     # Update ProfileData in Frame for the newly compiled function
     profile_data = profile(fex)

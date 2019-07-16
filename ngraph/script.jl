@@ -97,7 +97,7 @@ end
 Runner.name(::Asynchronous) = "asynchronous"
 function (M::Asynchronous)(data)
     bounds = Runner.allocation_bounds(data)
-    x = round(Int, bounds.upper_bound * M.limit / 1E6)
+    x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
     return Runner.asynchronous(x, 29000, 12000, 2000, 2500)
 end

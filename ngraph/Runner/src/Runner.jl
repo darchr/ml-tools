@@ -3,7 +3,7 @@ module Runner
 function __init__()
     Runner.setup_affinities()
     Runner.setup_profiling()
-    #Runner.setup_pmem()
+    Runner.setup_pmem()
     Runner.setup_passes()
 end
 
@@ -22,7 +22,7 @@ using JuMP, Gurobi
 using RecipesBase, Plots
 using LightGraphs
 using IterTools
-import ProgressMeter.@showprogress
+using ProgressMeter
 using TimerOutputs
 using DataStructures
 import Parameters
@@ -32,7 +32,6 @@ import nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
 
 # Global Timer
 const TO = TimerOutput()
-
 @enum TensorLocation::UInt8 DRAM PMEM
 
 """
@@ -91,16 +90,10 @@ include("models/simple.jl")
 include("profiler/profile.jl")
 include("verifier.jl")
 
-# Analysis routines
-#include("analysis/correlations.jl")
-
 # visualization routines
-#include("visualizer/reuse.jl")
-#include("visualizer/performance_plots.jl")
-#include("visualizer/allocation_plots.jl")
-#include("visualizer/statistics_plots.jl")
-#include("visualizer/analysis.jl")
-include("visualizer/slack.jl")
+include("visualizer/performance_plots.jl")
+include("visualizer/allocation_plots.jl")
+include("visualizer/statistics_plots.jl")
 
 # async
 include("async_tests.jl")

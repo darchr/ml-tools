@@ -792,11 +792,11 @@ function add_nodes!(F::Frame)
                     @constraint(F.model, v[enum] <= vars[config])
                     @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
 
-                    coeff = round(Int64, gettime(data, node, config, enum))
+                    coeff = ceil(Int64, gettime(data, node, config, enum))
                     add_to_expression!(node_times, coeff, v[enum])
                 end
             else
-                coeff = round(Int64, gettime(data, node, config))
+                coeff = ceil(Int64, gettime(data, node, config))
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end

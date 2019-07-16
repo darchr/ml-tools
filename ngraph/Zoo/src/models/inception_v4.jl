@@ -75,7 +75,7 @@ function inception_a()
             Conv((3,3), 64 => 96, relu; pad = 1),
             Conv((3,3), 96 => 96, relu; pad = 1)
         )
-    )   
+    )
 end
 
 function inception_b()
@@ -208,7 +208,7 @@ function inception_v4(x)
     kernel_size = (C_SIZE[1], C_SIZE[2])
     push!(layers, x -> meanpool(x, kernel_size; pad = 0, stride = 1), false)
     # dropout
-    
+
     push!(layers, x -> reshape(x, :, size(x,4)), false)
     push!(layers, Dense(1536, 1000), false)
     push!(layers, x -> log.(max.(x, Float32(1e-9))), false),
@@ -228,24 +228,18 @@ function inception_v4_inference(batchsize)
     return f, (X,)
 end
 
-function inception_v4_training(batchsize; backend = nGraph.Backend(), kw...)
+function inception_v4_training(batchsize; kw...)
     x = rand(Float32, 299, 299, 3, batchsize)
-    x = (x .- mean(x)) ./ std(x)
+    X = (x .- mean(x)) ./ std(x)
 
-    y = rand(Float32, 1000, batchsize)
-    random_labels!(y) 
-
-    X = nGraph.Tensor(backend, x)
-    Y = nGraph.Tensor(backend, y)
+    Y = rand(Float32, 1000, batchsize)
+    random_labels!(Y)
 
     forward = inception_v4(x)
-
     f(x, y) = Flux.crossentropy(forward(x), y)
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
 
     return f, (X,Y), kw
-    #g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)), kw...)
-    #return g, (X, Y)
 end
 
 #####
@@ -278,16 +272,15 @@ _mnist() = Chain(
 function mnist(batchsize = 16)
     model = _mnist()
 
-    backend = nGraph.Backend()
     x = rand(Float32, 28, 28, 1, batchsize)
-    X = nGraph.Tensor(backend, x)
-    #f = nGraph.compile(backend, model, X)
+    X = nGraph.Tensor(nGraph.Backend("CPU"), x)
+    kw = NamedTuple()
 
-    return f, (X,)
+    return model, (X,), kw
 end
 
 # Include an additional modifier to allow modifying the optimizer
-function mnist_train(batchsize = 16; backend = nGraph.Backend())
+function mnist_train(batchsize = 16)
     model = _mnist()
 
     x = rand(Float32, 28, 28, 1, batchsize)
@@ -297,13 +290,10 @@ function mnist_train(batchsize = 16; backend = nGraph.Backend())
     random_labels!(y)
 
     f(x, y) = Flux.crossentropy(model(x), y)
-    X = nGraph.Tensor(backend, x)
-    Y = nGraph.Tensor(backend, y)
-
     #g = nGraph.compile(backend, f, X, Y; optimizer = modifier(nGraph.SGD(Float32(0.001))))
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
 
-    return f, (X, Y), kw
+    return f, (x, y), kw
 end
 
 function makeconv(; filter = (3,3), channels = 256, filters = 256)

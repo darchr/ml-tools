@@ -117,15 +117,15 @@ end
 _forward(::Vgg19) = vgg19()
 _forward(::Vgg416) = vgg416()
 
-function vgg_training(vgg::T, batchsize; backend = nGraph.Backend()) where {T <: AbstractVgg}
+function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
     x = rand(Float32, 224, 224, 3, batchsize)
     y = zeros(Float32, 1000, batchsize)
     for col in 1:batchsize
         y[rand(1:1000), col] = one(eltype(y))
     end
 
-    X = nGraph.Tensor(backend, x)
-    Y = nGraph.Tensor(backend, y)
+    X = x
+    Y = y
 
     # Get the forward pass
     forward = _forward(vgg)
@@ -134,9 +134,6 @@ function vgg_training(vgg::T, batchsize; backend = nGraph.Backend()) where {T <:
     f(x, y) = Flux.crossentropy(forward(x), y)
     kw = (optimizer = nGraph.SGD(Float32(0.05)),)
     return f, (X,Y), kw
-
-    #g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.05)), kw...)
-    #return g, (X, Y)
 end
 
 function random_labels!(y)

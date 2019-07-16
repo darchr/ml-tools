@@ -62,26 +62,37 @@ include("configure.jl")
 include("modnn/modnn.jl")
 include("schedule.jl")
 
+
+function actualize(backend, func; nkw...)
+    f, args, kw = func()
+    return nGraph.compile(backend, f, args...; kw..., nkw...)
+end
+
+
 """
 - `f`: Function `() -> fex, args`: Return `FluxExecutable` and args.
 
 - `opt`: Function `ProfileData -> modeltype <: ModelType`.
 """
-function factory(f, opt)
-    fex, args = f()
+function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
+    # Unpack and compile the function
+    fex = actualize(backend, func)
     data = profile(fex)
     modeltype = opt(data)
 
-    # Clone the underlying ngraph function to be able to reconstruct it with the
-    # same order nodes.
-    #cloned_function = copy(fex.ex.function_copy)
+    # Some data structures for keeping track of modeling and optimization time.
+    creation_times = Float64[]  
+    optimization_times = Float64[]
 
     # Iterate until convergence
     while true
         # Optimize the function
-        frame = create_model(modeltype, data)
-        optimize!(frame)
+        creation_time = @elapsed(frame = create_model(modeltype, data))
+        optimization_time = @elapsed(optimize!(frame))
         fex, _metadata = configure!(fex, frame)
+
+        push!(creation_times, creation_time)
+        push!(optimization_times, optimization_time)
 
         if exceeds_limit(fex, modeltype)
             @info """
@@ -93,23 +104,21 @@ function factory(f, opt)
             modeltype = update(modeltype, frame.profile_data)
 
             # Update the flux executable
-            fex, args = f()
+            fex = actualize(backend, func)
             data = profile(fex)
         else
-            return fex, args, frame, _metadata
+            return fex, frame, _metadata
         end
     end
 end
 
-function gpu_factory(func)
+function factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 
     # add a callback that will populate a reference to a `ProfileData` type
     frame_ref = Ref{Frame}()
     limits_ref = Ref{Vector{Int}}() 
-
-    backend = nGraph.Backend("GPU")
 
     #A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction)
@@ -180,55 +189,3 @@ function gpu_factory(func)
     return fex, frame_ref[]
 end
 
-#####
-##### Utility Functions
-#####
-
-function find_vertex(g, f)
-    iter = filter(v -> f(g,v), collect(vertices(g)))
-    # Make sure we only have one match
-    @assert length(iter) == 1
-    return first(iter)
-end
-
-function find_edge(g, f)
-    iter = filter(e -> f(g,e), collect(edges(g)))
-
-    # Make sure we only have one match
-    @assert length(iter) == 1
-    return first(iter)
-end
-
-approx_one(x) = isapprox(x, one(x); atol = 1e-3)
-approx_one(x::JuMP.VariableRef) = approx_one(value(x))
-
-"""
-    insert_move_node!(producer, index, consumers) -> nGraph.Node
-
-Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly
-created node.
-"""
-function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{NodeDescriptor}, consumer_inputs)
-    move_node = nGraph.move(nGraph.Node(producer), index)
-    for (consumer, input) in zip(consumers, consumer_inputs)
-        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
-    end
-
-    return NodeDescriptor(move_node)
-end
-
-function insert_moveasync_node!(
-        producer::NodeDescriptor,
-        index,
-        consumers,
-        consumer_inputs,
-        concurrent,
-    )
-
-    move_node = nGraph.moveasync(nGraph.Node(producer), index, nGraph.Node(concurrent))
-    for (consumer, input) in zip(consumers, consumer_inputs)
-        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
-    end
-
-    return NodeDescriptor(move_node)
-end

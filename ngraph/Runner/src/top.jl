@@ -29,6 +29,13 @@ function entry(fns, opts; calibrations = [true for _ in 1:length(opts)])
     end
 end
 
+function _entry(func, opt)
+    # Perform a profiling and calibration
+    savefile = joinpath(savedir(f), join((name(f), name(opt)), "_") * ".jls")
+    compare(func, opt; statspath = savefile)
+    return nothing
+end
+
 function _reuse_plot(f)
     # Instantiate the function, make the profile data and get the title
     fex, args = f()
@@ -48,11 +55,4 @@ function _allocation_plot(f)
     plt = plot(AllocationView(), fex, title = name(f))
     savefile = joinpath(savedir(f), name(f) * "_allocation_plot.png")
     png(plt, savefile)
-end
-
-function _entry(f, opt)
-    # Perform a profiling and calibration
-    savefile = joinpath(savedir(f), join((name(f), name(opt)), "_") * ".jls")
-    compare(f, opt; statspath = savefile)
-    return nothing
 end

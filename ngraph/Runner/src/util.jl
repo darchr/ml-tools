@@ -1,3 +1,5 @@
+# A dumping ground for random functions
+
 """
     findonly(f, itr)
 
@@ -39,3 +41,56 @@ dict_push!(d, k, v) = haskey(d, k) ? push!(d[k], v) : (d[k] = [v])
 
 # For plotting purposes
 rectangle(x, y, w, h) = (x .+ [0, w, w, 0]), (y .+ [0, 0, h, h])
+
+#####
+##### Utility Functions
+#####
+
+function find_vertex(g, f)
+    iter = filter(v -> f(g,v), collect(vertices(g)))
+    # Make sure we only have one match
+    @assert length(iter) == 1
+    return first(iter)
+end
+
+function find_edge(g, f)
+    iter = filter(e -> f(g,e), collect(edges(g)))
+
+    # Make sure we only have one match
+    @assert length(iter) == 1
+    return first(iter)
+end
+
+approx_one(x) = isapprox(x, one(x); atol = 1e-3)
+approx_one(x::JuMP.VariableRef) = approx_one(value(x))
+
+"""
+    insert_move_node!(producer, index, consumers) -> nGraph.Node
+
+Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly
+created node.
+"""
+function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{NodeDescriptor}, consumer_inputs)
+    move_node = nGraph.move(nGraph.Node(producer), index)
+    for (consumer, input) in zip(consumers, consumer_inputs)
+        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
+    end
+
+    return NodeDescriptor(move_node)
+end
+
+function insert_moveasync_node!(
+        producer::NodeDescriptor,
+        index,
+        consumers,
+        consumer_inputs,
+        concurrent,
+    )
+
+    move_node = nGraph.moveasync(nGraph.Node(producer), index, nGraph.Node(concurrent))
+    for (consumer, input) in zip(consumers, consumer_inputs)
+        nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
+    end
+
+    return NodeDescriptor(move_node)
+end

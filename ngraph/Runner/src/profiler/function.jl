@@ -1,5 +1,4 @@
 # Timing methods for the whole function
-
 function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 5)
     start = now()
     mintime = typemax(Float64)
@@ -37,15 +36,17 @@ Keywords
 * `statspath`: An optional file path to saved stats. If this is given, any DRAM limits
     already in the cached stats will be skipped on this profiling run.
 """
-function compare(f, opt;
-                 cache = CPUKernelCache(BASE_CACHE_PATH),
-                 statspath = nothing,
-                 skip_run = false,
-                 skip_configure = false
+function compare(
+        func,
+        opt,
+        backend::nGraph.Backend;
+        cache = CPUKernelCache(BASE_CACHE_PATH),
+        statspath = nothing,
     )
+
     if (isnothing(statspath) || !ispath(statspath))
         stats = _base_stats()
-        initialize!(stats, f)
+        initialize!(stats, func, backend)
     else
         stats = deserialize(statspath)
     end
@@ -58,9 +59,17 @@ function compare(f, opt;
     # This will hopefully cleanup any previous Executables and the large memory buffers
     # associated with them.
     GC.gc()
-    _compare!(stats, f, opt; cache = cache, skip_run = skip_run, skip_configure = skip_configure)
-    isnothing(statspath) || serialize(statspath, stats)
+    _compare!(
+        stats,
+        f,
+        opt,
+        backend;
+        cache = cache,
+        skip_run = skip_run,
+        skip_configure = skip_configure
+    )
 
+    isnothing(statspath) || serialize(statspath, stats)
     if !skip_run
         @info """
         Predicted Run Time: $(last(stats.runs)[:predicted_runtime])
@@ -71,22 +80,18 @@ function compare(f, opt;
     return stats
 end
 
-function initialize!(stats, f)
+function initialize!(stats, func, backend)
     # Instantiate the function
-    fex, args = f()
+    fex = actualize(backend, func)
 
     stats.io_size[] = sum(sizeof, input_tensors(fex)) + sum(sizeof, output_tensors(fex))
     stats.default_alloc_size[] = nGraph.get_temporary_pool_size(fex.ex.ngraph_function)
     return nothing
 end
 
-function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw...)
-    fex, args, frame, _metadata = factory(f, opt; kw...)
+function _compare!(stats, f, opt, backend; skip_run = false, skip_configure = false, kw...)
+    fex, args, frame, _metadata = factory(backend, f, opt; kw...)
     GC.gc()
-
-    seen_limits = getindex.(stats.runs, :dram_limit)
-    skip = in(maxlimit(frame.modeltype), seen_limits)
-
     data = frame.profile_data
 
     # Get the predicted run time and then the actual run time
@@ -140,13 +145,13 @@ function _compare!(stats, f, opt; skip_run = false, skip_configure = false, kw..
                 :bytes_dram_input_tensors => _count(
                     x -> filter(!nGraph.is_persistent, inputs(x)),
                     sizeof,
-                    data; 
+                    data;
                     filt = hasprofile
                 ),
                 :bytes_dram_output_tensors => _count(
                     x -> filter(!nGraph.is_persistent, outputs(x)),
                     sizeof,
-                    data; 
+                    data;
                     filt = hasprofile
                 ),
 
