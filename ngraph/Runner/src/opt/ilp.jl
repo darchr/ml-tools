@@ -43,13 +43,16 @@ mutable struct ILPHolder{T <: ILPFormulationType}
     write_bandwidth::Int64
     read_bandwidth_async::Int64
     write_bandwidth_async::Int64
+
+    # Flag to determine if we need to defrag
+    defrag::Bool 
 end
 
 # Add factory methods
 exceeds_limit(fex::nGraph.FluxExecutable, I::ILPHolder) =
     exceeds_limit(fex.ex.ngraph_function, I)
 exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
-    (nGraph.get_temporary_pool_size(f) / 1E6) > maxlimit(I)
+    I.defrag && ((nGraph.get_temporary_pool_size(f) / 1E6) > maxlimit(I))
 
 # The general idea is that heap fragmentation causes the actual allocated amount to
 # exceed the limit.
@@ -71,7 +74,7 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
         dram_tensors = filter(!nGraph.is_persistent, live)
         isempty(dram_tensors) && continue
 
-        # Find the first out of bounds tensor
+        # Find all out of bounds tensors
         for tensor in dram_tensors
             sz = (nGraph.get_pool_offset(tensor) + sizeof(tensor)) / 1E6
             if sz > ml
@@ -80,7 +83,7 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
         end
     end
 
-    # Update the dram limits on all the producers
+    # Keep track of the indices that need their limits lowered
     indices = Int[]
     for tensor in offending_tensors
         for node in _users(tensor, data)
@@ -91,7 +94,11 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
 
     #@show unique(indices)
     radius = 5
-    for idx in unique(indices)
+    # Expand indices around the radius
+    indices = Iterators.flatten([(idx - radius):(idx + radius) for idx in unique(indices)]) |>
+        collect |>
+        unique
+    for idx in indices
         # Scale surrounding regions as well
         for i in (idx - radius):(idx + radius)
             if checkbounds(Bool, dram_limits, i)
@@ -109,6 +116,7 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
         wb(I),
         rba(I),
         wba(I),
+        I.defrag,
     )
 end
 
@@ -118,28 +126,31 @@ wb(I::ILPHolder) = I.write_bandwidth
 rba(I::ILPHolder) = I.read_bandwidth_async
 wba(I::ILPHolder) = I.write_bandwidth_async
 
-static(dram_limits) = ILPHolder{IsFixed}(
+static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
     dram_limits,
     Dict{TensorDescriptor, TensorMeta}(),
     Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
     Dict{NodeDescriptor, Int}(),
     1,1,1,1,
+    defrag,
 )
 
-synchronous(dram_limits, a, b) = ILPHolder{IsSynchronous}(
+synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
     dram_limits,
     Dict{TensorDescriptor, TensorMeta}(),
     Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
     Dict{NodeDescriptor, Int}(),
     a,b,1,1,
+    defrag,
 )
 
-asynchronous(dram_limits,a,b,c,d) = ILPHolder{IsAsynchronous}(
+asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
     dram_limits,
     Dict{TensorDescriptor, TensorMeta}(),
     Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
     Dict{NodeDescriptor, Int}(),
     a,b,c,d,
+    defrag,
 )
 
 # Common Methods

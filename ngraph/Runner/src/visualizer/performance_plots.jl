@@ -6,9 +6,9 @@ using Plots.PlotMeasures
 struct PerformancePlot end
 @enum __PerformancePlotStyle __NO_PLOT __ACTUAL_PLOT __PREDICTED_PLOT
 @recipe function f(::PerformancePlot, f; 
-        static  = __ACTUAL_PLOT, 
-        synchronous    = __ACTUAL_PLOT, 
-        asynchronous    = __PREDICTED_PLOT
+        static          = __ACTUAL_PLOT, 
+        synchronous     = __ACTUAL_PLOT, 
+        asynchronous    = __NO_PLOT
     )
 
     nt = (static = static, synchronous = synchronous, asynchronous = asynchronous)
@@ -84,16 +84,37 @@ end
 function pgf_plot_performance(f;
         static = __ACTUAL_PLOT,
         synchronous = __ACTUAL_PLOT,
-        asynchronous = __ACTUAL_PLOT,
+        asynchronous = __NO_PLOT,
         file = "plot.tex",
     )
 
     nt = (static = static, synchronous = synchronous, asynchronous = asynchronous)
 
     coords = []
-
-
     formulations = (:static, :synchronous, :asynchronous)
+    # First, find the dram performance
+    dram_performance = typemax(Float64)
+    for formulation in formulations 
+        plot_type = nt[formulation]
+        plot_type == __NO_PLOT && continue
+
+        # Deserialize the data structure.
+        if plot_type == __PREDICTED_PLOT 
+            savefile = joinpath(savedir(f), join((name(f), formulation, "estimate"), "_") * ".jls")
+        else
+            savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
+        end
+        data = deserialize(savefile)
+        sort!(data.runs; rev = true, by = x -> x[:dram_limit])
+
+        # If using predicted runtimes - correct for microsecond to second conversion.
+        runtimes = plot_type == __ACTUAL_PLOT ? 
+            (getindex.(data.runs, :actual_runtime)) : 
+            (getindex.(data.runs, :predicted_runtime) ./ 1E6)
+
+        dram_performance = min(dram_performance, first(runtimes))
+    end
+
     for formulation in formulations
         plot_type = nt[formulation]
         plot_type == __NO_PLOT && continue
@@ -105,6 +126,7 @@ function pgf_plot_performance(f;
             savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
         end
         data = deserialize(savefile)
+        sort!(data.runs; rev = true, by = x -> x[:dram_limit])
 
         io_size = data.io_size[]
 
@@ -113,13 +135,7 @@ function pgf_plot_performance(f;
             (getindex.(data.runs, :actual_runtime)) : 
             (getindex.(data.runs, :predicted_runtime) ./ 1E6)
 
-        @show runtimes
-
-        dram_performance = first(runtimes)
-
-        dram_sizes = plot_type == __ACTUAL_PLOT ?
-            ((getindex.(data.runs, :dram_alloc_size) .+ io_size) ./ 1E9) :
-            ((getindex.(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9))
+        dram_sizes = (getindex.(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
 
         # Create x and y coordinate, generate pairs
         x = dram_sizes

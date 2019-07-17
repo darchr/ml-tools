@@ -1,6 +1,6 @@
 # Produce results for benchmarking a kernel under different IO conditions
 # We choose a relatively common Convolution kernel.
-function make_kernel(batchsize = 128)
+function make_kernel(backend, batchsize = 128)
     nchannels = 128
 
     # Include the "-" signs to simply add another node between the input and the output,
@@ -14,23 +14,22 @@ function make_kernel(batchsize = 128)
     b = rand(Float32, nchannels)
     x = rand(Float32, 112, 112, nchannels, batchsize)
 
-    backend = nGraph.Backend()
     W,B,X = nGraph.Tensor.(Ref(backend), (w,b,x))
 
-    F = nGraph.compile((w,b,x) -> f(w,b)(x), W,B,X)
+    F = nGraph.compile(backend, (w,b,x) -> f(w,b)(x), W,B,X)
     return F
 end
 
 const TEMP_CACHE = joinpath(@__DIR__, "temp_cache.jls")
 
-function profile_kernel(fex::nGraph.FluxExecutable)
+function profile_kernel(backend, fex::nGraph.FluxExecutable)
     # Create a local cache for the profiler
     cache = Runner.CPUKernelCache(TEMP_CACHE; force_new = true)
-    data = Runner.profile(fex; cache = cache)
+    data = Runner.profile(fex.ex.ngraph_function, backend; cache = cache)
 
     # Find the "ConvolutionBias" kernel
     kernel = findfirst(x -> nGraph.description(x) == "ConvolutionBias", Runner.nodes(data))
-    return Runner.gettime(data, Runner.nodes(data, kernel))
+    return data.timings[Runner.nodes(data, kernel)]
 end
 
 struct Kernel end
@@ -44,13 +43,14 @@ function benchmark(::Type{Kernel};
         batchsize = 128,
     )
 
+    backend = nGraph.Backend("CPU")
     data = []
     for nthreads in threads
         # Set the environment variables correctly
-        Runner.setup_affinities(nthreads)
+        Runner.setup_affinities(; omp_num_threads = nthreads)
 
         # Profile kernel
-        timings = profile_kernel(make_kernel(batchsize))
+        timings = profile_kernel(backend, make_kernel(backend, batchsize))
         this_data = (
             nthreads = nthreads,
             timings = timings
@@ -75,7 +75,9 @@ _coordinates(d::Dict, configs::Vector{Runner.IOConfig}, normalization) = [(strin
 function gen_plot(::Type{Kernel}, data; 
         file = "plot.tex", 
         preamble = true,
-        config_mask = AlwaysTrue(),
+        # Take configs for the first input and first (and only) output by default
+        config_mask = (true, false, false, true)
+        #config_mask = AlwaysTrue(),
     )
     # Sort by number of threads.
     sort!(data; by = x -> x.nthreads)
@@ -85,7 +87,7 @@ function gen_plot(::Type{Kernel}, data;
 
     # Filter out configs specified by the config mask
     configs = unique(x -> [x[i] for i in 1:length(x) if config_mask[i]], configs)
-    @show configs
+    display(configs)
 
     # Normalize to the fastest kernel
     normalization = minimum(minimum.(values.(getproperty.(data, :timings))))
@@ -113,7 +115,7 @@ function gen_plot(::Type{Kernel}, data;
             xlabel="IO Configuration",
             xtick="data",
             xticklabel_style={
-                rotate = 75,
+                #rotate = 75,
                 #"/pgf/number format/1000 sep=",
             },
             yticklabel_style={

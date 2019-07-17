@@ -77,6 +77,8 @@ end
 function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     # Unpack and compile the function
     fex = actualize(backend, func)
+    apply_affinity_heuristic!(fex.ex.ngraph_function)
+
     data = profile(fex)
     modeltype = opt(data)
 
@@ -105,9 +107,19 @@ function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
 
             # Update the flux executable
             fex = actualize(backend, func)
+            apply_affinity_heuristic!(fex.ex.ngraph_function)
+
             data = profile(fex)
         else
-            return fex, frame, _metadata
+            frame.profile_data = profile(fex)
+
+            metadata = Dict(
+                :metadata => _metadata,
+                :creation_times => creation_times,
+                :optimization_times => optimization_times,
+            )
+
+            return fex, frame, metadata
         end
     end
 end

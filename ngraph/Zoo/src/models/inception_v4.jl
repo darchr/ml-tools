@@ -211,7 +211,7 @@ function inception_v4(x)
 
     push!(layers, x -> reshape(x, :, size(x,4)), false)
     push!(layers, Dense(1536, 1000), false)
-    push!(layers, x -> log.(max.(x, Float32(1e-9))), false),
+    push!(layers, x -> log.(max.(x, Float32(1e-7))), false),
     push!(layers, softmax, false)
 
     return Chain(layers.layers...)
@@ -265,7 +265,7 @@ _mnist() = Chain(
         Dense(4608, 10, relu),
 
         # Finally, softmax to get nice probabilities
-        x -> log.(max.(x, Float32(1e-9))),
+        x -> log.(max.(x, Float32(1e-7))),
         x -> softmax(x)
     )
 
@@ -273,10 +273,9 @@ function mnist(batchsize = 16)
     model = _mnist()
 
     x = rand(Float32, 28, 28, 1, batchsize)
-    X = nGraph.Tensor(nGraph.Backend("CPU"), x)
     kw = NamedTuple()
 
-    return model, (X,), kw
+    return model, (x,), kw
 end
 
 # Include an additional modifier to allow modifying the optimizer
@@ -290,7 +289,6 @@ function mnist_train(batchsize = 16)
     random_labels!(y)
 
     f(x, y) = Flux.crossentropy(model(x), y)
-    #g = nGraph.compile(backend, f, X, Y; optimizer = modifier(nGraph.SGD(Float32(0.001))))
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
 
     return f, (x, y), kw
@@ -298,8 +296,13 @@ end
 
 function makeconv(; filter = (3,3), channels = 256, filters = 256)
     c = Conv(filter, channels => filters)
-    backend = Backend()
-    X = Tensor(backend, rand(Float32, 17, 17, 256, 16))
-    f = compile(backend, c, X)
-    return f, X
+    X = rand(Float32, 17, 17, 256, 16)
+    kw = NamedTuple()
+    return c, (X,), kw
+end
+
+function doadd()
+    f(a) = max.(a, 1e-7)
+    X = randn(Float32, 10, 10, 10, 10)
+    return f, (X,), NamedTuple()
 end

@@ -87,7 +87,7 @@ function vgg416()
         Dense(4096, 4096, relu),
         Dense(4096, 1000),
         # Add a small positive value to avoid NaNs
-        x -> log.(max.(x, Float32(1e-9))),
+        x -> log.(max.(x, Float32(1e-7))),
         softmax
     )
 
@@ -105,13 +105,10 @@ function vgg19_inference(batchsize)
 
     x = (x .- mean(x)) ./ std(x)
 
-    backend = nGraph.Backend()
-    X = nGraph.Tensor(backend, x)
-
     forward = vgg19()
 
-    g = nGraph.compile(backend, forward, X)
-    return g, (X,)
+    #g = nGraph.compile(backend, forward, X)
+    return forward, (x,), NamedTuple()
 end
 
 _forward(::Vgg19) = vgg19()
@@ -132,7 +129,7 @@ function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
 
     # Compute the backward pass.
     f(x, y) = Flux.crossentropy(forward(x), y)
-    kw = (optimizer = nGraph.SGD(Float32(0.05)),)
+    kw = (optimizer = nGraph.SGD(Float32(0.005)),)
     return f, (X,Y), kw
 end
 

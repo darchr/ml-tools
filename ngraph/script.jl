@@ -68,6 +68,7 @@ Runner.savedir(R::RHN) = _savedir()
 #####
 struct Static
     limit::Float64
+    baseline::Bool
 end
 
 Runner.name(::Static) = "static"
@@ -75,11 +76,13 @@ function (M::Static)(data)
     bounds = Runner.allocation_bounds(data)
     x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return Runner.static(x)
+    @show M.baseline
+    return Runner.static(x; defrag = !M.baseline)
 end
 
 struct Synchronous
     limit::Float64
+    baseline::Bool
 end
 
 Runner.name(::Synchronous) = "synchronous"
@@ -87,7 +90,7 @@ function (M::Synchronous)(data)
     bounds = Runner.allocation_bounds(data)
     x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return Runner.synchronous(x, 29000, 12000)
+    return Runner.synchronous(x, 29000, 12000; defrag = !M.baseline)
 end
 
 struct Asynchronous
@@ -99,7 +102,7 @@ function (M::Asynchronous)(data)
     bounds = Runner.allocation_bounds(data)
     x = fill(round(Int, bounds.upper_bound * M.limit / 1E6), size(Runner.nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return Runner.asynchronous(x, 29000, 12000, 2000, 2500)
+    return Runner.asynchronous(x, 29000, 12000, 2000, 2500; defrag = !M.baseline)
 end
 
 #####
@@ -132,13 +135,17 @@ reverse!(fractions)
 #####
 
 # Temporarily get fewer threads
-#fractions = fractions[4:end]
 opts = (
-    (Static(f) for f in fractions),
-    (Synchronous(f) for f in fractions),
-    #(Asynchronous(f) for f in fractions),
+    (Static(f, i == 1) for (i, f) in enumerate(fractions)),
+    (Synchronous(f, i == 1) for (i, f) in enumerate(fractions)),
 )
 
 # Launch the test
-Runner.entry(fns, opts; calibrations = (false, false, false))
+fns = (
+    #() -> Zoo.inception_v4_training(1024),
+    #Vgg(16, Zoo.Vgg19()),
+    Inception_v4(1024),
+)
+
+Runner.entry(fns, opts, nGraph.Backend("CPU"))
 

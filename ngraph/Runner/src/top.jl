@@ -3,36 +3,36 @@ using Plots
 function title end
 function savedir end
 
-function entry(fns, opts; calibrations = [true for _ in 1:length(opts)])
+function entry(fns, opts, backend)
     for f in fns
         # Generate the reuse plot and heap allocation plots
         #_reuse_plot(f)
         #_allocation_plot(f)
 
         # Run for the product of functions and optimization targets.
-        for (opt, _calibrate) in zip(opts, calibrations)
-            _calibrate || continue
+        # for (opt, _calibrate) in zip(opts, calibrations)
+        #     _calibrate || continue
 
-            for o in opt
-                iterations = calibrate(f, o)
+        #     for o in opt
+        #         iterations = calibrate(f, o)
 
-                @info """
-                Function: $(name(f))
-                Opt: $(name(o))
-                Iterations: $iterations
-                """
-            end
-        end
+        #         @info """
+        #         Function: $(name(f))
+        #         Opt: $(name(o))
+        #         Iterations: $iterations
+        #         """
+        #     end
+        # end
         for opt in Iterators.flatten(opts)
-            _entry(f, opt)
+            _entry(f, opt, backend)
         end
     end
 end
 
-function _entry(func, opt)
+function _entry(f, opt, backend)
     # Perform a profiling and calibration
     savefile = joinpath(savedir(f), join((name(f), name(opt)), "_") * ".jls")
-    compare(func, opt; statspath = savefile)
+    compare(f, opt, backend; statspath = savefile)
     return nothing
 end
 

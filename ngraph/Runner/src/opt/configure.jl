@@ -112,10 +112,8 @@ function configure!(fex::nGraph.FluxExecutable, data::ProfileData, schedule)
 
     @info "Recompiling Function"
     fex = nGraph.recompile(fex)
-    # Update ProfileData in Frame for the newly compiled function
-    profile_data = profile(fex)
 
-    return fex, profile_data, tensor_map
+    return fex, tensor_map
 end
 
 function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = nothing)
@@ -368,6 +366,9 @@ end
 #####
 
 estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{IsFixed}}) = zero(Float64)
+estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = 
+    estimate_move_time(fex.ex.ngraph_function, frame)
+
 function estimate_move_time(f::nGraph.NFunction, frame::Frame)
     move_time = zero(Float64)
     for _node in f
