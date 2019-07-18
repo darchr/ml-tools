@@ -1,5 +1,5 @@
 # Timing methods for the whole function
-function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 5)
+function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 3)
     start = now()
     mintime = typemax(Float64)
     times = 1

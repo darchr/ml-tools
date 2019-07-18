@@ -147,5 +147,7 @@ fns = (
     Inception_v4(1024),
 )
 
-Runner.entry(fns, opts, nGraph.Backend("CPU"))
+#Runner.entry(fns, opts, nGraph.Backend("CPU"))
+limits = (16E9, 32E9, 64E9)
+Runner.entry_numa(nGraph.Backend("CPU"), fns, limits)
 

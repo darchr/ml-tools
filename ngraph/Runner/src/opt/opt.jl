@@ -60,8 +60,7 @@ include("ilp.jl")
 include("inspect.jl")
 include("configure.jl")
 include("modnn/modnn.jl")
-include("schedule.jl")
-
+include("numa/numa.jl")
 
 function actualize(backend, func; nkw...)
     f, args, kw = func()

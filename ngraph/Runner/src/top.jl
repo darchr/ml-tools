@@ -56,3 +56,29 @@ function _allocation_plot(f)
     savefile = joinpath(savedir(f), name(f) * "_allocation_plot.png")
     png(plt, savefile)
 end
+
+#####
+##### TODO: Need a manager module to manage all of these experiments!!
+#####
+function entry_numa(backend, funcs, limits)
+    for f in funcs, limit in limits
+        savefile = joinpath(savedir(f), join((name(f), "numa"), "_") * ".jls")
+
+        if !ispath(savefile)
+            stats = []
+        else
+            stats = deserialize(savefile)
+        end
+
+        fex = run_numa(backend, f, limit)
+        runtime = gettime(fex)
+
+        stat = Dict(
+            :dram_limit => limit,
+            :actual_runtime => runtime,
+        )
+        push!(stats, stat)
+        sort!(stats; rev = true, by = x -> x[:dram_limit])
+        serialize(savefile, stats)
+    end
+end

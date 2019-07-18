@@ -25,6 +25,11 @@ vasymptote() = """
 }}
 """
 
+# Node - must sort data before hand
+# using _load_save_files does this automatically
+get_dram_performance(data) = minimum(get_dram_performance.(data))
+get_dram_performance(data::NamedTuple) = first(getname(data.runs, :actual_runtime))
+
 #####
 ##### The plots
 #####
@@ -185,6 +190,9 @@ function pgf_comparison_plot(f; file = "plot.tex", formulations = ("synchronous"
         dram_limit = getname(d.runs, :dram_limit) ./ 1E3
         actual_runtime = getname(d.runs, :actual_runtime)
         predicted_runtime = getname(d.runs, :predicted_runtime) ./ 1E6
+
+        error = 100 .* (predicted_runtime .- actual_runtime) ./ (actual_runtime)
+
         append!(plots, [
         @pgf(PlotInc(
              {
@@ -192,20 +200,10 @@ function pgf_comparison_plot(f; file = "plot.tex", formulations = ("synchronous"
              },
              Coordinates(
                 dram_limit, 
-                actual_runtime,
+                error,
             )
         ))
-        @pgf(LegendEntry("$formulation: actual"))
-        @pgf(PlotInc(
-             {
-                thick,
-             },
-             Coordinates(
-                dram_limit, 
-                predicted_runtime,
-            )
-        ))
-        @pgf(LegendEntry("$formulation: predicted"))
+        @pgf(LegendEntry("$formulation"))
         ])
     end
 
@@ -228,7 +226,7 @@ function pgf_comparison_plot(f; file = "plot.tex", formulations = ("synchronous"
         {
             grid = "major",
             xlabel = "DRAM Limit (GB)",
-            ylabel = "Runtime (s)",
+            ylabel = "Relative Predicted Runtime Error \\%",
             # put legend on the bottom right
             legend_style = {
                 at = Coordinate(0.95, 0.95),

@@ -237,7 +237,6 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
     end
 
     # Set algorithms and workspaces
-
     return tensor_map
 end
 

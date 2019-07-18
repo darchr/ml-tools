@@ -11,8 +11,8 @@ struct MemoryAllocator
     alignment::Int64
 end
 
-MemoryAllocator(limit::Integer, alignment::Integer) = 
-    MemoryAllocator([MemoryNode(true, limit)], alignment)
+MemoryAllocator(limit::Number, alignment::Number) = 
+    MemoryAllocator([MemoryNode(true, convert(Int, limit))], convert(Int, alignment))
 
 function showfree(M::MemoryAllocator)
     offset = 0
