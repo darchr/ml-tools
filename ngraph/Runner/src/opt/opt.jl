@@ -76,7 +76,7 @@ end
 function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     # Unpack and compile the function
     fex = actualize(backend, func)
-    apply_affinity_heuristic!(fex.ex.ngraph_function)
+    #apply_affinity_heuristic!(fex.ex.ngraph_function)
 
     data = profile(fex)
     modeltype = opt(data)
@@ -106,7 +106,7 @@ function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
 
             # Update the flux executable
             fex = actualize(backend, func)
-            apply_affinity_heuristic!(fex.ex.ngraph_function)
+            #apply_affinity_heuristic!(fex.ex.ngraph_function)
 
             data = profile(fex)
         else
@@ -123,6 +123,9 @@ function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     end
 end
 
+#####
+##### GPU factory
+#####
 function factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()

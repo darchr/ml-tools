@@ -58,14 +58,10 @@ function densenet_training(batchsize; growth = 32)
 
     y = rand(Float32, 1000, batchsize)
     random_labels!(y) 
-
-    backend = nGraph.Backend()
-    X = nGraph.Tensor(backend, x)
-    Y = nGraph.Tensor(backend, y)
-
     forward = DenseNet(growth)
     f(x, y) = Flux.crossentropy(forward(x), y)
 
-    g = nGraph.compile(backend, f, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
-    return g, (X, Y)
+    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
+
+    return f, (x, y), kw
 end

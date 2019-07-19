@@ -51,13 +51,10 @@ function compare(
         stats = deserialize(statspath)
     end
 
-    # Use an inner function so that the FluxExecutable (and thus ngraph executable)
-    # go out of scope and are thus elegible for garbage collection.
+    # TODO: This inner call is left over from legacy code and doesn't really make sense
+    # anymore.
     #
-    # Further, invoke the GC before calling this function.
-    #
-    # This will hopefully cleanup any previous Executables and the large memory buffers
-    # associated with them.
+    # A future refactoring could bring this call up.
     GC.gc()
     _compare!(
         stats,
@@ -72,7 +69,7 @@ function compare(
     Actual Run Time: $(last(stats.runs)[:actual_runtime])
     """
 
-    sort!(stats.runs; by = x -> x[:dram_limit])
+    sort!(stats.runs; rev = true, by = x -> x[:dram_limit])
     isnothing(statspath) || serialize(statspath, stats)
 
     return stats

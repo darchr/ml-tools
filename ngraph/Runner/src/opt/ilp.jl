@@ -69,6 +69,7 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
 
     # Go through all of the live tensors - find the first that exceeds the limit
     offending_tensors = TensorDescriptor[]
+    worst = 0
     for live in live_tensors(data)
         # Find the DRAM tensors
         dram_tensors = filter(!nGraph.is_persistent, live)
@@ -79,9 +80,17 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
             sz = (nGraph.get_pool_offset(tensor) + sizeof(tensor)) / 1E6
             if sz > ml
                 push!(offending_tensors, tensor)
+                worst = max(worst, sz)
             end
         end
     end
+
+    decrease_amount = max(
+        # Decrease by at most 5%
+        0.95,
+        # If the overuse is small, just decrease by a tiny amount
+        1 - ((worst / ml) - 1) / 2,
+    )
 
     # Keep track of the indices that need their limits lowered
     indices = Int[]
@@ -92,7 +101,6 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
         end
     end
 
-    #@show unique(indices)
     radius = 5
     # Expand indices around the radius
     indices = Iterators.flatten([(idx - radius):(idx + radius) for idx in unique(indices)]) |>
@@ -102,7 +110,7 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
         # Scale surrounding regions as well
         for i in (idx - radius):(idx + radius)
             if checkbounds(Bool, dram_limits, i)
-                dram_limits[i] = round(Int, 0.95 * dram_limits[i])
+                dram_limits[i] = round(Int, decrease_amount * dram_limits[i])
             end
         end
     end

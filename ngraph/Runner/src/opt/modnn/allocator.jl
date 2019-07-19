@@ -12,7 +12,10 @@ struct MemoryAllocator
 end
 
 MemoryAllocator(limit::Number, alignment::Number) = 
-    MemoryAllocator([MemoryNode(true, convert(Int, limit))], convert(Int, alignment))
+    MemoryAllocator(
+        [MemoryNode(true, convert(Int, limit))], 
+        convert(Int, alignment)
+    )
 
 function showfree(M::MemoryAllocator)
     offset = 0

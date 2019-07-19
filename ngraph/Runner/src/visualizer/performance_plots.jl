@@ -1,3 +1,4 @@
+@enum __PerformancePlotStyle __NO_PLOT __ACTUAL_PLOT __PREDICTED_PLOT
 function pgf_plot_performance(f;
         static = __ACTUAL_PLOT,
         synchronous = __ACTUAL_PLOT,

@@ -81,6 +81,7 @@ end
 ##### Local Includes
 #####
 
+include("optimizers.jl")
 include("metagraph.jl")
 include("setup.jl")
 include("types.jl")
@@ -94,6 +95,7 @@ include("verifier.jl")
 include("visualizer/performance_plots.jl")
 include("visualizer/allocation_plots.jl")
 include("visualizer/statistics_plots.jl")
+include("visualizer/speedup.jl")
 
 # async
 include("async_tests.jl")

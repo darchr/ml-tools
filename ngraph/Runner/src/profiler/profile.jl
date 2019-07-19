@@ -67,7 +67,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
             showvalues = [
                 (:iter, serviced[]),
                 (:total, num_configs),
-                (:op, name(op)),
+                (:op, nGraph.name(op)),
                 (:config, config),
                 (:ncached, ncached),
             ]

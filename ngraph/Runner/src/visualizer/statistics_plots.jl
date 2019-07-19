@@ -4,8 +4,9 @@
 
 getname(v, s::Symbol) = getindex.(v, s)
 
-_load_save_files(f, formulations::String) = _load_save_files(f, (formulations,))
-function _load_save_files(f, formulations)
+load_save_files(f, formulations::String) = load_save_files(f, (formulations,))
+function load_save_files(f, formulations)
+
     savefiles = [joinpath(savedir(f), join((name(f), i), "_") * ".jls") for i in formulations]
     data = deserialize.(savefiles)
     for d in data
@@ -25,10 +26,35 @@ vasymptote() = """
 }}
 """
 
+hasymptote() = """
+\\pgfplotsset{hasymptote/.style={
+    before end axis/.append code={
+        \\draw[densely dashed] ({rel axis cs:0,0} -| {axis cs:0,#1})
+        -- ({rel axis cs:1,0} -| {axis cs:0,#1});
+}
+}}
+"""
+
+hline(y; xl = 0, xu = 1) = """
+\\draw[black, sharp plot, thick] 
+    ({axis cs:$xl,$y} -| {rel axis cs:0,0}) -- 
+    ({axis cs:$xu,$y} -| {rel axis cs:1,0});
+""" |> rm_newlines
+
+rm_newlines(str) = join(split(str, "\n"))
+
 # Node - must sort data before hand
-# using _load_save_files does this automatically
+# using load_save_files does this automatically
 get_dram_performance(data) = minimum(get_dram_performance.(data))
 get_dram_performance(data::NamedTuple) = first(getname(data.runs, :actual_runtime))
+
+get_pmm_performance(data) = maximum(get_pmm_performance.(data))
+get_pmm_performance(data::NamedTuple) = last(getname(data.runs, :actual_runtime))
+
+function findabsmin(f, x)
+    _, ind = findmin(abs.(f.(x)))
+    return ind
+end
 
 #####
 ##### The plots
@@ -84,20 +110,6 @@ function pgf_stats_plot(f; file = "plot.tex", formulation = "synchronous")
             vasymptote = data.default_alloc_size[] / 1E9,
         },
         plots...,
-        # PlotInc(
-        #      {
-        #         thick,
-        #      },
-        #      Coordinates(x, getname(data.runs, :bytes_async_moved_pmem) ./ 1E9)
-        # ),
-        # LegendEntry("async DRAM to PMEM"),
-        # PlotInc(
-        #      {
-        #         thick,
-        #      },
-        #      Coordinates(x, getname(data.runs, :bytes_async_moved_dram) ./ 1E9)
-        # ),
-        # LegendEntry("async PMEM to DRAM"),
     )
 
     push!(plot, TikzPicture(axs))
@@ -111,7 +123,7 @@ function pgf_stats_plot(f; file = "plot.tex", formulation = "synchronous")
 end
 
 function pgf_io_plot(f; file = "plot.tex", formulations = "synchronous")
-    data = _load_save_files(f, formulations)
+    data = load_save_files(f, formulations)
 
     # Plot the number of move nodes.
     io_size = first(data).io_size[] 
@@ -183,7 +195,7 @@ function pgf_io_plot(f; file = "plot.tex", formulations = "synchronous")
 end
 
 function pgf_comparison_plot(f; file = "plot.tex", formulations = ("synchronous",))
-    data = _load_save_files(f, formulations)
+    data = load_save_files(f, formulations)
     
     plots = []
     for (d, formulation) in zip(data, formulations)

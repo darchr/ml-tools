@@ -3,8 +3,10 @@ module Benchmarks
 export STREAM, Kernel, benchmark
 
 using PGFPlotsX
-using Flux, nGraph, Runner
-using Cassette
+using Flux
+using nGraph, Runner, Zoo
+
+include("main.jl")
 
 # Pathing schenanigans
 const SRCDIR = @__DIR__
