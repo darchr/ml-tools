@@ -33,7 +33,7 @@ mutable struct GPUCallback
     # Vector of callback functions
     fns::Vector
     # Number of times this has been invoked.
-    num_invocations::Int64  
+    num_invocations::Int64
 end
 GPUCallback() = GPUCallback([], 1)
 callback!(G::GPUCallback, f) = push!(G.fns, f)
@@ -48,8 +48,54 @@ function (G::GPUCallback)(args...)
     end
 end
 
+enable_cuda_managed() = ENV["NGRAPH_GPU_CUDA_MALLOC_MANAGED"] = true
+disable_cuda_managed() = delete!(ENV, "NGRAPH_GPU_CUDA_MALLOC_MANAGED")
+
+function get_baseline_allocation(backend::nGraph.Backend{nGraph.GPU}, f)
+    allocation_ref = Ref{Int}(0)
+    io_ref = Ref{Int}(0)
+    gpu_callbacks = GPUCallback()
+
+    # For the first callback, we want to set all intermediate algorithms to their fastest
+    # setting.
+    function set(f::nGraph.NFunction)
+        data = profile(f, backend)
+        for node in nodes(data)
+            if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+                # Find the minimum runtime of the algorithms
+                runtimes = get_times(gettime(data, node))
+                _, ind = findmin(runtimes)
+                enum = get_enums(gettime(data, node))[ind]
+
+                nGraph.Lib.set_algo(
+                    nGraph.getpointer(node),
+                    convert(UInt, enum),
+                    convert(UInt, get_bytes(gettime(data, node), enum)),
+                )
+            end
+        end
+    end
+
+    function ret(f::nGraph.NFunction)
+        allocation_ref[] = nGraph.get_temporary_pool_size(f)
+        io_ref[] = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f)) 
+        throw(GPUExit())
+    end
+
+    callback!(gpu_callbacks, set)
+    callback!(gpu_callbacks, ret)
+
+    try
+        return actualize(backend, f; callback = gpu_callbacks)
+    catch e
+        isa(e, GPUExit) || rethrow(e)
+    end
+
+    return allocation_ref[], io_ref[]
+end
+
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
-        cache = GPUKernelCache(BASE_GPU_CACHE_PATH), 
+        cache = GPUKernelCache(BASE_GPU_CACHE_PATH),
     )
 
     data = ProfileData(f, nGraph.GPU)
@@ -66,7 +112,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
     # - CUDNN gives the expected performance of these kernels already :D
 
     # Work with all the `can_select_algo` nodes first.
-    # Finalizers for small GPU structs don't clean up properly yet, so trying to profile 
+    # Finalizers for small GPU structs don't clean up properly yet, so trying to profile
     # these workloads runs out of memory
     for (index, node) in enumerate(nodes(data))
         hasprofile(node) || continue
@@ -76,15 +122,15 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
 
         # If we can select an algorithm for this node, use the built-in timings
         # and skip the actual profiling.
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(node)) 
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
             if !haskey(cache, kernel_params)
                 # Cleanup
                 @info "Getting CUDNN timings for $(nGraph.name(node))"
 
                 enums = UInt32[]
                 times = Float32[]
-                bytes = UInt64[] 
-                nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes) 
+                bytes = UInt64[]
+                nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes)
                 GC.gc()
                 algo_list = [
                     (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
@@ -120,7 +166,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         end
 
         record_time!(data, node, ex, copied_op)
-        GC.gc() 
+        GC.gc()
         cache[kernel_params] = gettime(data, node)
         save(cache)
     end
@@ -195,7 +241,7 @@ end
 
 function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
     # Read the profile data from the function
-    perf = nGraph.get_performance(fex.ex) 
+    perf = nGraph.get_performance(fex.ex)
 
     data = frame.profile_data
 
@@ -220,7 +266,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
             actual_total += actual
 
             # Print out the results for this node.
-            if !only_greater || actual > expected 
+            if !only_greater || actual > expected
                 println("Algorithm selection for $(nGraph.name(node)): $algo_enum")
                 println("    Actual Time: $(actual)")
                 println("    Expected Time: $(expected)")

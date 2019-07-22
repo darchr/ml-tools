@@ -3,8 +3,11 @@ module Runner
 function __init__()
     Runner.setup_affinities()
     Runner.setup_profiling()
-    Runner.setup_pmem()
     Runner.setup_passes()
+    
+    # Setup PMEM if that option is enabled in nGraph.jl
+    settings = nGraph.settings() 
+    get(settings, "PMDK", false) && Runner.setup_pmem()
 end
 
 # In case we need to gracefully exit from a GPU compilation callback function
