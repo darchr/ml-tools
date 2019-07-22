@@ -70,7 +70,13 @@ approx_one(x::JuMP.VariableRef) = approx_one(value(x))
 Insert an nGraph `move` node between `producer` and all `consumers`. Return the newly
 created node.
 """
-function insert_move_node!(producer::NodeDescriptor, index, consumers::Vector{NodeDescriptor}, consumer_inputs)
+function insert_move_node!(
+        producer::NodeDescriptor, 
+        index, 
+        consumers::Vector{NodeDescriptor}, 
+        consumer_inputs
+    )
+
     move_node = nGraph.move(nGraph.Node(producer), index)
     for (consumer, input) in zip(consumers, consumer_inputs)
         nGraph.splice(nGraph.Node(producer), index, nGraph.Node(consumer), input, move_node)
@@ -94,3 +100,27 @@ function insert_moveasync_node!(
 
     return NodeDescriptor(move_node)
 end
+
+#####
+##### Methods for dealing with PMEM to DRAM ratios
+#####
+
+footprint(datum::Dict) = convert(Int, datum[:pmem_alloc_size] + datum[:dram_alloc_size])
+
+function getratio(datum::Dict)
+    pmem = convert(Int, datum[:pmem_alloc_size])
+    dram = convert(Int, datum[:dram_alloc_size])
+    return pmem // dram
+end
+
+getratio(fex::nGraph.FluxExecutable) = getratio(fex.ex.ngraph_function)
+function getratio(f::nGraph.NFunction)
+    pmem = convert(Int, nGraph.get_pmem_pool_size(f))
+    dram = convert(Int, nGraph.get_temporary_pool_size(f))
+    return pmem // dram
+end
+
+ratio_string(x::Rational) = "$(x.num):$(x.den)"
+
+compare_ratio(a, b) = iszero(b.den) ? inv(a) : a - b
+

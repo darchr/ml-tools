@@ -2,10 +2,34 @@
 ##### Convenience Wrappers around routines
 #####
 
+abstract type AbstractOptimizer end
+
 function titlename end
 
+# Bound on the actual between requested ratio for a workload.
+#
+# We iterate on the solution untill the ratio of PMEM to DRAM is within this bound of
+# the requested ratio.
+const RATIO_TOLERANCE = Ref(0.03)
+
+function checkmargin(actual, wanted, tol = RATIO_TOLERANCE[])
+    # Handle the cases where the denominator of "wanted" is zero
+    rwanted, ractual = getratio.((actual, wanted))  
+
+    if iszero(rwanted.den) || iszero(rwanted.num)
+        return true
+    else
+        return abs(ractual - rwanted) <= tol
+    end
+end
+
+getratio(x::AbstractOptimizer) = x.ratio
+getratio(x::Number) = x
+
+_optimizer(::T, r) where {T <: AbstractOptimizer} = T(r)
+
 ## Static ILP Formulation
-struct Static
+struct Static <: AbstractOptimizer
     # PMM to DRAM ratio
     ratio::Rational{Int}
 end
@@ -20,7 +44,7 @@ function (M::Static)(data)
 end
 
 ## Synchronous ILP Formulation
-struct Synchronous
+struct Synchronous <: AbstractOptimizer
     ratio::Rational{Int}
 end
 
@@ -33,7 +57,7 @@ function (M::Synchronous)(data)
 end
 
 ## Asynchronous ILP Formulation
-struct Asynchronous
+struct Asynchronous <: AbstractOptimizer
     ratio::Rational{Int}
 end
 
@@ -46,7 +70,7 @@ function (M::Asynchronous)(data)
 end
 
 ## Numa formulation
-struct Numa
+struct Numa <: AbstractOptimizer
     ratio::Rational{Int}
 end
 

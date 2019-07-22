@@ -1,13 +1,3 @@
-function get_ratio(datum::Dict)
-    pmem = convert(Int, datum[:pmem_alloc_size])
-    dram = convert(Int, datum[:dram_alloc_size])
-    return pmem // dram
-end
-
-ratio_string(x::Rational) = "$(x.num):$(x.den)"
-
-compare_ratio(a, b) = iszero(b.den) ? inv(a) : a - b
-
 # Plot ratios of PMEM to DRAM on the x-axis.
 function pgf_speedup(f, ratios::Vector{<:Rational}; 
         file = "plot.tex", 
@@ -27,11 +17,11 @@ function pgf_speedup(f, ratios::Vector{<:Rational};
         y = []
 
         for ratio in ratios
-            ind = findabsmin(x -> compare_ratio(get_ratio(x), ratio), datum.runs)
+            ind = findabsmin(x -> compare_ratio(getratio(x), ratio), datum.runs)
 
-            @show convert(Float64, get_ratio(datum.runs[ind]))
+            @show convert(Float64, getratio(datum.runs[ind]))
             @show convert(Float64, ratio)
-            @show convert(Float64, compare_ratio(get_ratio(datum.runs[ind]), ratio))
+            @show convert(Float64, compare_ratio(getratio(datum.runs[ind]), ratio))
             perf = pmm_performance / datum.runs[ind][:actual_runtime]
 
             push!(x, ratio_string(ratio))
@@ -115,7 +105,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
         y = []
 
         for ratio in ratios
-            ind = findabsmin(x -> compare_ratio(get_ratio(x), ratio), data.runs)
+            ind = findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
             perf = dram_performance / data.runs[ind][:actual_runtime]
 
             push!(x, ratio_string(ratio))

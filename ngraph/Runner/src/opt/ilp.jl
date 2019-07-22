@@ -541,7 +541,7 @@ function add_tensors!(frame::Frame)
     @variable(frame.model,
         tensor_in_dram[
             tensor = tensors(data),
-            user = name.(users(descriptor(frame, tensor)))
+            user = nGraph.name.(users(descriptor(frame, tensor)))
         ],
         Bin
     )
@@ -549,7 +549,7 @@ function add_tensors!(frame::Frame)
     @variable(frame.model,
         tensor_in_dram_post[
             tensor = tensors(data),
-            user = name.(users(descriptor(frame, tensor)))
+            user = nGraph.name.(users(descriptor(frame, tensor)))
         ],
         Bin
     )
@@ -571,14 +571,14 @@ function add_tensors!(frame::Frame)
             for e in _iter
                 @constraint(
                     frame.model,
-                    tensor_in_dram[tensor, name(user)] >= tensor_graphs[tensor, e]
+                    tensor_in_dram[tensor, nGraph.name(user)] >= tensor_graphs[tensor, e]
                 )
             end
 
             # If all incoming edges are not taken, tensor MUST not be in DRAM.
             @constraint(frame.model,
                 sum(tensor_graphs[tensor, e] for e in _iter) >=
-                    tensor_in_dram[tensor, name(user)]
+                    tensor_in_dram[tensor, nGraph.name(user)]
             )
 
             # Similary, set the post DRAM constraints
@@ -594,13 +594,13 @@ function add_tensors!(frame::Frame)
             for e in _edges
                 @constraint(
                     frame.model,
-                    tensor_in_dram_post[tensor, name(user)] >= tensor_graphs[tensor, e]
+                    tensor_in_dram_post[tensor, nGraph.name(user)] >= tensor_graphs[tensor, e]
                 )
             end
 
             @constraint(frame.model,
                 sum(tensor_graphs[tensor, e] for e in _edges) >=
-                    tensor_in_dram_post[tensor, name(user)]
+                    tensor_in_dram_post[tensor, nGraph.name(user)]
             )
         end
     end
@@ -682,7 +682,7 @@ function add_movement_formulations!(frame::Frame)
 
         # Create read variables expressions
         for e in async_reads
-            _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
+            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), _expr_type())
             move_var = tensor_graphs[tensor, e]
             add_to_expression!(_expr, read_cost_async, move_var)
             dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
@@ -690,7 +690,7 @@ function add_movement_formulations!(frame::Frame)
 
         # Create write variables.
         for e in async_writes
-            _expr = get!(tensor_async_dict, name(kernels[e]), _expr_type())
+            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), _expr_type())
             move_var = tensor_graphs[tensor, e]
             add_to_expression!(_expr, write_cost_async, move_var)
             dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
@@ -819,7 +819,7 @@ function add_nodes!(F::Frame)
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end
-        F.model[:node_times][name(node)] = node_times
+        F.model[:node_times][nGraph.name(node)] = node_times
     end
     return nothing
 end

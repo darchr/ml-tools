@@ -186,10 +186,10 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
                 # Otherwise, associate with the producer
                 if isasync(action)
                     nGraph.set_output_affinity(move_node)
-                    nGraph.add_associate(move_node, name(action.concurrent))
+                    nGraph.add_associate(move_node, nGraph.name(action.concurrent))
                 else
                     nGraph.set_input_affinity(move_node)
-                    nGraph.add_associate(move_node, name(producer))
+                    nGraph.add_associate(move_node, nGraph.name(producer))
                 end
 
                 # Perform a sanity check. Should not move data to PMEM if it already
@@ -204,7 +204,7 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
 
                 nGraph.set_output_affinity(move_node)
                 for consumer in consumers
-                    nGraph.add_associate(move_node, name(consumer))
+                    nGraph.add_associate(move_node, nGraph.name(consumer))
                 end
             else
                 error()
@@ -396,11 +396,11 @@ function profile_moves(fex)
         node = NodeDescriptor(node_unwrapped)
         ismove(node) || continue
 
-        time = timing_data[findfirst(x -> x["name"] == name(node), timing_data)]["dur"]
+        time = timing_data[findfirst(x -> x["name"] == nGraph.name(node), timing_data)]["dur"]
         # Convert bytes to GB, time from μs to s
         bytes = sizeof(first(inputs(node)))
         bandwidth = (bytes / 1E9) / (time / 1E6)
-        computed_stats[name(node)] = (
+        computed_stats[nGraph.name(node)] = (
             bytes = bytes,
             bandwidth = bandwidth,
             write_to_pmem = !nGraph.is_persistent(first(inputs(node))),

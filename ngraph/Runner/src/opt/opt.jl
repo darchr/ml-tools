@@ -67,13 +67,59 @@ function actualize(backend, func; nkw...)
     return nGraph.compile(backend, f, args...; kw..., nkw...)
 end
 
-
 """
-- `f`: Function `() -> fex, args`: Return `FluxExecutable` and args.
-
-- `opt`: Function `ProfileData -> modeltype <: ModelType`.
+    factory(::nGraph.Backend{nGraph.CPU}, func, opt::AbstractOptimizer; search_ratio = true)
 """
-function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
+function factory(
+        backend::nGraph.Backend{nGraph.CPU}, 
+        func, 
+        opt::AbstractOptimizer; 
+        search_ratio = true,
+        max_iters = 15
+    )
+
+    # Just return the inner factory if we aren't interesting in performing a binary search
+    # for the actual ratio to input that will return the desired ratio
+    search_ratio || return _factory(backend, func, opt)
+
+    # Perform a binary search
+    fex, args = _factory(backend, func, opt)   
+
+    # If we're within the desired tolerance, just return like normal
+    checkmargin(fex, opt) && return (fex, args...)
+
+    # Time to perform a binary search!
+    if getratio(fex) < getratio(opt)
+        # fex has less PMEM than needed
+        lb = 1 // 0
+        ub = getratio(opt)
+    else
+        # fex has more PMEM than needed
+        lb = getratio(opt)
+        ub = 0 // 1
+    end
+
+    for i in 1:max_iters
+        @info """
+        Desired Ratio: $(convert(Float64, getratio(opt)))
+        Actual Ratio: $(convert(Float64, getratio(fex)))
+        """
+
+        r = (lb + ub) / 2  
+        fex, args = _factory(backend, func, _optimizer(opt, r))
+        checkmargin(fex, opt) && return (fex, args...)
+
+        if getratio(fex) < getratio(opt)
+            ub = r
+        else
+            lb = r
+        end
+    end
+    error("Could not find a solution for ratio $(getratio(opt))")
+end
+
+
+function _factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     # Unpack and compile the function
     fex = actualize(backend, func)
     #apply_affinity_heuristic!(fex.ex.ngraph_function)
@@ -95,6 +141,7 @@ function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
         push!(creation_times, creation_time)
         push!(optimization_times, optimization_time)
 
+        # Deal with fragmentation
         if exceeds_limit(fex, modeltype)
             @info """
             Limit Exceeded
@@ -109,6 +156,7 @@ function factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
             #apply_affinity_heuristic!(fex.ex.ngraph_function)
 
             data = profile(fex)
+        # Adjust ratio if outside of of the desired bounds
         else
             frame.profile_data = profile(fex)
 
@@ -126,7 +174,7 @@ end
 #####
 ##### GPU factory
 #####
-function factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
+function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 

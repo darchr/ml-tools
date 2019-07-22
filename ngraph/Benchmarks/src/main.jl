@@ -59,8 +59,13 @@ Runner.savedir(R::DenseNet) = _savedir()
 ##### Helpers for benchmark routines
 #####
 
+conventional_inception() = Inception_v4(1024)
+conventional_resnet() = Resnet200(512)
+conventional_vgg() = Vgg19(2048)
+conventional_densenet() = DenseNet(512)
+
 common_ratios() = [
-    1 // 0,
+    #1 // 0,
     8 // 1,
     4 // 1,
     2 // 1,
@@ -70,18 +75,24 @@ common_ratios() = [
     0 // 1,
 ]
 
-common_functions() = [
-    #Inception_v4(1024),
-    Resnet200(512),
-    #Vgg(2048, Zoo.Vgg19()),
-    #DenseNet(512),
+conventional_functions() = [
+    conventional_inception(),
+    conventional_resnet(),
+    conventional_vgg(),
+    conventional_densenet(),
 ]
 
 function go()
-    fns = common_functions()
+    fns = (
+        conventional_inception(),
+    )
+
     ratios = common_ratios()
 
     optimizers = (
+        [Runner.Static(r) for r in ratios],
+        [Runner.Synchronous(r) for r in ratios],
+        #[Runner.Asynchronous(r) for r in ratios],
         [Runner.Numa(r) for r in ratios],
     )
 
@@ -92,12 +103,12 @@ end
 ##### Functions for generating plots
 #####
 
-function plot_speedup(model) 
+function plot_speedup(model)
     ratios = common_ratios();
 
     # Get rid of the all PMEM and all DRAM case
-    deleteat!(ratios, findfirst(isequal(0 // 1), ratios)) 
-    deleteat!(ratios, findfirst(isequal(1 // 0), ratios)) 
+    deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
+    deleteat!(ratios, findfirst(isequal(1 // 0), ratios))
 
     Runner.pgf_speedup(
         model,
@@ -107,16 +118,47 @@ function plot_speedup(model)
 end
 
 function plot_costs()
-    pairs = [
-        Resnet200(512) => "synchronous",
-        Inception_v4(1024) => "synchronous",
-    ]
+    pairs = [conventional_resnet() => "synchronous",
+             conventional_inception() => "synchronous",
+            ]
 
     ratios = common_ratios();
 
     # Get rid of the all PMEM and all DRAM case
-    deleteat!(ratios, findfirst(isequal(0 // 1), ratios)) 
+    deleteat!
+    (ratios, findfirst(isequal(0 // 1), ratios))
 
     Runner.pgf_cost(pairs, ratios; cost_ratio = 2.5)
 end
+
+#####
+##### Geneation of specific figures
+#####
+
+# Speedup Plots
+inception_speedup() = plot_speedup(conventional_inception())
+vgg_speedup() = plot_speedup(conventional_vgg())
+resnet_speedup() = plot_speedup(conventional_resnet())
+
+# In depth analysis
+function inception_analysis_plots()
+    f = conventional_inception()
+
+    # Performance line graph
+    Runner.pgf_plot_performance(f; file = "inception_perf.tex")
+
+    # Input/output tensor graph
+    Runner.pgf_io_plot(f;
+                       file = "inception_io.tex",
+                       formulations = ("static", "synchronous")
+                      )
+
+    # Movement statistics
+    Runner.pgf_stats_plot(conventional_inception();
+                          file = "inception_movement.tex",
+                          formulation = "synchronous"
+                         )
+
+end
+
 
