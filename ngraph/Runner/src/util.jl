@@ -24,15 +24,13 @@ function _lastuser(tensor::TensorDescriptor, nodes::Vector{NodeDescriptor})
     return nodes[end + 1 - idx]
 end
 
-input_tensors(f::nGraph.FluxExecutable) = input_tensors(fex.ex.ngraph_function)
-function input_tensors(f::nGraph.NFunction)
-    params = NodeDescriptor.(nGraph.get_parameters(f))
+function input_tensors(fex::nGraph.FluxExecutable)
+    params = NodeDescriptor.(nGraph.get_parameters(fex.ex.ngraph_function))
     return Iterators.flatten(outputs.(params))
 end
 
-output_tensors(fex::nGraph.FluxExecutable) = output_tensors(fex.ex.ngraph_function)
-function output_tensors(f::nGraph.NFunction)
-    params = NodeDescriptor.(nGraph.get_results(f))
+function output_tensors(fex::nGraph.FluxExecutable)
+    params = NodeDescriptor.(nGraph.get_results(fex.ex.ngraph_function))
     return Iterators.flatten(inputs.(params))
 end
 
@@ -108,6 +106,8 @@ end
 #####
 
 footprint(datum::Dict) = convert(Int, datum[:pmem_alloc_size] + datum[:dram_alloc_size])
+footprint(f::nGraph.NFunction) = 
+    convert(Int, nGraph.get_pmem_pool_size(f) + nGraph.get_temporary_pool_size(f))
 
 function getratio(datum::Dict)
     pmem = convert(Int, datum[:pmem_alloc_size])

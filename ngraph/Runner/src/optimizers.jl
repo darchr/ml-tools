@@ -10,18 +10,20 @@ function titlename end
 #
 # We iterate on the solution untill the ratio of PMEM to DRAM is within this bound of
 # the requested ratio.
-const RATIO_TOLERANCE = Ref(0.03)
+const RATIO_TOLERANCE = Ref(0.05)
 
 function checkmargin(actual, wanted, tol = RATIO_TOLERANCE[])
     # Handle the cases where the denominator of "wanted" is zero
-    rwanted, ractual = getratio.((actual, wanted))  
+    rwanted, ractual = getratio.((wanted, actual))  
 
     if iszero(rwanted.den) || iszero(rwanted.num)
         return true
     else
-        return abs(ractual - rwanted) <= tol
+        return abs(ractual / rwanted - 1) <= tol
     end
 end
+
+geterr(actual, wanted) = abs(getratio(actual) / getratio(wanted) - 1)
 
 getratio(x::AbstractOptimizer) = x.ratio
 getratio(x::Number) = x

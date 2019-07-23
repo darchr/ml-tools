@@ -65,7 +65,7 @@ conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
 
 common_ratios() = [
-    #1 // 0,
+    1 // 0,
     8 // 1,
     4 // 1,
     2 // 1,
@@ -84,7 +84,10 @@ conventional_functions() = [
 
 function go()
     fns = (
+        conventional_resnet(),
+        #conventional_vgg(),
         conventional_inception(),
+        conventional_densenet(),
     )
 
     ratios = common_ratios()
@@ -120,6 +123,7 @@ end
 function plot_costs()
     pairs = [conventional_resnet() => "synchronous",
              conventional_inception() => "synchronous",
+             conventional_vgg() => "synchronous",
             ]
 
     ratios = common_ratios();
