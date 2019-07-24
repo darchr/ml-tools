@@ -4,7 +4,7 @@
 
 getname(v, s::Symbol) = getindex.(v, s)
 
-load_save_files(f, formulations::String) = load_save_files(f, (formulations,))
+load_save_files(f, formulations::String) = first(load_save_files(f, (formulations,)))
 function load_save_files(f, formulations)
 
     savefiles = [joinpath(savedir(f), join((name(f), i), "_") * ".jls") for i in formulations]

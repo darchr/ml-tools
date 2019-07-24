@@ -105,6 +105,7 @@ function ProfileData(fn::nGraph.NFunction, ::Type{T}) where {T}
             push!(tensors, tensor)
             users[tensor] = [wrapped]
         end
+
         for tensor in inputs(wrapped)
             if !in(wrapped, users[tensor])
                 push!(users[tensor], wrapped)

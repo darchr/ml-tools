@@ -52,13 +52,21 @@ function actualize(backend, func; nkw...)
     return nGraph.compile(backend, f, args...; kw..., nkw...)
 end
 
-"""
-    factory(::nGraph.Backend{nGraph.CPU}, func, opt::AbstractOptimizer; search_ratio = true)
-"""
+# Absolute optimizers just fall through to `_factory`
+function factory(
+        backend::nGraph.Backend,
+        func,
+        opt::AbstractOptimizer{Int64}
+    )
+
+    return _factory(backend, func, opt)
+end
+
+# Ratio optimizers go through a refinement step
 function factory(
         backend::nGraph.Backend{nGraph.CPU}, 
         func, 
-        opt::AbstractOptimizer; 
+        opt::AbstractOptimizer{Rational{Int64}}; 
         search_ratio = true,
         refinements = 3
     )
@@ -144,7 +152,7 @@ function _factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     #apply_affinity_heuristic!(fex.ex.ngraph_function)
 
     data = profile(fex)
-    modeltype = opt(data)
+    modeltype = opt(data, backend)
 
     # Some data structures for keeping track of modeling and optimization time.
     creation_times = Float64[]  
@@ -193,7 +201,12 @@ end
 #####
 ##### GPU factory
 #####
-function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
+
+# GPU Memory in Bytes
+const GPU_MAX_MEMORY = 11000000
+const GPU_MEMORY_OVERHEAD = 500000
+
+function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <: AbstractOptimizer}
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 
@@ -205,21 +218,36 @@ function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt)
     function cb(f::nGraph.NFunction)
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
-        apply_affinity_heuristic!(f)
+        #apply_affinity_heuristic!(f)
 
         data = profile(f, backend)
 
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)
-            limits_ref[] = [6000 for _ in 1:length(nodes(data))]
+            # Get the limit from the optimizer
+            # Find the input and output size of the function and subtract that from the 
+            # limit along with a fudge factor so we can fit the model on the GPU
+            io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
+            limit = getlimit(opt)
+            adjusted_limit = limit - io_size
+
+            # LOL, like this is all we need to check
+            @assert adjusted_limit > 0 
+            @info "Adjusted Limit: $adjusted_limit"
+
+            # Create a duplicate of the original optimizer with the adjusted limit
+            opt_adjusted = _optimizer(opt, adjusted_limit)
+            modeltype = opt_adjusted(data, backend)
+            limits_ref[] = modeltype.dram_limits
+        else
+            modeltype = opt(data, backend)
+            modeltype.dram_limits = limits_ref[]
         end
 
-        modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
-        #modeltype = synchronous(limits_ref[], 12000, 12000)
+        #modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
 
         frame = create_model(modeltype, data)
         optimize!(frame)
-        #list_overlaps(frame)
         tensor_map = configure!(f, frame)
 
         frame_ref[] = frame

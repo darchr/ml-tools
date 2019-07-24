@@ -5,7 +5,7 @@ function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 3
     times = 1
     while (now() < start + timeout) || (times <= min_calls)
         @info "Running Function"
-        runtime = @elapsed(fex())
+        runtime = @elapsed(read(fex()))
         @info "Done Running Function"
         mintime = min(mintime, runtime)
         times += 1
@@ -16,6 +16,8 @@ end
 _base_stats() = (
     io_size = Ref(0),
     default_alloc_size = Ref(0),
+    # GPU runtime usinc CUDA Malloc Managed
+    gpu_managed_runtime = Ref(0.0),
     runs = Vector{Dict{Symbol,Any}}(),
 )
 
@@ -40,7 +42,6 @@ function compare(
         func,
         opt,
         backend::nGraph.Backend;
-        cache = CPUKernelCache(BASE_CACHE_PATH),
         statspath = nothing,
     )
 
@@ -60,8 +61,7 @@ function compare(
         stats,
         func,
         opt,
-        backend;
-        cache = cache,
+        backend
     )
 
     @info """
@@ -75,7 +75,7 @@ function compare(
     return stats
 end
 
-function initialize!(stats, func, backend)
+function initialize!(stats, func, backend::nGraph.Backend{nGraph.CPU})
     # Instantiate the function
     fex = actualize(backend, func)
 
@@ -84,7 +84,18 @@ function initialize!(stats, func, backend)
     return nothing
 end
 
-function _compare!(stats, f, opt, backend; skip_run = false, skip_configure = false, kw...)
+# To initialize the GPU stuff, we turn on the Managed Memory flag and compile the function
+function initialize!(stats, func, backend::nGraph.Backend{nGraph.GPU})
+    fex = withenv("NGRAPH_GPU_CUDA_MALLOC_MANAGED" => true) do 
+        actualize(backend, func)
+    end
+
+    stats.io_size[] = sum(sizeof, input_tensors(fex)) + sum(sizeof, output_tensors(fex))
+    stats.default_alloc_size[] = nGraph.get_temporary_pool_size(fex.ex.ngraph_function)
+    stats.gpu_managed_runtime[] = gettime(fex)
+end
+
+function _compare!(stats, f, opt, backend; skip_run = false, skip_configure = false)
     fex, frame, _metadata = factory(backend, f, opt)
     GC.gc()
     data = frame.profile_data
@@ -176,6 +187,82 @@ function _compare!(stats, f, opt, backend; skip_run = false, skip_configure = fa
     return nothing
 end
 
+function _compare!(stats, f, opt, backend::nGraph.Backend{nGraph.GPU})
+    fex, frame = factory(backend, f, opt)
+    GC.gc()
+    data = frame.profile_data
+
+    # Get the predicted run time and then the actual run time
+    nt = Dict(
+        :predicted_runtime => Runner.predict(frame),
+        :dram_limit => maxlimit(frame.modeltype),
+        :tensor_size_map => Dict(nGraph.name(t) => sizeof(t) for t in tensors(data)),
+
+        # Number of move nodes plus bytes moved around
+        :num_move_nodes => count(_move_filter(), nodes(data)),
+        :num_pmem_move_nodes => count(_move_filter(PMEM), nodes(data)),
+        :num_dram_move_nodes => count(_move_filter(DRAM), nodes(data)),
+
+        :bytes_moved => _count(inputs, sizeof, data; filt = _move_filter()),
+        :bytes_moved_pmem => _count(inputs, sizeof, data; filt = _move_filter(PMEM)),
+        :bytes_moved_dram => _count(inputs, sizeof, data; filt = _move_filter(DRAM)),
+
+        :num_async_move_nodes => count(_async_filter(), nodes(data)),
+        :num_pmem_async_move_nodes => count(_async_filter(PMEM), nodes(data)),
+        :num_dram_async_move_nodes => count(_async_filter(DRAM), nodes(data)),
+
+        :bytes_async_moved => _count(inputs, sizeof, data; filt = _async_filter()),
+        :bytes_async_moved_pmem => _count(inputs, sizeof, data; filt = _async_filter(PMEM)),
+        :bytes_async_moved_dram => _count(inputs, sizeof, data; filt = _async_filter(DRAM)),
+
+        # Total number of kernels
+        :num_kernels => count(hasprofile, nodes(data)),
+        :num_input_tensors => _count(inputs, data; filt = hasprofile),
+        :num_output_tensors => _count(outputs, data; filt = hasprofile),
+
+        :num_dram_input_tensors => _count(
+            x -> filter(!nGraph.is_persistent, inputs(x)),
+            data; filt = hasprofile
+        ),
+        :num_dram_output_tensors => _count(
+            x -> filter(!nGraph.is_persistent, outputs(x)),
+            data; filt = hasprofile
+        ),
+
+        # Get the sizes of the input and output tensors
+        :bytes_input_tensors => _count(inputs, sizeof, data; filt = hasprofile),
+        :bytes_output_tensors => _count(outputs, sizeof, data; filt = hasprofile),
+
+        :bytes_dram_input_tensors => _count(
+            x -> filter(!nGraph.is_persistent, inputs(x)),
+            sizeof,
+            data;
+            filt = hasprofile
+        ),
+        :bytes_dram_output_tensors => _count(
+            x -> filter(!nGraph.is_persistent, outputs(x)),
+            sizeof,
+            data;
+            filt = hasprofile
+        ),
+
+        # Info on global allocations
+        :dram_alloc_size => nGraph.get_temporary_pool_size(fex.ex.ngraph_function),
+        :pmem_alloc_size => nGraph.get_pmem_pool_size(fex.ex.ngraph_function),
+        :move_time => estimate_move_time(fex, frame),
+
+        # Timing Breakdowns
+        :actual_runtime => gettime(fex),
+        :oracle_time => fastest_time(frame),
+        #:kernel_times => read_timing_data(fex.ex.ngraph_function)
+    )
+
+    push!(stats.runs, nt)
+    
+
+    return nothing
+end
+
 #####
 ##### Intraction methods with the `rettuple` from `compare`
 #####
@@ -216,42 +303,6 @@ function gettimings(data)
         push!(timings, nt)
     end
     return timings
-end
-
-#####
-##### Plotting
-#####
-
-struct PlotDispatch end
-
-@recipe function f(::PlotDispatch, timings, key; legend = nothing)
-    # Sort by key ratio over DRAM
-    sort!(timings; by = x -> getproperty(x, key) / x.dram)
-
-    # Get all the unique descriptions
-    descriptions = unique(map(x -> x.description, timings))
-
-    seriestype := :scatter
-    legend := legend
-    #yaxis := :log10
-
-    xlabel := "Kernel Number"
-    ylabel := "Execution time with respect to all DRAM"
-
-    for d in descriptions
-        x = Int[]
-        y = Float64[]
-        for (i, timing) in enumerate(timings)
-            timing.description == d || continue
-
-            push!(x, i)
-            push!(y, getproperty(timing, key) ./ timing.dram)
-        end
-        @series begin
-            lab := d
-            x,y
-        end
-    end
 end
 
 #####

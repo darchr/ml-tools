@@ -102,76 +102,72 @@ function pgf_plot_performance(f;
     return nothing
 end
 
-function pgf_numa_plot(f; file = "plot.tex", formulations = ("static", "synchronous"))
-    data = _load_save_files(f, formulations)
-    dram_performance = get_dram_performance(data)
-
-    numa_data = deserialize(
-        joinpath(savedir(f), join((name(f), "numa"), "_") * ".jls")
-    )
-
-    # TODO: This is a hack for now because I didn't originally collect the ILP data with
-    # this in mind.
-    #
-    # Fix this once you get the experiment launching stuff in order.
-    numa_limits = getname(numa_data, :dram_limit)
-    numa_runtimes = getname(numa_data, :actual_runtime)  
-
-    plots = []
-    for (d, formulation) in zip(data, formulations)
-        x = [] 
-        y = []
-        for (numa_limit, numa_runtime) in zip(numa_limits, numa_runtimes)
-            # Find the entry in `d` that has the closest limit to this numa amount
-
-            dram_limits = getname(d.runs, :dram_limit)
-            __temp = abs.(dram_limits .- numa_limit ./ 1E6)
-            _, ind = findmin(__temp)
-            perf = getname(d.runs, :actual_runtime)[ind]
-
-            push!(x, round(Int, numa_limit ./ 1E9))
-            push!(y, numa_runtime / perf)
-
-        end
-        append!(plots, [
-        @pgf(PlotInc(
-             Coordinates(
-                x, y  
-            ),
-        ))
-        @pgf(LegendEntry("$formulation"))
-        ])
-    end
-
-    # Get the numa DRAM values in GB
-    coords = round.(Int, numa_limits ./ 1E9)
-
-    plt = @pgf Axis(
-        {
-            ybar,
-            enlarge_x_limits=0.20,
-            legend_style =
-            {
-                 at = Coordinate(0.95, 0.95),
-                 anchor = "north east",
-                 legend_columns = -1
-            },
-            ymin=0,
-            symbolic_x_coords=coords,
-            nodes_near_coords_align={vertical},
-            ymajorgrids,
-            ylabel_style={
-                align = "center",
-            },
-            xtick="data",
-            bar_width="20pt",
-            # Lables
-            xlabel = "DRAM Size (GB)",
-            ylabel = "Relative Performance to\\\\first touch NUMA",
-        },
-        plots...
-    )
-
-    pgfsave(file, plt)
-    return nothing
-end
+#function pgf_numa_plot(f; file = "plot.tex", formulations = ("static", "synchronous"))
+#    data = _load_save_files(f, formulations)
+#    dram_performance = get_dram_performance(data)
+#
+#    numa_data = deserialize(
+#        joinpath(savedir(f), join((name(f), "numa"), "_") * ".jls")
+#    )
+#
+#    numa_limits = getname(numa_data, :dram_limit)
+#    numa_runtimes = getname(numa_data, :actual_runtime)  
+#
+#    plots = []
+#    for (d, formulation) in zip(data, formulations)
+#        x = [] 
+#        y = []
+#        for (numa_limit, numa_runtime) in zip(numa_limits, numa_runtimes)
+#            # Find the entry in `d` that has the closest limit to this numa amount
+#
+#            dram_limits = getname(d.runs, :dram_limit)
+#            __temp = abs.(dram_limits .- numa_limit ./ 1E6)
+#            _, ind = findmin(__temp)
+#            perf = getname(d.runs, :actual_runtime)[ind]
+#
+#            push!(x, round(Int, numa_limit ./ 1E9))
+#            push!(y, numa_runtime / perf)
+#
+#        end
+#        append!(plots, [
+#        @pgf(PlotInc(
+#             Coordinates(
+#                x, y  
+#            ),
+#        ))
+#        @pgf(LegendEntry("$formulation"))
+#        ])
+#    end
+#
+#    # Get the numa DRAM values in GB
+#    coords = round.(Int, numa_limits ./ 1E9)
+#
+#    plt = @pgf Axis(
+#        {
+#            ybar,
+#            enlarge_x_limits=0.20,
+#            legend_style =
+#            {
+#                 at = Coordinate(0.95, 0.95),
+#                 anchor = "north east",
+#                 legend_columns = -1
+#            },
+#            ymin=0,
+#            symbolic_x_coords=coords,
+#            nodes_near_coords_align={vertical},
+#            ymajorgrids,
+#            ylabel_style={
+#                align = "center",
+#            },
+#            xtick="data",
+#            bar_width="20pt",
+#            # Lables
+#            xlabel = "DRAM Size (GB)",
+#            ylabel = "Relative Performance to\\\\first touch NUMA",
+#        },
+#        plots...
+#    )
+#
+#    pgfsave(file, plt)
+#    return nothing
+#end

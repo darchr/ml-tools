@@ -99,6 +99,7 @@ include("visualizer/performance_plots.jl")
 include("visualizer/allocation_plots.jl")
 include("visualizer/statistics_plots.jl")
 include("visualizer/speedup.jl")
+include("visualizer/gpu.jl")
 
 # async
 include("async_tests.jl")

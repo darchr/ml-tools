@@ -97,7 +97,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
 
     plots = [] 
     for (f, formulation) in pairs
-        data = first(load_save_files(f, formulation))
+        data = load_save_files(f, formulation)
         dram_performance = get_dram_performance(data)
 
         # This x and y data point
@@ -171,7 +171,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
         den = ratio.den
 
         # Total approximately sums to 1
-        return (num / 2.5 + den) / (num + den)
+        return (num / cost_ratio + den) / (num + den)
     end
 
     axs = @pgf Axis(

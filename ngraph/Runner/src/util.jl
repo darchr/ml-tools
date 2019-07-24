@@ -24,13 +24,15 @@ function _lastuser(tensor::TensorDescriptor, nodes::Vector{NodeDescriptor})
     return nodes[end + 1 - idx]
 end
 
-function input_tensors(fex::nGraph.FluxExecutable)
-    params = NodeDescriptor.(nGraph.get_parameters(fex.ex.ngraph_function))
+input_tensors(fex::nGraph.FluxExecutable) = input_tensors(fex.ex.ngraph_function)
+function input_tensors(f::nGraph.NFunction)
+    params = NodeDescriptor.(nGraph.get_parameters(f))
     return Iterators.flatten(outputs.(params))
 end
 
-function output_tensors(fex::nGraph.FluxExecutable)
-    params = NodeDescriptor.(nGraph.get_results(fex.ex.ngraph_function))
+output_tensors(fex::nGraph.FluxExecutable) = output_tensors(fex.ex.ngraph_function)
+function output_tensors(f::nGraph.NFunction)
+    params = NodeDescriptor.(nGraph.get_results(f))
     return Iterators.flatten(inputs.(params))
 end
 
