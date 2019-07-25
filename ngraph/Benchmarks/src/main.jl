@@ -180,9 +180,9 @@ const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
 
 # For the GPU, we have a hard limit of 11 GB,
 gpu_fns() = (
-    #Inception_v4(64),
-    #Inception_v4(128),
-    #Inception_v4(256),
+    Inception_v4(64),
+    Inception_v4(128),
+    Inception_v4(256),
     Resnet200(32),
     Resnet200(64),
     Resnet200(128),

@@ -49,7 +49,9 @@ include("numa/numa.jl")
 
 function actualize(backend, func; env = (), nkw...)
     f, args, kw = func()
-    return withenv(nGraph.compile(backend, f, args...; kw..., nkw...), env...)
+    return withenv(env...) do
+        nGraph.compile(backend, f, args...; kw..., nkw...)
+    end
 end
 
 # Absolute optimizers just fall through to `_factory`

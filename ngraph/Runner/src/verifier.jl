@@ -2,14 +2,14 @@
 # graph.
 #
 # To do that, we use an auxiliary function that accepts the constructor function for a model
-# as well as any passes to be performed on the model and checks that the base computation 
+# as well as any passes to be performed on the model and checks that the base computation
 # matches the modifed computation.
 #
 # NOTES:
 # - Need to set the random seed before each call to the model constructor to ensure that
 #   the model enters a known and consistent state before any modification.
 #
-# - Need to provide utility functions to extract the before/after parameters of each 
+# - Need to provide utility functions to extract the before/after parameters of each
 #   function for comparison.
 astuple(x::Tuple) = x
 astuple(x) = (x,)
@@ -23,54 +23,133 @@ astuple(x) = (x,)
 - `env`: Tuple of environmental "var"=>val to forward to the first call to `actualize`.
     Main use is turning on CudaMallocManaged for comparison purposes.
 """
-function verify(backend, f, opt; seed = 8086, env = ())
+function verify(backend, f, opt; seed = 8086, env = (), iterations = 1, rtol = 0.05)
     # Wrap the function in another function that sets the random seed - ensuring the same
     # parameter values every time.
     f_wrapped = (args...; kw...) -> (Random.seed!(seed); return f(args...; kw...))
 
-    # Set the random seed and compile the initial function
-    fex = actualize(backend, f_wrapped)
-    
-    # Call the function once. Wrap the results in a tuple so we can iterate over it 
-    # generically.
+    # Get the reference inputs/outputs as well as the inputs from the optimized version.
     #
-    # TODO: Maybe add a `params` argument to nGraph.jl to make this a little cleaner.
-    results = astuple(fex())
-    inputs = nGraph.getinputs(fex.optimizer)
-    outputs = nGraph.getoutputs(fex.optimizer)
+    # We expect all to be approximately the same.
+    # Call the GC inbetween to free resources. This is important when running on the GPU
+    # because otherwise, we'll get an `out of memory` error.
+    GC.gc()
+    ref_inputs, ref_outputs = _baseline(backend, f_wrapped, seed, env, iterations)
+    GC.gc()
+    #opt_inputs, opt_outputs = _baseline(backend, f_wrapped, seed, env, iterations)
+    opt_inputs, opt_outputs = _test(backend, f_wrapped, opt, seed, iterations)
+    GC.gc()
 
-    # Check results for NaNs
-    @assert !any(x -> any(isnan, read(x)), results)
-    @assert !any(x -> any(isnan, read(x)), inputs)
-    @assert !any(x -> any(isnan, read(x)), outputs)
-    @assert !any(x -> any(issubnormal, read(x)), results)
-    @assert !any(x -> any(issubnormal, read(x)), inputs)
-    @assert !any(x -> any(issubnormal, read(x)), outputs)
+    # Perform all of the checks on the inputs and outputs
+    passed = true 
 
-    # Now that we have baseline results, we compile again and then run the pass on the
-    # results.
-    Random.seed!(seed)    
-    fex_p = factory(backend, f_wrapped, opt)
+    # Check that the reference inputs and outputs are not NAN or Subnormal
+    for (i, (inputs, outputs)) in enumerate(zip(ref_inputs, ref_outputs))
+        if any(x -> any(isnan, x), inputs)
+            @error "Reference Inputs at Iteration $i are NaN!"
+            passed = false
+        end
+        if any(x -> any(issubnormal, x), inputs)
+            @error "Reference Inputs at Iteration $i are Subnormal!"
+            passed = false
+        end
 
-    results_p = astuple(fex_p())
-    inputs_p = nGraph.getinputs(fex.optimizer)
-    outputs_p = nGraph.getoutputs(fex.optimizer)
+        if any(x -> any(isnan, x), outputs)
+            @error "Reference Inputs at Iteration $i are NaN!"
+            passed = false
+        end
+        if any(x -> any(issubnormal, x), outputs)
+            @error "Reference Inputs at Iteration $i are Subnormal!"
+            passed = false
+        end
+    end
 
-    @assert !any(x -> any(isnan, read(x)), results_p)
-    @assert !any(x -> any(isnan, read(x)), inputs_p)
-    @assert !any(x -> any(isnan, read(x)), outputs_p)
-    @assert !any(x -> any(issubnormal, read(x)), results_p)
-    @assert !any(x -> any(issubnormal, read(x)), inputs_p)
-    @assert !any(x -> any(issubnormal, read(x)), outputs_p)
+    # Check the inputs and outputs of the optimized results for NaN or Subnormal
+    for (i, (inputs, outputs)) in enumerate(zip(opt_inputs, opt_outputs))
+        if any(x -> any(isnan, x), inputs)
+            @error "Reference Inputs at Iteration $i are NaN!"
+            passed = false
+        end
+        if any(x -> any(issubnormal, x), inputs)
+            @error "Reference Inputs at Iteration $i are Subnormal!"
+            passed = false
+        end
 
-    # util function
-    g = (a,b) -> all(isapprox.(read.(a), read.(b)))
+        if any(x -> any(isnan, x), outputs)
+            @error "Reference Inputs at Iteration $i are NaN!"
+            passed = false
+        end
+        if any(x -> any(issubnormal, x), outputs)
+            @error "Reference Inputs at Iteration $i are Subnormal!"
+            passed = false
+        end
+    end
 
-    # Check that everything matches
-    args_match    = g(args_p, args)
-    results_match = g(results_p, results)
-    inputs_match  = g(inputs_p, inputs)
-    outputs_match = g(outputs_p, outputs)
+    # Check reference and optimized for approximate equality
+    iter = zip(ref_inputs, ref_outputs, opt_inputs, opt_outputs)
+    for (i, (ref_input, ref_output, opt_input, opt_output)) in enumerate(iter)
+        # Check outputs
+        for (r, o) in zip(ref_output, opt_output)
+            if !isapprox(r, o; rtol = rtol)
+                @error "Reference and Optimized Output not equal on iteration $i"
+                passed = false
+            end
+        end
 
-    return args_match, results_match, inputs_match, outputs_match
+        # Check inputs
+        for (r, o) in zip(ref_input, opt_input)
+            if !isapprox(r, o; rtol = rtol)
+                @error "Reference and Optimized Input not equal on iteration $i"
+                printstyled("Reference Input"; color = :red)
+                display(r)
+                printstyled("Optimized Input"; color = :red)
+                display(o)
+                passed = false
+            end
+        end
+    end
+
+    if !passed
+        @error "Test did not pass for optimizer: $(typeof(opt))" opt
+    end
+
+    # Just show the losses
+    for (r,o) in zip(ref_outputs, opt_outputs)
+        printstyled("Reference Output"; color = :red)
+        display(first(r))
+        printstyled("Optimized Output"; color = :red)
+        display(first(o))
+    end
+
+    return passed
+end
+
+# Run the reference version of the network
+function _baseline(backend, f, seed, env, iterations)
+    fex = actualize(backend, f; env = env)
+
+    # Keep track on the CPU of the inputs and outputs across all iterations
+    inputs = []
+    outputs = []
+
+    for _ in 1:iterations
+        fex()
+        push!(inputs, read.(nGraph._splat_inputs(fex)))
+        push!(outputs, read.(nGraph._splat_outputs(fex)))
+    end
+    return inputs, outputs
+end
+
+function _test(backend, f, opt, seed, iterations)
+    fex = first(factory(backend, f, opt))
+
+    inputs = []
+    outputs = []
+
+    for _ in 1:iterations
+        fex()
+        push!(inputs, read.(nGraph._splat_inputs(fex)))
+        push!(outputs, read.(nGraph._splat_outputs(fex)))
+    end
+    return inputs, outputs
 end

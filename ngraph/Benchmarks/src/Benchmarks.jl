@@ -7,6 +7,7 @@ using Flux
 using nGraph, Runner, Zoo
 
 include("main.jl")
+include("test.jl")
 
 # Pathing schenanigans
 const SRCDIR = @__DIR__
