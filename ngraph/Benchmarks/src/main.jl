@@ -170,23 +170,27 @@ end
 #####
 
 const GPU_MAX_MEMORY = 11_000_000_000
+
+# Got this number from looking at nvidia-smi after all the GPU initialization code
+# in ngraph runs.
+#
+# Probably worth double-checking
 const GPU_MEMORY_OVERHEAD = 561_000_000
 const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
 
 # For the GPU, we have a hard limit of 11 GB,
-gpu_inceptions() = (
-    #Inception_v4(32),
+gpu_fns() = (
     #Inception_v4(64),
     #Inception_v4(128),
     #Inception_v4(256),
-    #Resnet200(32),
+    Resnet200(32),
     Resnet200(64),
     Resnet200(128),
 )
 
 function gpu_go()
     fns = Iterators.flatten((
-        gpu_inceptions(),
+        gpu_fns(),
     ))
 
     limit = GPU_ADJUSTED_MEMORY
@@ -203,7 +207,7 @@ end
 
 function plot_gpu_performance()
     fns = Iterators.flatten((
-        gpu_inceptions(),
+        gpu_fns(),
     ))
 
     Runner.pgf_gpu_performance_plot(fns)

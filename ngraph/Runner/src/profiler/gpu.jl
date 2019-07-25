@@ -262,6 +262,14 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
             actual = perf[nGraph.name(node)]
             expected = 1000 * get_time(gettime(data, node), algo_enum)
 
+            # Get the expected move time
+            _async = get(frame.model[:tensor_async], nGraph.name(node), nothing)
+            if !isnothing(_async)
+                async_time = JuMP.value(_async)
+            else
+                async_time = 0.0
+            end
+
             expected_total += expected
             actual_total += actual
 
@@ -270,11 +278,20 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
                 println("Algorithm selection for $(nGraph.name(node)): $algo_enum")
                 println("    Actual Time: $(actual)")
                 println("    Expected Time: $(expected)")
+                println("    Async Time: $(async_time)")
                 println()
             end
         else
             actual = perf[nGraph.name(node)]
             expected = gettime(data, node)
+
+            # Get the expected move time
+            _async = get(frame.model[:tensor_async], nGraph.name(node), nothing)
+            if !isnothing(_async)
+                async_time = JuMP.value(_async)
+            else
+                async_time = 0.0
+            end
 
             expected_total += expected
             actual_total += actual
@@ -283,6 +300,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
                 println("No Algorithm selection for $(nGraph.name(node))")
                 println("    Actual Time: $(actual)")
                 println("    Expected Time: $(expected)")
+                println("    Async Time: $(async_time)")
                 println()
             end
         end

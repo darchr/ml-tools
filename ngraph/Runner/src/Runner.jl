@@ -119,11 +119,13 @@ is_memory_intensive(op::nGraph.Node) = is_memory_intensive(nGraph.description(op
 is_memory_intensive(op::NodeDescriptor) = is_memory_intensive(nGraph.description(op))
 
 ismove(description::String) = startswith(description, "Move")
-ismove(op::nGraph.Node) = ismove(nGraph.description(op))
-ismove(x::NodeDescriptor) = ismove(nGraph.description(x))
+ismove(x::nGraph.NodeLike) = ismove(nGraph.description(x))
 
 ismoveasync(description::String) = startswith(description, "MoveAsync")
 ismoveasync(x::nGraph.NodeLike) = ismoveasync(nGraph.description(x))
+
+ismovesync(description::String) = description == "Move"
+ismovesync(x::nGraph.NodeLike) = ismovesync(nGraph.description(x))
 
 isconstant(description::String) = startswith(description, "Constant")
 isconstant(x::nGraph.Node) = isconstant(nGraph.description(x))

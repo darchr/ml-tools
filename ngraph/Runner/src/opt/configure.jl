@@ -86,14 +86,6 @@ function configure!(f, frame::Frame)
 
             # Only one algorithm should be selected
             @assert count == 1
-
-            # @show nGraph.name(node)
-            # @show convert(Int, algo_enum)
-            # @show convert(Int, get_bytes(gettime(data, node), algo_enum))
-            # @show get_time(gettime(data, node), algo_enum)
-
-            #algo_enum = 1
-            @info "Setting Algorithm"
             nGraph.Lib.set_algo(
                 nGraph.getpointer(node),
                 convert(UInt, algo_enum),
@@ -175,39 +167,9 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
                 addchild!(tensor_map, tensor, output)
             end
 
-            # Determine associate from the action location.
-            #
-            # If moving to PMEM, perform this action as soon as possible after the node
-            # generating the argument.
-            if action.location == PMEM || isasync(action)
-                # If this is an asynchronous move, we want to associate it with the
-                # concurrent node.
-                #
-                # Otherwise, associate with the producer
-                if isasync(action)
-                    nGraph.set_output_affinity(move_node)
-                    nGraph.add_associate(move_node, nGraph.name(action.concurrent))
-                else
-                    nGraph.set_input_affinity(move_node)
-                    nGraph.add_associate(move_node, nGraph.name(producer))
-                end
-
-                # Perform a sanity check. Should not move data to PMEM if it already
-                # started in PMEM.
-                !isasync(action) && @assert initial_location == DRAM
-
-            # Otherwise, make this happen as late as possible. Add all of the output
-            # associates to this list because scheduling may be reordered after inserting
-            # the move nodes.
-            elseif action.location == DRAM
-                # Set synchronization flag on the first consumer
-
-                nGraph.set_output_affinity(move_node)
-                for consumer in consumers
-                    nGraph.add_associate(move_node, nGraph.name(consumer))
-                end
-            else
-                error()
+            # Quick debug
+            if action.location == PMEM && !isasync(action)
+                @assert initial_location == DRAM
             end
 
             # Add this move node to `node_dict` and assign its output tensor to the config.
@@ -235,6 +197,9 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
             make_persistent(output)
         end
     end
+
+    # Run priority pass after configuration
+    priority_pass!(fn)
 
     # Set algorithms and workspaces
     return tensor_map

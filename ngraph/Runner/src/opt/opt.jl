@@ -47,16 +47,17 @@ include("configure.jl")
 include("modnn/modnn.jl")
 include("numa/numa.jl")
 
-function actualize(backend, func; nkw...)
+function actualize(backend, func; env = (), nkw...)
     f, args, kw = func()
-    return nGraph.compile(backend, f, args...; kw..., nkw...)
+    return withenv(nGraph.compile(backend, f, args...; kw..., nkw...), env...)
 end
 
 # Absolute optimizers just fall through to `_factory`
 function factory(
         backend::nGraph.Backend,
         func,
-        opt::AbstractOptimizer{Int64}
+        opt::AbstractOptimizer{Int64};
+        seed = 8086
     )
 
     return _factory(backend, func, opt)
@@ -149,7 +150,7 @@ end
 function _factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
     # Unpack and compile the function
     fex = actualize(backend, func)
-    #apply_affinity_heuristic!(fex.ex.ngraph_function)
+    priority_pass!(fex.ex.ngraph_function)
 
     data = profile(fex)
     modeltype = opt(data, backend)
@@ -180,7 +181,7 @@ function _factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
 
             # Update the flux executable
             fex = actualize(backend, func)
-            #apply_affinity_heuristic!(fex.ex.ngraph_function)
+            priority_pass!(fex.ex.ngraph_function)
 
             data = profile(fex)
         # Adjust ratio if outside of of the desired bounds
@@ -218,7 +219,7 @@ function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <:
     function cb(f::nGraph.NFunction)
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
-        #apply_affinity_heuristic!(f)
+        priority_pass!(f)
 
         data = profile(f, backend)
 

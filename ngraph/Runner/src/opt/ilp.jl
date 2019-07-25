@@ -63,7 +63,6 @@ exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
 function update(I::T, data::ProfileData) where {T <: ILPHolder}
-
     dram_limits = I.dram_limits
     ml = maxlimit(I)
 
@@ -86,8 +85,8 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
     end
 
     decrease_amount = max(
-        # Decrease by at most 5%
-        0.95,
+        # Decrease by at most 2%
+        0.98,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
@@ -183,7 +182,7 @@ function create_model(modeltype::ILPHolder, profile_data::ProfileData)
     @timeit TO "preprocessing" preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 600, MIPGap = 0.005))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 600, MIPGap = 0.01))
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs

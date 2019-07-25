@@ -19,11 +19,17 @@ astuple(x) = (x,)
 
 - `pass`: Function `(FluxExecutable) -> FluxExecutable`: Takes an executable and returns
     a modified executable that will be compared against the baseline executable.
+
+- `env`: Tuple of environmental "var"=>val to forward to the first call to `actualize`.
+    Main use is turning on CudaMallocManaged for comparison purposes.
 """
-function verify(f, pass; seed = 8086)
+function verify(backend, f, opt; seed = 8086, env = ())
+    # Wrap the function in another function that sets the random seed - ensuring the same
+    # parameter values every time.
+    f_wrapped = (args...; kw...) -> (Random.seed!(seed); return f(args...; kw...))
+
     # Set the random seed and compile the initial function
-    Random.seed!(seed)
-    fex, args = f()
+    fex = actualize(backend, f_wrapped)
     
     # Call the function once. Wrap the results in a tuple so we can iterate over it 
     # generically.
@@ -37,13 +43,14 @@ function verify(f, pass; seed = 8086)
     @assert !any(x -> any(isnan, read(x)), results)
     @assert !any(x -> any(isnan, read(x)), inputs)
     @assert !any(x -> any(isnan, read(x)), outputs)
-
+    @assert !any(x -> any(issubnormal, read(x)), results)
+    @assert !any(x -> any(issubnormal, read(x)), inputs)
+    @assert !any(x -> any(issubnormal, read(x)), outputs)
 
     # Now that we have baseline results, we compile again and then run the pass on the
     # results.
     Random.seed!(seed)    
-    fex_p, args_p = f()
-    fex_p = pass(fex_p)
+    fex_p = factory(backend, f_wrapped, opt)
 
     results_p = astuple(fex_p())
     inputs_p = nGraph.getinputs(fex.optimizer)
@@ -52,9 +59,14 @@ function verify(f, pass; seed = 8086)
     @assert !any(x -> any(isnan, read(x)), results_p)
     @assert !any(x -> any(isnan, read(x)), inputs_p)
     @assert !any(x -> any(isnan, read(x)), outputs_p)
+    @assert !any(x -> any(issubnormal, read(x)), results_p)
+    @assert !any(x -> any(issubnormal, read(x)), inputs_p)
+    @assert !any(x -> any(issubnormal, read(x)), outputs_p)
 
     # util function
     g = (a,b) -> all(isapprox.(read.(a), read.(b)))
+
+    # Check that everything matches
     args_match    = g(args_p, args)
     results_match = g(results_p, results)
     inputs_match  = g(inputs_p, inputs)
