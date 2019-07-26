@@ -2,6 +2,7 @@ module Benchmarks
 
 export STREAM, Kernel, benchmark
 
+using Serialization
 using PGFPlotsX
 using Flux
 using nGraph, Runner, Zoo

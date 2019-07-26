@@ -11,7 +11,7 @@ function is_follower(node)::Bool
 
     # Default set of follower nodes
     description = nGraph.description(node)
-    return any(x -> startswith(description, x), ("Result", "Sum"))
+    return any(x -> startswith(description, x), ("Result", "Sum", "Add"))
 end
 
 # A leader node should be scheduled as late as possible, but clumped before its trailing
@@ -24,7 +24,7 @@ function is_leader(node)::Bool
 
     # Default leader nodes
     description = nGraph.description(node)
-    return any(x -> startswith(description, x), ("Broadcast",))
+    return any(x -> startswith(description, x), ("Broadcast", "ConvertLayout"))
 end
 
 # Heuristic to assign priorities to nodes in the graph to yield better schedules
@@ -41,6 +41,8 @@ function priority_pass!(f::nGraph.NFunction)
 
     # Next, assign priorities
     for node in map(NodeDescriptor, f)
+        # Async Moves take priority because if they aren't placed right after their async
+        # node - codegen will clump them with the wrong computation kernel.
         if ismoveasync(node)
             priorities[node] = -2
 
