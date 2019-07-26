@@ -1,3 +1,37 @@
+function cpu_test()
+    iterations = 10
+    fns = (
+        Resnet50(64),
+    )
+
+    ratios = [
+        1 // 0,
+        2 // 1,
+        1 // 1,
+    ]
+
+    optimizers = (
+        [Runner.Static(r) for r in ratios],
+        [Runner.Synchronous(r) for r in ratios],
+    )
+
+    backend = nGraph.Backend("CPU")
+
+    results = []
+    for f in fns
+        for opt in Iterators.flatten(optimizers)
+            passed = Runner.verify(
+                backend,
+                f,
+                opt;
+                iterations = iterations,
+            )
+            push!(results, (f, opt, passed))
+        end
+    end
+    return results
+end
+
 function gpu_test()
     # Number of test iterations
     iterations = 10

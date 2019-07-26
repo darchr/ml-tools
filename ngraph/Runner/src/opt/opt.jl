@@ -54,16 +54,8 @@ function actualize(backend, func; env = (), nkw...)
     end
 end
 
-# Absolute optimizers just fall through to `_factory`
-function factory(
-        backend::nGraph.Backend,
-        func,
-        opt::AbstractOptimizer{Int64};
-        seed = 8086
-    )
-
-    return _factory(backend, func, opt)
-end
+# Default is to fallback to the inner call
+factory(args...; kw....) = _factory(args...; kw....)
 
 # Ratio optimizers go through a refinement step
 function factory(
@@ -148,74 +140,15 @@ function factory(
     return (best_fex, best_args...)
 end
 
-
-function _factory(backend::nGraph.Backend{nGraph.CPU}, func, opt)
-    # Unpack and compile the function
-    fex = actualize(backend, func)
-    priority_pass!(fex.ex.ngraph_function)
-
-    data = profile(fex)
-    modeltype = opt(data, backend)
-
-    # Some data structures for keeping track of modeling and optimization time.
-    creation_times = Float64[]  
-    optimization_times = Float64[]
-
-    # Iterate until convergence
-    while true
-        # Optimize the function
-        creation_time = @elapsed(frame = create_model(modeltype, data))
-        optimization_time = @elapsed(optimize!(frame))
-        fex, _metadata = configure!(fex, frame)
-
-        push!(creation_times, creation_time)
-        push!(optimization_times, optimization_time)
-
-        # Deal with fragmentation
-        if exceeds_limit(fex, modeltype)
-            @info """
-            Limit Exceeded
-            Limit: $(maxlimit(modeltype))
-            Actual: $(convert(Int, nGraph.get_temporary_pool_size(fex.ex.ngraph_function)))
-            """
-
-            modeltype = update(modeltype, frame.profile_data)
-
-            # Update the flux executable
-            fex = actualize(backend, func)
-            priority_pass!(fex.ex.ngraph_function)
-
-            data = profile(fex)
-        # Adjust ratio if outside of of the desired bounds
-        else
-            frame.profile_data = profile(fex)
-
-            metadata = Dict(
-                :metadata => _metadata,
-                :creation_times => creation_times,
-                :optimization_times => optimization_times,
-            )
-
-            return fex, frame, metadata
-        end
-    end
-end
-
-#####
-##### GPU factory
-#####
-
-# GPU Memory in Bytes
-const GPU_MAX_MEMORY = 11000000
-const GPU_MEMORY_OVERHEAD = 500000
-
-function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <: AbstractOptimizer}
+function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOptimizer}
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 
     # add a callback that will populate a reference to a `ProfileData` type
     frame_ref = Ref{Frame}()
     limits_ref = Ref{Vector{Int}}() 
+    creation_times = Float64[]
+    optimization_times = Float64[]
 
     #A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction)
@@ -230,34 +163,34 @@ function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <:
             # Get the limit from the optimizer
             # Find the input and output size of the function and subtract that from the 
             # limit along with a fudge factor so we can fit the model on the GPU
-            io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
-            limit = getlimit(opt)
-            adjusted_limit = limit - io_size
+            #io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
+            #limit = getlimit(opt)
+            #adjusted_limit = max(limit - io_size, 0)
 
-            # LOL, like this is all we need to check
-            @assert adjusted_limit > 0 
-            @info "Adjusted Limit: $adjusted_limit"
+            ## LOL, like this is all we need to check
+            #@info "Adjusted Limit: $adjusted_limit"
 
-            # Create a duplicate of the original optimizer with the adjusted limit
-            opt_adjusted = _optimizer(opt, adjusted_limit)
-            modeltype = opt_adjusted(data, backend)
+            ## Create a duplicate of the original optimizer with the adjusted limit
+            #opt_adjusted = _optimizer(opt, adjusted_limit)
+            modeltype = opt(data, backend)
             limits_ref[] = modeltype.dram_limits
         else
             modeltype = opt(data, backend)
             modeltype.dram_limits = limits_ref[]
         end
 
-        #modeltype = asynchronous(limits_ref[], 12000, 12000, 12000, 12000)
+        creation_time = @elapsed(frame = create_model(modeltype, data))
+        optimization_time = @elapsed(optimize!(frame))
 
-        frame = create_model(modeltype, data)
-        optimize!(frame)
+        push!(creation_times, creation_time)
+        push!(optimization_times, optimization_time)
+
         tensor_map = configure!(f, frame)
-
         frame_ref[] = frame
         return nothing
     end
 
-    # Defrag callback - if a function needs defragging, throws a `GPUExit` exception to
+    # Defrag callback - if a function needs defragging, throws a `CompilerExit` exception to
     # avoid nGraph trying to allocate too much GPU memory
     function defrag(f::nGraph.NFunction)
         if exceeds_limit(f, frame_ref[].modeltype)
@@ -265,7 +198,7 @@ function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <:
             modeltype = update(frame_ref[].modeltype, profile(f, backend))
             limits_ref[] = modeltype.dram_limits
 
-            throw(GPUExit())
+            throw(CompilerExit())
         end
     end
 
@@ -277,27 +210,32 @@ function _factory(backend::nGraph.Backend{nGraph.GPU}, func, opt::T) where {T <:
 
         # Setup callbacks
         #
-        # If the function needs defragging, a `GPUExit` exception will be thrown and we
+        # If the function needs defragging, a `CompilerExit` exception will be thrown and we
         # will have to try again.
-        gpu_callbacks = GPUCallback()
-        callback!(gpu_callbacks, cb)
-        callback!(gpu_callbacks, defrag)
+        callbacks = CallbackChain()
+        callback!(callbacks, cb)
+        callback!(callbacks, defrag)
 
         try
             fex = nGraph.compile(
                 backend, 
                 f, 
                 args...;
-                callback = gpu_callbacks, 
+                callback = callbacks, 
                 emit_timing = true, 
                 kw...
             )
         catch e
-            isa(e, GPUExit) || rethrow(e)
+            isa(e, CompilerExit) || rethrow(e)
             retry = true
         end
     end
 
-    return fex, frame_ref[]
+    metadata = Dict(
+        :creation_times => creation_times,
+        :optimization_times => optimization_times,
+    )
+
+    return fex, frame_ref[], metadata
 end
 

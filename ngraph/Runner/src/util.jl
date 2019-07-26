@@ -128,3 +128,24 @@ ratio_string(x::Rational) = "$(x.num):$(x.den)"
 
 compare_ratio(a, b) = iszero(b.den) ? inv(a) : a - b
 
+#####
+##### For managing callbacks
+#####
+mutable struct CallbackChain
+    # Vector of callback functions
+    fns::Vector
+    # Number of times this has been invoked.
+    num_invocations::Int64
+end
+CallbackChain() = CallbackChain([], 1)
+callback!(G::CallbackChain, f) = push!(G.fns, f)
+
+function (G::CallbackChain)(args...)
+    if G.num_invocations > length(G.fns)
+        return nothing
+    else
+        f = G.fns[G.num_invocations]
+        G.num_invocations += 1
+        return f(args...)
+    end
+end

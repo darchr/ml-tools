@@ -11,7 +11,7 @@ function __init__()
 end
 
 # In case we need to gracefully exit from a GPU compilation callback function
-struct GPUExit <: Exception end
+struct CompilerExit <: Exception end
 
 # stdlibs
 using Dates, Random, Serialization, Statistics
