@@ -21,78 +21,8 @@
 # time. With some work, this strategy could be unified across CPU and GPu and would actually
 # probably reduce a lot of the cluster that is the CPU code :(
 
-
-# Hijack the GPU backend for profiling.
-#
-# Since the GPU backend doesn't have to deal with the whole configuration with DRAM and
-# PMEM business, this routine is much simpler.
-#
-# Why do we need to profile at all? The given graph may exceed the memory limit of the GPU,
-# so we need to profile kernel by kernel.
-mutable struct GPUCallback
-    # Vector of callback functions
-    fns::Vector
-    # Number of times this has been invoked.
-    num_invocations::Int64
-end
-GPUCallback() = GPUCallback([], 1)
-callback!(G::GPUCallback, f) = push!(G.fns, f)
-
-function (G::GPUCallback)(args...)
-    if G.num_invocations > length(G.fns)
-        return nothing
-    else
-        f = G.fns[G.num_invocations]
-        G.num_invocations += 1
-        return f(args...)
-    end
-end
-
 enable_cuda_managed() = ENV["NGRAPH_GPU_CUDA_MALLOC_MANAGED"] = true
 disable_cuda_managed() = delete!(ENV, "NGRAPH_GPU_CUDA_MALLOC_MANAGED")
-
-function get_baseline_allocation(backend::nGraph.Backend{nGraph.GPU}, f)
-    allocation_ref = Ref{Int}(0)
-    io_ref = Ref{Int}(0)
-    gpu_callbacks = GPUCallback()
-
-    # For the first callback, we want to set all intermediate algorithms to their fastest
-    # setting.
-    function set(f::nGraph.NFunction)
-        data = profile(f, backend)
-        for node in nodes(data)
-            if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
-                # Find the minimum runtime of the algorithms
-                runtimes = get_times(gettime(data, node))
-                _, ind = findmin(runtimes)
-                enum = get_enums(gettime(data, node))[ind]
-
-                nGraph.Lib.set_algo(
-                    nGraph.getpointer(node),
-                    convert(UInt, enum),
-                    convert(UInt, get_bytes(gettime(data, node), enum)),
-                )
-            end
-        end
-    end
-
-    function ret(f::nGraph.NFunction)
-        allocation_ref[] = nGraph.get_temporary_pool_size(f)
-        io_ref[] = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f)) 
-        throw(GPUExit())
-    end
-
-    callback!(gpu_callbacks, set)
-    callback!(gpu_callbacks, ret)
-
-    try
-        return actualize(backend, f; callback = gpu_callbacks)
-    catch e
-        isa(e, GPUExit) || rethrow(e)
-    end
-
-    return allocation_ref[], io_ref[]
-end
 
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
         cache = GPUKernelCache(BASE_GPU_CACHE_PATH),

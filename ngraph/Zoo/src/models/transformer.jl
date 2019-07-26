@@ -19,7 +19,6 @@ function scaled_dot_product_attention(q, k, v)
         push!(slices, y)
     end
     return cat(slices...; dims = 3)
-    #Flux.softmax((q * transpose(k)) ./ size(k, 1)) * v
 end
 
 # multi-head attention

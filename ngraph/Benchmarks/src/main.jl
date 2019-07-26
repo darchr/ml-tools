@@ -64,6 +64,9 @@ conventional_resnet() = Resnet200(512)
 conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
 
+large_inception() = Inception_v4(6144)
+large_vgg() = Vgg416(320)
+
 common_ratios() = [
     1 // 0,
     8 // 1,
@@ -84,9 +87,9 @@ conventional_functions() = [
 
 function go()
     fns = (
-        conventional_resnet(),
+        #conventional_resnet(),
         #conventional_vgg(),
-        conventional_inception(),
+        #conventional_inception(),
         conventional_densenet(),
     )
 
@@ -102,11 +105,30 @@ function go()
     Runner.entry(fns, optimizers, nGraph.Backend("CPU"))
 end
 
+function go_large()
+    fns = (
+        large_inception(),
+        large_vgg(),
+    )
+
+    ratios = [
+        180000000,
+    ]
+
+    optimizers = (
+        [Runner.Static(r) for r in ratios],
+        [Runner.Synchronous(r) for r in ratios],
+        [Runner.Numa(r) for r in ratios],
+    )
+
+    Runner.entry(fns, optimizers, nGraph.Backend("CPU"); skip_base_check = true)
+end
+
 #####
 ##### Functions for generating plots
 #####
 
-function plot_speedup(model)
+function plot_speedup(model; formulations = ("numa", "static", "synchronous"))
     ratios = common_ratios();
 
     # Get rid of the all PMEM and all DRAM case
@@ -116,15 +138,16 @@ function plot_speedup(model)
     Runner.pgf_speedup(
         model,
         ratios;
-        formulations = ("numa", "static", "synchronous")
+        formulations = formulations,
     )
 end
 
 function plot_costs()
-    pairs = [conventional_resnet() => "synchronous",
-             conventional_inception() => "synchronous",
-             conventional_vgg() => "synchronous",
-            ]
+    pairs = [
+        conventional_resnet() => "synchronous",
+        conventional_inception() => "synchronous",
+        conventional_vgg() => "synchronous",
+    ]
 
     ratios = common_ratios();
 
@@ -143,6 +166,7 @@ end
 inception_speedup() = plot_speedup(conventional_inception())
 vgg_speedup() = plot_speedup(conventional_vgg())
 resnet_speedup() = plot_speedup(conventional_resnet())
+densenet_speedup() = plot_speedup(conventional_densenet(); formulations = ("static", "synchronous"))
 
 # In depth analysis
 function inception_analysis_plots()

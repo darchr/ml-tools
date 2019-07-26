@@ -3,17 +3,17 @@ using Plots
 function title end
 function savedir end
 
-function entry(fns, opts, backend)
+function entry(fns, opts, backend; kw...)
     for f in fns, opt in Iterators.flatten(opts)
-        _entry(f, opt, backend)
+        _entry(f, opt, backend; kw...)
     end
 end
 
 # Entry points
-function _entry(f, opt, backend)
+function _entry(f, opt, backend; kw...)
     # Perform a profiling and calibration
     savefile = joinpath(savedir(f), join((name(f), name(opt)), "_") * ".jls")
-    compare(f, opt, backend; statspath = savefile)
+    compare(f, opt, backend; statspath = savefile, kw...)
     return nothing
 end
 
