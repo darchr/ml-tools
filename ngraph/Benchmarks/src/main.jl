@@ -107,7 +107,7 @@ end
 
 function go_large()
     fns = (
-        large_inception(),
+        #large_inception(),
         large_vgg(),
     )
 
@@ -118,10 +118,19 @@ function go_large()
     optimizers = (
         [Runner.Static(r) for r in ratios],
         [Runner.Synchronous(r) for r in ratios],
-        [Runner.Numa(r) for r in ratios],
+        #[Runner.Numa(r) for r in ratios],
     )
 
     Runner.entry(fns, optimizers, nGraph.Backend("CPU"); skip_base_check = true)
+end
+
+function go_2lm()
+    fns = (
+        large_inception(),
+        large_vgg(),
+    )
+
+    Runner.entry(fns, Runner.Optimizer2LM(), nGraph.Backend("CPU"))
 end
 
 #####

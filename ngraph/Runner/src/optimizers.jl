@@ -172,6 +172,11 @@ function (M::Asynchronous{Int})(data, backend::nGraph.Backend)
                              )
 end
 
+## 2LM optimizer
+struct Optimizer2LM <: AbstractOptimizer{Rational{Int64}} end
+getratio(::Optimizer2LM) = 0 // 1
+_optimizer(::Optimizer2LM, args...) = Optimizer2LM()
+name(::Optimizer2LM) = "2lm"
 
 ## Numa formulation
 struct Numa{T} <: AbstractOptimizer{T}

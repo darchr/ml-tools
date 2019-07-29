@@ -55,13 +55,13 @@ function actualize(backend, func; env = (), nkw...)
 end
 
 # Default is to fallback to the inner call
-factory(args...; kw....) = _factory(args...; kw....)
+factory(args...; kw...) = _factory(args...; kw...)
 
 # Ratio optimizers go through a refinement step
 function factory(
-        backend::nGraph.Backend{nGraph.CPU}, 
-        func, 
-        opt::AbstractOptimizer{Rational{Int64}}; 
+        backend::nGraph.Backend{nGraph.CPU},
+        func,
+        opt::AbstractOptimizer{Rational{Int64}};
         search_ratio = true,
         refinements = 3
     )
@@ -73,7 +73,7 @@ function factory(
     search_ratio || return _factory(backend, func, opt)
 
     # Perform a binary search
-    ret = _factory(backend, func, opt)   
+    ret = _factory(backend, func, opt)
     fex = first(ret)
     args = Base.tail(ret)
 
@@ -96,7 +96,7 @@ function factory(
     best_args = args
 
     for i in 1:refinements
-        # Use a step size starting with 1 and increasing or decreasing by the step size 
+        # Use a step size starting with 1 and increasing or decreasing by the step size
         # until the ratio crosses the boundary of what we want.
         step = 1 // (10 ^ (i - 1))
         @info """
@@ -118,7 +118,7 @@ function factory(
 
             # If the ratios switch sign, time to exit
             getratio(fex) <= getratio(opt) && break
-            
+
             current_err = geterr(fex, opt)
             @info """
             Current Ratio: $(convert(Float64, current_ratio))
@@ -140,13 +140,21 @@ function factory(
     return (best_fex, best_args...)
 end
 
-function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOptimizer}
+function _factory(
+        backend::nGraph.Backend,
+        func,
+        opt::T;
+        # Useful for the GPU case
+        adjust_io = false,
+        defrag = true,
+    ) where {T <: AbstractOptimizer}
+
     # Get the function, arguments, and keyword arguments from the provided function
     f, args, kw = func()
 
     # add a callback that will populate a reference to a `ProfileData` type
     frame_ref = Ref{Frame}()
-    limits_ref = Ref{Vector{Int}}() 
+    limits_ref = Ref{Vector{Int}}()
     creation_times = Float64[]
     optimization_times = Float64[]
 
@@ -161,24 +169,25 @@ function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOpt
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)
             # Get the limit from the optimizer
-            # Find the input and output size of the function and subtract that from the 
+            # Find the input and output size of the function and subtract that from the
             # limit along with a fudge factor so we can fit the model on the GPU
-            #io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
-            #limit = getlimit(opt)
-            #adjusted_limit = max(limit - io_size, 0)
+            if adjust_io
+                io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
+                limit = max(getlimit(opt) - io_size, 0)
+                opt_adjusted = _optimizer(opt, limit)
+                modeltype = opt_adjusted(data, backend)
+            else
+                modeltype = opt(data, backend)
+            end
 
-            ## LOL, like this is all we need to check
-            #@info "Adjusted Limit: $adjusted_limit"
-
-            ## Create a duplicate of the original optimizer with the adjusted limit
-            #opt_adjusted = _optimizer(opt, adjusted_limit)
-            modeltype = opt(data, backend)
+            # Save the limits to the reference for reuse across defragmentation.
             limits_ref[] = modeltype.dram_limits
         else
             modeltype = opt(data, backend)
             modeltype.dram_limits = limits_ref[]
         end
 
+        # Record statistics about how long solving takes.
         creation_time = @elapsed(frame = create_model(modeltype, data))
         optimization_time = @elapsed(optimize!(frame))
 
@@ -192,7 +201,7 @@ function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOpt
 
     # Defrag callback - if a function needs defragging, throws a `CompilerExit` exception to
     # avoid nGraph trying to allocate too much GPU memory
-    function defrag(f::nGraph.NFunction)
+    function defrag_cb(f::nGraph.NFunction)
         if exceeds_limit(f, frame_ref[].modeltype)
             # This is pretty ugly - sorry about that.
             modeltype = update(frame_ref[].modeltype, profile(f, backend))
@@ -214,15 +223,15 @@ function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOpt
         # will have to try again.
         callbacks = CallbackChain()
         callback!(callbacks, cb)
-        callback!(callbacks, defrag)
+        defrag && callback!(callbacks, defrag_cb)
 
         try
             fex = nGraph.compile(
-                backend, 
-                f, 
+                backend,
+                f,
                 args...;
-                callback = callbacks, 
-                emit_timing = true, 
+                callback = callbacks,
+                emit_timing = true,
                 kw...
             )
         catch e
@@ -239,3 +248,15 @@ function _factory(backend::nGraph.Backend, func, opt::T) where {T <: AbstractOpt
     return fex, frame_ref[], metadata
 end
 
+#####
+##### 2LM Baseline
+#####
+
+function factory(
+        backend::nGraph.Backend{nGraph.CPU},
+        func,
+        opt::Optimizer2LM
+    )
+
+
+end

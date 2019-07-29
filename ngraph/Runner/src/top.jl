@@ -9,6 +9,12 @@ function entry(fns, opts, backend; kw...)
     end
 end
 
+function entry(fns, opt::AbstractOptimizer, backend; kw...)
+    for f in fns
+        _entry(f, opt, backend; kw...)
+    end
+end
+
 # Entry points
 function _entry(f, opt, backend; kw...)
     # Perform a profiling and calibration
@@ -44,18 +50,24 @@ function _entry(f, opt::Numa, backend)
     serialize(savefile, stats)
 end
 
-function _reuse_plot(f)
-    # Instantiate the function, make the profile data and get the title
-    fex, args = f()
-    p = ProfileData(fex)
-    title = name(f)
+function _entry(f, opt::Optimizer2LM, backend::nGraph.Backend{nGraph.CPU})
+    savefile = joinpath(savedir(f), join((name(f), "numa"), "_") * ".jls")
 
-    # Generate and save the plot
-    plt = plot(ReusePlot(), p, title = title)
-    savefile = joinpath(savedir(f), name(f) * "_reuse_plot.png")
-    png(plt, savefile)
-    return nothing
+    stats = ispath(savefile) ? deserialize(savefile) : _base_stats()
+    fex = actualize(backend, f)
+    runtime = gettime(fex)
+
+    run = Dict(
+        :actual_runtime => runtime,
+    )
+
+    push!(stats.runs, run)
+    serialize(savefile, stats)
 end
+
+#####
+##### Misc stuff
+#####
 
 function _allocation_plot(f)
     fex, args = f()
