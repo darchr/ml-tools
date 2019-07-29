@@ -153,3 +153,53 @@ function _test(backend, f, opt, seed, iterations)
     end
     return inputs, outputs
 end
+
+#####
+##### Track Training
+#####
+
+function track(backend, f, opts; 
+        seed = 8086, 
+        env = (), 
+        inner_iterations = 300, 
+        outer_iterations = 1,
+    )
+
+    # Wrapped the callable in a seed generator
+    f_wrapped = () -> (Random.seed!(seed); return f()) 
+
+    results = Dict{Any, Any}()
+
+    # Run the baseline
+    for _ in 1:outer_iterations
+        f_wrapped2 = () -> actualize(backend, f; env = env)
+        GC.gc()
+        losses = _track(backend, f_wrapped2, inner_iterations)
+        
+        arr = get!(results, "baseline", [])
+        push!(arr, losses)
+    end
+
+    # Run each of the optimizations
+    for opt in opts 
+        for _ in 1:outer_iterations
+            f_wrapped2 = () -> first(factory(backend, f, opt))
+            GC.gc() 
+            losses = _track(backend, f_wrapped2, inner_iterations)
+            
+            arr = get!(results, opt, [])
+            push!(arr, losses)
+        end
+    end
+
+    return results
+end
+
+function _track(backend, f, iterations)
+    fex = f()
+    results = Vector{Float32}(undef, iterations)
+    @showprogress 1 for i in 1:iterations
+        results[i] = read(fex())[]
+    end
+    return results
+end

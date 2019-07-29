@@ -219,6 +219,9 @@ gpu_fns() = (
     Resnet200(32),
     Resnet200(64),
     Resnet200(128),
+    DenseNet(32),
+    DenseNet(64),
+    DenseNet(128),
 )
 
 function gpu_go()

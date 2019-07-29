@@ -65,3 +65,68 @@ function gpu_test()
     end
     return results
 end
+
+function convergence_test()
+    inner_iterations = 1000
+    outer_iterations = 5
+    f = Resnet50(32)
+
+    backend = nGraph.Backend("GPU")
+    env = ("NGRAPH_GPU_CUDA_MALLOC_MANAGED" => true,)
+
+    opts = (
+        Runner.Synchronous(GPU_ADJUSTED_MEMORY),
+        Runner.Asynchronous(GPU_ADJUSTED_MEMORY),
+    )
+
+    # Get the results
+    results = Runner.track(backend, f, opts; 
+        env = env, 
+        inner_iterations = inner_iterations, 
+        outer_iterations = outer_iterations
+    )
+
+    serialize(joinpath(@__DIR__, "..", Runner.name(f) * "_results.jls"), results)
+    return nothing
+end
+
+_mkname(s::String) = s
+_mkname(s::Runner.AbstractOptimizer) = Runner.name(s)
+
+function plot_convergence(path; file = "plot.tex")
+    results = deserialize(path)::Dict
+    # opt - The type of optimizer. WIll be a `String` for the baseline, otherwise will be
+    #     some kind of AbstractOptimizer
+    #
+    # data - `Vector{Vector{<:Number}}`. Each inner vector corresponds to a single trial
+    #     for the optimizer. The outer vectors correspond to multiple trials.
+    plots = []
+    colors = ("blue", "red", "black")
+    for (i, (opt, data)) in enumerate(results)
+        for run in data
+            append!(plots, [
+                @pgf(PlotInc(
+                    {
+                        solid,
+                        color = colors[i],
+                        no_markers,
+                    },
+                    Coordinates(1:length(run), run)
+                )),
+                @pgf(LegendEntry(_mkname(opt))),
+            ])
+        end
+    end
+
+    plt = @pgf Axis(
+        {
+            legend_style = {
+                at = Coordinate(1.0, 1.0),
+                anchor = "north west",
+            },
+        },
+        plots...
+    )
+
+    pgfsave(file, plt)
+end

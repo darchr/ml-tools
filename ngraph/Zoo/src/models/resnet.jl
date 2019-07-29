@@ -22,7 +22,7 @@ function ResidualBlock(
         shortcut = identity
     )
     conv_layers = [
-        Conv(kernels[i-1], filters[i-1] => filters[i], pad = pads[i-1], stride = strides[i-1])
+        Conv(kernels[i-1], filters[i-1] => filters[i], pad = pads[i-1], stride = strides[i-1], init = Flux.glorot_normal)
         for i in 2:length(filters)
     ]
 
@@ -73,14 +73,15 @@ function Bottleneck(filters::Int, downsample::Bool = false, res_top::Bool = fals
                     (1,1),
                     filters=>4 * filters,
                     pad = (0,0),
-                    stride = (1,1)
+                    stride = (1,1),
+                    init = Flux.glorot_normal,
                 ),
                 BatchNorm(4 * filters)
            )
         )
     else
         shortcut = Chain(
-            Conv((1,1), 2 * filters=>4 * filters, pad = (0,0), stride = (2,2)),
+            Conv((1,1), 2 * filters=>4 * filters, pad = (0,0), stride = (2,2), init = Flux.glorot_normal),
             BatchNorm(4 * filters)
         )
         return ResidualBlock(
@@ -101,7 +102,7 @@ function _resnet(version::AbstractResnet)
     layers = _layers(version)
     layer_arr = []
 
-    push!(layer_arr, Conv((7,7), 3=>64, pad = (3,3), stride = (2,2)))
+    push!(layer_arr, Conv((7,7), 3=>64, pad = (3,3), stride = (2,2), init = Flux.glorot_normal))
     push!(layer_arr, x -> maxpool(x, (3,3), pad = (1,1), stride = (2,2)))
 
     initial_filters = 64
@@ -129,11 +130,12 @@ function _resnet(version::AbstractResnet)
 end
 
 function resnet_training(version::T, batchsize = 16; backend = nGraph.Backend(), kw...) where {T <: AbstractResnet}
+    Random.seed!(123455)
     X = rand(Float32, 224, 224, 3, batchsize)
     Y = rand(Float32, 1000, batchsize)
 
     g(x, y) = Flux.crossentropy(_resnet(version)(x), y)
-    kw = (optimizer = nGraph.SGD(Float32(0.0001)),)
+    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
     return g, (X, Y), kw
 end
 

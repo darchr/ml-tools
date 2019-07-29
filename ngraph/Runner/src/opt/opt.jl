@@ -63,7 +63,7 @@ function factory(
         func,
         opt::AbstractOptimizer{Rational{Int64}};
         search_ratio = true,
-        refinements = 3
+        refinements = 7
     )
 
     @info "Trying Ratio $(getratio(opt))"
@@ -98,7 +98,7 @@ function factory(
     for i in 1:refinements
         # Use a step size starting with 1 and increasing or decreasing by the step size
         # until the ratio crosses the boundary of what we want.
-        step = 1 // (10 ^ (i - 1))
+        step = 1 // (2 ^ (i - 1))
         @info """
         ------------------------
         Performing Refinement Iteration $i
@@ -106,8 +106,10 @@ function factory(
         ------------------------
         """
 
-        for _ in 1:9
+        for _ in 1:2
             current_ratio -= step
+            current_ratio < 0 && break
+
             @info "Trying Ratio: $(convert(Float64, current_ratio))"
             ret = _factory(backend, func, _optimizer(opt, current_ratio))
             fex = first(ret)
