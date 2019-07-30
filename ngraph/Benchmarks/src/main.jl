@@ -107,17 +107,17 @@ end
 
 function go_large()
     fns = (
-        #large_inception(),
-        large_vgg(),
+        large_inception(),
+        #large_vgg(),
     )
 
     ratios = [
-        180000000,
+        180_000_000_000,
     ]
 
     optimizers = (
-        [Runner.Static(r) for r in ratios],
         [Runner.Synchronous(r) for r in ratios],
+        [Runner.Static(r) for r in ratios],
         #[Runner.Numa(r) for r in ratios],
     )
 
@@ -131,6 +131,15 @@ function go_2lm()
     )
 
     Runner.entry(fns, Runner.Optimizer2LM(), nGraph.Backend("CPU"))
+end
+
+function plot_2lm()
+    fns = (
+        large_inception(),
+        large_vgg(),
+    )
+
+    Runner.pgf_large_performance(fns)
 end
 
 #####
@@ -161,10 +170,9 @@ function plot_costs()
     ratios = common_ratios();
 
     # Get rid of the all PMEM and all DRAM case
-    deleteat!
-    (ratios, findfirst(isequal(0 // 1), ratios))
+    deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
 
-    Runner.pgf_cost(pairs, ratios; cost_ratio = 2.5)
+    Runner.pgf_cost(pairs, ratios; cost_ratio = 2.1)
 end
 
 #####

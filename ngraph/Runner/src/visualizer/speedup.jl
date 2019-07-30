@@ -50,8 +50,8 @@ function pgf_speedup(f, ratios::Vector{<:Rational};
             height = "5cm",
             legend_style =
             {
-                 at = Coordinate(0.95, 1.15),
-                 anchor = "north east",
+                 at = Coordinate(0.05, 1.05),
+                 anchor = "south west",
                  legend_columns = -1
             },
             ymin=0,
@@ -76,7 +76,7 @@ function pgf_speedup(f, ratios::Vector{<:Rational};
               xl = first(symbolic_coords),
               xu = last(symbolic_coords)
              ),
-        raw"\addlegendimage{line legend, black, sharp plot, thick}",
+        raw"\addlegendimage{line legend, red, sharp plot, ultra thick}",
         LegendEntry("All DRAM"),
     )
 
@@ -91,7 +91,7 @@ end
 `pairs`: Vector of Pairs, first element is a model, second element is a formulation string.
 """
 function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}; 
-        cost_ratio = 2.5,
+        cost_ratio = 2.1,
         file = "plot.tex", 
     )
 
@@ -136,11 +136,11 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
             "axis_y_line*=left",
             "scale_only_axis",
             ybar,
-            bar_width = "8pt",
+            bar_width = "5pt",
             legend_style =
             {
-                 at = Coordinate(0.4, 1.15),
-                 anchor = "north",
+                 at = Coordinate(0.05, 1.05),
+                 anchor = "south west",
                  legend_columns = -1
             },
             ymin = 0,
@@ -186,6 +186,13 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
             ylabel = "Memory cost relative to all DRAM"
         },
         PlotInc(
+            {
+                mark = "text",
+                text_mark = raw"\$",
+                mark_options = {
+                    color = "black",
+                },
+            },
             Coordinates(symbolic_coords, y_cost),
         ),
     )

@@ -51,7 +51,7 @@ function _entry(f, opt::Numa, backend)
 end
 
 function _entry(f, opt::Optimizer2LM, backend::nGraph.Backend{nGraph.CPU})
-    savefile = joinpath(savedir(f), join((name(f), "numa"), "_") * ".jls")
+    savefile = joinpath(savedir(f), join((name(f), "2lm"), "_") * ".jls")
 
     stats = ispath(savefile) ? deserialize(savefile) : _base_stats()
     fex = actualize(backend, f)

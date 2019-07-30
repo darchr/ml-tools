@@ -10,7 +10,7 @@ function load_save_files(f, formulations)
     savefiles = [joinpath(savedir(f), join((name(f), i), "_") * ".jls") for i in formulations]
     data = deserialize.(savefiles)
     for d in data
-        sort!(d.runs; rev = true, by = x -> x[:dram_limit])
+        sort!(d.runs; rev = true, by = x -> get(x, :dram_limit, 0))
     end
 
     return data
@@ -36,7 +36,7 @@ hasymptote() = """
 """
 
 hline(y; xl = 0, xu = 1) = """
-\\draw[black, sharp plot, thick] 
+\\draw[red, sharp plot, ultra thick] 
     ({axis cs:$xl,$y} -| {rel axis cs:0,0}) -- 
     ({axis cs:$xu,$y} -| {rel axis cs:1,0});
 """ |> rm_newlines
