@@ -175,6 +175,21 @@ function plot_costs()
     Runner.pgf_cost(pairs, ratios; cost_ratio = 2.1)
 end
 
+function plot_cost_performance()
+    pairs = [
+        conventional_resnet() => "synchronous",
+        conventional_inception() => "synchronous",
+        conventional_vgg() => "synchronous",
+    ]
+
+    ratios = common_ratios();
+
+    # Get rid of the all PMEM and all DRAM case
+    deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
+
+    Runner.pgf_price_performance(pairs, ratios; cost_ratio = 2.1)
+end
+
 #####
 ##### Geneation of specific figures
 #####
