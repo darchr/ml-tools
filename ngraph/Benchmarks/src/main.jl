@@ -51,6 +51,7 @@ Runner.savedir(R::Inception_v4) = _savedir()
 struct DenseNet
     batchsize::Int
 end
+Runner.titlename(R::DenseNet) = "DenseNet 264"
 Runner.name(R::DenseNet) = "densenet264_batchsize_$(R.batchsize)"
 Runner.savedir(R::DenseNet) = _savedir()
 (R::DenseNet)() = Zoo.densenet_training(R.batchsize)
@@ -230,6 +231,8 @@ gpu_fns() = (
     DenseNet(32),
     DenseNet(64),
     DenseNet(128),
+    Vgg19(64),
+    Vgg19(128),
 )
 
 function gpu_go()
@@ -246,13 +249,7 @@ function gpu_go()
         Runner.Asynchronous(limit),
     ),)
 
-    Runner.entry(fns, optimizers, nGraph.Backend("GPU"))
+    Runner.entry(fns, optimizers, nGraph.Backend("GPU"); adjust_io = true)
 end
 
-function plot_gpu_performance()
-    fns = Iterators.flatten((
-        gpu_fns(),
-    ))
-
-    Runner.pgf_gpu_performance_plot(fns)
-end
+plot_gpu_performance() = Runner.pgf_gpu_performance_plot(gpu_fns())
