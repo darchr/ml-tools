@@ -88,6 +88,7 @@ function compare(
         backend::nGraph.Backend;
         skip_base_check = false,
         statspath = nothing,
+        kw...
     )
 
     if (isnothing(statspath) || !ispath(statspath))
@@ -108,7 +109,8 @@ function compare(
         stats,
         func,
         opt,
-        backend
+        backend;
+        kw...
     )
 
     @info """
@@ -142,8 +144,8 @@ function initialize!(stats, func, backend::nGraph.Backend{nGraph.GPU})
     stats.gpu_managed_runtime[] = gettime(fex)
 end
 
-function _compare!(stats, f, opt, backend; skip_run = false)
-    fex, frame, _metadata = factory(backend, f, opt)
+function _compare!(stats, f, opt, backend::nGraph.Backend{nGraph.CPU}; skip_run = false, kw...)
+    fex, frame, _metadata = factory(backend, f, opt; kw...)
     GC.gc()
     data = frame.profile_data
 
@@ -232,8 +234,8 @@ function _compare!(stats, f, opt, backend; skip_run = false)
     return nothing
 end
 
-function _compare!(stats, f, opt, backend::nGraph.Backend{nGraph.GPU})
-    fex, frame = factory(backend, f, opt)
+function _compare!(stats, f, opt, backend::nGraph.Backend{nGraph.GPU}; kw...)
+    fex, frame = factory(backend, f, opt; kw...)
     GC.gc()
     data = frame.profile_data
 
