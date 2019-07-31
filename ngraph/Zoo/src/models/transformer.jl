@@ -1,24 +1,26 @@
 # Scaled dot-product attention function
 function scaled_dot_product_attention(q, k, v) 
     # Doing the batched matrix multiplication is hard. 
-    slices = []
-    for i in 1:size(q, 3)
-        _q = transpose(reshape(q[:, :, i], size(q, 1), size(q, 2)))
-        _k = reshape(q[:, :, i], size(k, 1), size(k, 2))
-        y = reshape(_q * _k, size(q, 2), size(q, 2), 1)
-        push!(slices, y)
-    end
-    x = cat(slices...; dims = 3)
+    # slices = []
+    # for i in 1:size(q, 3)
+    #     _q = transpose(reshape(q[:, :, i], size(q, 1), size(q, 2)))
+    #     _k = reshape(q[:, :, i], size(k, 1), size(k, 2))
+    #     y = reshape(_q * _k, size(q, 2), size(q, 2), 1)
+    #     push!(slices, y)
+    # end
+    # x = cat(slices...; dims = 3)
+    x = nGraph.bmm(q, k; transpose_b = true)
     x = x ./ size(k, 1)
     x = Flux.softmax(x)
-    slices = []
-    for i in 1:size(q, 3)
-        _v = reshape(v[:, :, i], size(v, 1), size(v, 2))
-        _x = reshape(x[:, :, i], size(x, 1), size(x, 2))
-        y = reshape(_v * _x, size(v, 1), size(v, 2), 1)
-        push!(slices, y)
-    end
-    return cat(slices...; dims = 3)
+    return nGraph.bmm(x, v)
+    #slices = []
+    #for i in 1:size(q, 3)
+    #    _v = reshape(v[:, :, i], size(v, 1), size(v, 2))
+    #    _x = reshape(x[:, :, i], size(x, 1), size(x, 2))
+    #    y = reshape(_v * _x, size(v, 1), size(v, 2), 1)
+    #    push!(slices, y)
+    #end
+    #return cat(slices...; dims = 3)
 end
 
 # multi-head attention

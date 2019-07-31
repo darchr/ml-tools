@@ -9,7 +9,7 @@ include("models/resnet.jl")
 include("models/densenet.jl")
 include("models/gnmt.jl")
 #include("models/rhn.jl")
-#include("models/transformer.jl")
+include("models/transformer.jl")
 #include("models/unet.jl")
 
 # Debug models
