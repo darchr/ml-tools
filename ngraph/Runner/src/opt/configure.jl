@@ -128,7 +128,7 @@ function configure!(fn::nGraph.NFunction, data::ProfileData, schedule, algos = n
     # VALUE: An async move to this node.
     synced_nodes = Set{nGraph.NodeDescriptor}()
 
-    for (tensor, (initial_location, actions)) in schedule
+    @showprogress 1 "Computing Move Nodes" for (tensor, (initial_location, actions)) in schedule
         addtensor!(tensor_map, tensor)
         config[tensor] = initial_location
 

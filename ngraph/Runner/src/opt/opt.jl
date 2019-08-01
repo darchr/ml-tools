@@ -63,17 +63,18 @@ function factory(
         func,
         opt::AbstractOptimizer{Rational{Int64}};
         search_ratio = true,
-        refinements = 7
+        refinements = 7,
+        kw...
     )
 
     @info "Trying Ratio $(getratio(opt))"
 
     # Just return the inner factory if we aren't interesting in performing a binary search
     # for the actual ratio to input that will return the desired ratio
-    search_ratio || return _factory(backend, func, opt)
+    search_ratio || return _factory(backend, func, opt; kw...)
 
     # Perform a binary search
-    ret = _factory(backend, func, opt)
+    ret = _factory(backend, func, opt; kw...)
     fex = first(ret)
     args = Base.tail(ret)
 
@@ -111,7 +112,7 @@ function factory(
             current_ratio < 0 && break
 
             @info "Trying Ratio: $(convert(Float64, current_ratio))"
-            ret = _factory(backend, func, _optimizer(opt, current_ratio))
+            ret = _factory(backend, func, _optimizer(opt, current_ratio); kw...)
             fex = first(ret)
             args = Base.tail(ret)
 
@@ -149,6 +150,7 @@ function _factory(
         # Useful for the GPU case
         adjust_io = false,
         defrag = true,
+        pkw...
     ) where {T <: AbstractOptimizer}
 
     # Get the function, arguments, and keyword arguments from the provided function
@@ -165,8 +167,7 @@ function _factory(
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
         priority_pass!(f)
-
-        data = profile(f, backend)
+        data = profile(f, backend; pkw...)
 
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)

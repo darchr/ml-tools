@@ -68,16 +68,39 @@ function stringify(c::Runner.IOConfig)
     return "$ins $outs"
 end
 
+function make_plot(::Type{Kernel})
+    data = first.(deserialize("kernel_data.jls"))
+
+    xticks = [
+        "DRAM\\\\DRAM",
+        "DRAM\\\\PMM",
+        "PMM\\\\DRAM",
+        "PMM\\\\PMM",
+    ]
+
+    gen_plot(Kernel, data;
+        config_mask = (true, false, false, true),
+        xticks = xticks,
+        width = "8cm",
+        height = "5cm",
+    )
+end
+
 struct AlwaysTrue end
 Base.getindex(::AlwaysTrue, args...) = true
 
-_coordinates(d::Dict, configs::Vector{Runner.IOConfig}, normalization) = [(stringify(c), d[c] / normalization) for c in configs]
+_coordinates(d::Dict, configs::Vector{Runner.IOConfig}, normalization) = 
+    [(i, d[c] / normalization) for (i, c) in enumerate(configs)]
+
+
 function gen_plot(::Type{Kernel}, data; 
         file = "plot.tex", 
         preamble = true,
         # Take configs for the first input and first (and only) output by default
-        config_mask = (true, false, false, true)
-        #config_mask = AlwaysTrue(),
+        config_mask = (true, false, false, true),
+        xticks = nothing,
+        width = "5cm",
+        height = "2cm",
     )
     # Sort by number of threads.
     sort!(data; by = x -> x.nthreads)
@@ -91,10 +114,23 @@ function gen_plot(::Type{Kernel}, data;
 
     # Normalize to the fastest kernel
     normalization = minimum(minimum.(values.(getproperty.(data, :timings))))
-    plots = [Plot(Coordinates(_coordinates(d.timings, configs, normalization))) for d in data]
+
+    plots = [
+        Plot(Coordinates(_coordinates(d.timings, configs, normalization))) for d in data
+    ]
+
     legend = ["$(d.nthreads) Threads" for d in data]
 
-    plt = @pgf Axis(
+    plt = TikzDocument()
+    push!(plt, """
+    \\pgfplotsset{
+        width=$width,
+        height=$height
+    }
+    """)
+
+    tikz = TikzPicture()
+    axs = @pgf Axis(
         {
             ybar,
             enlarge_x_limits=0.20,
@@ -104,17 +140,19 @@ function gen_plot(::Type{Kernel}, data;
                  anchor = "south east",
                  legend_columns = -1
             },
-            symbolic_x_coords=stringify.(configs),
+            #symbolic_x_coords = xticks,
             nodes_near_coords_align={vertical},
-            ylabel="Performance relative to\\\\24 threadswith all IO in DRAM",
+            ylabel="Performance relative\\\\to all IO in DRAM",
             ymajorgrids,
             ymin=0,
             ylabel_style={
                 align = "center",
             },
-            xlabel="IO Configuration",
+            #xlabel="IO Configuration",
             xtick="data",
+            xticklabels = xticks,
             xticklabel_style={
+                align = "center",
                 #rotate = 75,
                 #"/pgf/number format/1000 sep=",
             },
@@ -123,12 +161,15 @@ function gen_plot(::Type{Kernel}, data;
                 "/pgf/number format/precision=5",
             },
             bar_width="20pt",
-            width = "15cm",
-            height = "5cm",
+            #width = "15cm",
+            #height = "5cm",
         },
         plots...,
-        Legend(legend),
+        #Legend(legend),
     )
+
+    push!(tikz, axs)
+    push!(plt, tikz)
 
     pgfsave(file, plt; include_preamble = preamble)
     return nothing

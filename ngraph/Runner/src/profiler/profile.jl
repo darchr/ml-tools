@@ -30,9 +30,11 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-profile(fex::nGraph.FluxExecutable) = profile(fex.ex.ngraph_function, fex.ex.backend)
+profile(fex::nGraph.FluxExecutable; kw...) = profile(fex.ex.ngraph_function, fex.ex.backend; kw...)
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
-        cache = CPUKernelCache(BASE_CACHE_PATH)
+        cache = CPUKernelCache(BASE_CACHE_PATH),
+        # Force re-profiling
+        recache = false,
     )
 
     # Go through each node
@@ -51,6 +53,20 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
     for config in all_configs
         v = get!(config_dict, first(config), IOConfig[])
         push!(v, last(config))
+    end
+
+    # Clean up cached configs if passed the `recache` option
+    if recache 
+        @info "Removing Cached Configs"
+        for node in nodes(data)
+            hasprofile(node) || continue
+            configs = config_dict[node]
+            kernel_params = CPUKernelParams(node)
+            for config in configs
+                key = (kernel_params, config)
+                delete!(cache, key)
+            end
+        end
     end
 
     num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
@@ -75,7 +91,6 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
     end
 
     ncached = 0
-
     for (index, node) in enumerate(nodes(data))
         # Skip unneeded ops
         hasprofile(node) || continue
@@ -234,9 +249,19 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
             translated_node = op
             found = true
             break
+
+        # Handle Special Cases
+        elseif nGraph.description(op) == "MatmulBias" && nGraph.description(copied_node) == "Dot"
+            translated_node = op
+            found = true
+            break
         end
     end
-    @assert found
+    if !found
+        @show copied_node
+        @show nGraph.name(copied_node)
+        error("Something done gone wrong!")
+    end
 
     for (index, input) in enumerate(nGraph.get_inputs(translated_node))
         if nGraph.description(input) == "Parameter"

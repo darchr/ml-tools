@@ -56,6 +56,15 @@ Runner.name(R::DenseNet) = "densenet264_batchsize_$(R.batchsize)"
 Runner.savedir(R::DenseNet) = _savedir()
 (R::DenseNet)() = Zoo.densenet_training(R.batchsize)
 
+struct Transformer
+    batchsize::Int
+    sequence_length::Int
+end
+Runner.titlename(T::Transformer) = "Transformer"
+Runner.name(T::Transformer) = "transformer_batchsize_$(T.batchsize)_seqlen_$(T.sequence_length)"
+Runner.savedir(T::Transformer) = _savedir()
+(T::Transformer)() = Zoo.transformer_training(T.batchsize, T.sequence_length)
+
 #####
 ##### Helpers for benchmark routines
 #####
@@ -64,6 +73,7 @@ conventional_inception() = Inception_v4(1024)
 conventional_resnet() = Resnet200(512)
 conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
+conventional_transformer() = Transformer(256, 200)
 
 large_inception() = Inception_v4(6144)
 large_vgg() = Vgg416(320)
@@ -84,6 +94,7 @@ conventional_functions() = [
     conventional_resnet(),
     conventional_vgg(),
     conventional_densenet(),
+    conventional_transformer(),
 ]
 
 function go()
@@ -91,19 +102,20 @@ function go()
         #conventional_resnet(),
         #conventional_vgg(),
         #conventional_inception(),
-        conventional_densenet(),
+        #conventional_densenet(),
+        conventional_transformer(), 
     )
 
     ratios = common_ratios()
 
     optimizers = (
+        #[Runner.Synchronous(r) for r in ratios],
         [Runner.Static(r) for r in ratios],
-        [Runner.Synchronous(r) for r in ratios],
         #[Runner.Asynchronous(r) for r in ratios],
-        [Runner.Numa(r) for r in ratios],
+        #[Runner.Numa(r) for r in ratios],
     )
 
-    Runner.entry(fns, optimizers, nGraph.Backend("CPU"))
+    Runner.entry(fns, optimizers, nGraph.Backend("CPU"); skip_base_check = true)
 end
 
 function go_large()

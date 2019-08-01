@@ -104,6 +104,7 @@ abstract type AbstractKernelCache end
 Base.getindex(cache::AbstractKernelCache, args...) = getindex(cache.cache, args...)
 Base.setindex!(cache::AbstractKernelCache, args...) = setindex!(cache.cache, args...)
 Base.haskey(cache::AbstractKernelCache, args...) = haskey(cache.cache, args...)
+Base.delete!(cache::AbstractKernelCache, args...) = delete!(cache.cache, args...)
 
 # NOTE: Keeping caches as separate types rather than parametric to be backwards compatible
 # with older serialized objects.
