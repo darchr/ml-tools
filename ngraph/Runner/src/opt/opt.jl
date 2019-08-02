@@ -150,7 +150,7 @@ function _factory(
         # Useful for the GPU case
         adjust_io = false,
         defrag = true,
-        pkw...
+        profile_kw...
     ) where {T <: AbstractOptimizer}
 
     # Get the function, arguments, and keyword arguments from the provided function
@@ -167,7 +167,7 @@ function _factory(
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
         priority_pass!(f)
-        data = profile(f, backend; pkw...)
+        data = profile(f, backend; profile_kw...)
 
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)
@@ -251,15 +251,3 @@ function _factory(
     return fex, frame_ref[], metadata
 end
 
-#####
-##### 2LM Baseline
-#####
-
-function factory(
-        backend::nGraph.Backend{nGraph.CPU},
-        func,
-        opt::Optimizer2LM
-    )
-
-
-end

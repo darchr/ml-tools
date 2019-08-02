@@ -20,6 +20,17 @@ include("cache.jl")
 include("function.jl")
 include("gpu.jl")
 
+disable_passes() = ENV["NGRAPH_PASS_ENABLES"] = join((
+    "AlgebraicSimplification:0",
+    "CoreFusion:0",
+    "CPUFusion:0",
+    "CPUHorizontalFusion:0",
+    "CommonSubexpressionElimination:0",
+   ), ";"
+)
+
+enable_passes() = delete!(ENV, "NGRAPH_PASS_ENABLES")
+
 """
     profile(args...)
 
@@ -90,6 +101,9 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
         )
     end
 
+    # Disable some passes that get rid of the node we actually want
+    disable_passes() 
+
     ncached = 0
     for (index, node) in enumerate(nodes(data))
         # Skip unneeded ops
@@ -118,17 +132,21 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
 
         # Extract a subgraph with just this op
         @timeit TO "extracting node" begin
-            ex, inputs, outputs, copied_op = extract(nGraph.Node(node), backend)
+            ex, inputs, outputs, copied_ops = extract(nGraph.Node(node), backend)
         end
 
         # Profile the timings
         for config in filter(!in(cached_configs), configs)
             _update!(progress_bar, node, config, ncached)
             # setup the config
-            _setup!(copied_op, config)
+            for op in copied_ops
+                _setup!(op, config)
+            end
 
             # recompile the function to reflect the new config state
+            GC.gc()
             ex = nGraph.recompile(ex)
+            GC.gc()
             function_name = nGraph.name(ex.ngraph_function)
 
             # Run the inner loop multiple times to warm up the cache.
@@ -140,17 +158,20 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
                 data, 
                 node, 
                 function_name, 
-                copied_op, 
+                copied_ops, 
                 config
             )
 
-            _cleanup!(copied_op)
+            _cleanup!(ex.ngraph_function)
 
             # Save the results to the cache, and then save the cache
             cache[(kernel_params, config)] = gettime(data, node, config)
             save(cache)
         end
     end
+
+    # Renable optimization passes
+    enable_passes() 
 
     return data
 end
@@ -162,38 +183,65 @@ function record_time!(
         data::ProfileData{nGraph.CPU}, 
         node::NodeDescriptor, 
         function_name, 
-        op, 
+        ops::Vector{<:nGraph.Node}, 
         expected_config
     )
 
     timings = read_timing_data(function_name)
     # Get the persistence config of this op
-    config = getconfig(op)
+    configs = getconfig.(ops)
+    inds = findall(isequal(expected_config), configs)
+    
+    found_ops = ops[inds]
 
     # Make sure that the expected configuration is the one we actualy get.
-    if config != expected_config
+    if isempty(found_ops)
         @error """
         Expected config $expected_config.
         Got Config $config.
 
-        Op Name: $(nGraph.name(op))
-        params: $(CPUKernelParams(op))
+        Op Names: $(nGraph.name.(ops))
+        paramss: $(CPUKernelParams.(ops))
         """
         error()
     end
 
     # Extract the timings and record it
-    index = findfirst(x -> x["name"] == nGraph.name(op), timings)
-    @assert index !== nothing
+    times = Float64[]
+    for op in found_ops
+        index = findfirst(x -> x["name"] == nGraph.name(op), timings)
+        @assert index !== nothing
+        push!(times, timings[index]["dur"])
+    end
 
-    if hastime(data, node, config)
-        settime!(data, node, config, minimum(gettime(data, node, config), timings[index]["dur"]))
+    if hastime(data, node, expected_config)
+        settime!(
+            data, 
+            node, 
+            expected_config, 
+            min(gettime(data, node, expected_config), minimum(times))
+        )
     else
-        settime!(data, node, config, timings[index]["dur"])
+        settime!(
+            data, 
+            node, 
+            expected_config, 
+            minimum(times)
+        )
     end
 end
 
-function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
+"""
+    extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies = 4)
+
+Create a `nGraph.Executable` with a copy of `node` using the same input and output 
+parameters. `Move` nodes will be inserted at all inputs and outputs of the copied node
+if the inputs come from executable arguments and if the outputs go directly to results.
+
+To try to capture some caching information, the node will be replicated `ncopies` times
+in the returned executable.
+"""
+function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies = 4)
     # Create parameters for the inputs
     params = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
@@ -212,21 +260,23 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
     end
 
     # Copy the node with the newly created parameters
-    copied_node = copy(node, links)
+    copied_nodes = [copy(node, links) for _ in 1:ncopies]
 
     # Make sure we're using the same version of the node.
-    nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)
+    nGraph.is_mkldnn(node) && nGraph.set_mkldnn.(copied_nodes)
 
     # Compile the new function
     paramvector = nGraph.ParameterVector(params...)
 
     outputs = nGraph.Node[]
-    if nGraph.get_output_size(copied_node) > 1
-        for i in 1:nGraph.get_output_size(copied_node)
-            push!(outputs, nGraph.get_output_element(copied_node, i))
+    for copied_node in copied_nodes
+        if nGraph.get_output_size(copied_node) > 1
+            for i in 1:nGraph.get_output_size(copied_node)
+                push!(outputs, nGraph.get_output_element(copied_node, i))
+            end
+        else
+            push!(outputs, copied_node)
         end
-    else
-        push!(outputs, copied_node)
     end
 
     # Get an result output for each output of the node
@@ -241,31 +291,31 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
     #
     # But first, we have to find what happened to the original node and find it in the
     # new graph.
-    local translated_node
-    found = false
+    translated_nodes = nGraph.Node[]
     for op in ex.ngraph_function
         # Line it up by description and input/output sizes.
-        if CPUKernelParams(op) == CPUKernelParams(copied_node)
-            translated_node = op
-            found = true
-            break
+        if CPUKernelParams(op) == CPUKernelParams(node)
+            push!(translated_nodes, op)
 
         # Handle Special Cases
-        elseif nGraph.description(op) == "MatmulBias" && nGraph.description(copied_node) == "Dot"
-            translated_node = op
-            found = true
-            break
+        elseif nGraph.description(op) == "MatmulBias" && nGraph.description(node) == "Dot"
+            push!(translated_nodes, op)
         end
     end
-    if !found
-        @show copied_node
-        @show nGraph.name(copied_node)
+
+    if isempty(translated_nodes)
+        for n in copied_nodes
+            println("Copied Node: $n")
+            println("    name: $(nGraph.name(n))")
+        end
         error("Something done gone wrong!")
     end
 
-    for (index, input) in enumerate(nGraph.get_inputs(translated_node))
-        if nGraph.description(input) == "Parameter"
-            nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+    for translated_node in translated_nodes
+        for (index, input) in enumerate(nGraph.get_inputs(translated_node))
+            if nGraph.description(input) == "Parameter"
+                nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+            end
         end
     end
 
@@ -276,5 +326,5 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU})
     input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in params]
     output_tensors = Any[nGraph.Tensor(backend, x).ptr for x in outputs]
 
-    return ex, input_tensors, output_tensors, translated_node
+    return ex, input_tensors, output_tensors, translated_nodes
 end

@@ -140,7 +140,7 @@ function gen_plot(::Type{Kernel}, data;
                  anchor = "south east",
                  legend_columns = -1
             },
-            #symbolic_x_coords = xticks,
+
             nodes_near_coords_align={vertical},
             ylabel="Performance relative\\\\to all IO in DRAM",
             ymajorgrids,
@@ -148,21 +148,17 @@ function gen_plot(::Type{Kernel}, data;
             ylabel_style={
                 align = "center",
             },
-            #xlabel="IO Configuration",
+
             xtick="data",
             xticklabels = xticks,
             xticklabel_style={
                 align = "center",
-                #rotate = 75,
-                #"/pgf/number format/1000 sep=",
             },
             yticklabel_style={
                 "/pgf/number format/fixed",
                 "/pgf/number format/precision=5",
             },
             bar_width="20pt",
-            #width = "15cm",
-            #height = "5cm",
         },
         plots...,
         #Legend(legend),

@@ -201,3 +201,4 @@ function transformer_training(batchsize = 16, seq_length = 50; backend = nGraph.
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
     return T, (X, Y, expected), kw
 end
+

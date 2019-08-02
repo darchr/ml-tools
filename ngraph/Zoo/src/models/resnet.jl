@@ -120,7 +120,6 @@ function _resnet(version::AbstractResnet)
     push!(layer_arr, x -> log.(max.(x, Float32(1e-9)))),
     push!(layer_arr, softmax)
 
-    #Chain(layer_arr...)
     function f(x)
         for l in layer_arr
             x = l(x)

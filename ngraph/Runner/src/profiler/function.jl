@@ -305,8 +305,6 @@ function _compare!(stats, f, opt, backend::nGraph.Backend{nGraph.GPU}; kw...)
     )
 
     push!(stats.runs, nt)
-    
-
     return nothing
 end
 

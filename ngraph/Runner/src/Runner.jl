@@ -96,10 +96,11 @@ include("verifier.jl")
 
 # visualization routines
 include("visualizer/performance_plots.jl")
-include("visualizer/allocation_plots.jl")
 include("visualizer/statistics_plots.jl")
 include("visualizer/speedup.jl")
 include("visualizer/gpu.jl")
+include("visualizer/front.jl")
+include("visualizer/error.jl")
 
 # async
 include("async_tests.jl")

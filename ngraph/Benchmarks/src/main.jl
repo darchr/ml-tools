@@ -73,7 +73,7 @@ conventional_inception() = Inception_v4(1024)
 conventional_resnet() = Resnet200(512)
 conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
-conventional_transformer() = Transformer(256, 200)
+conventional_transformer() = Transformer(512, 200)
 
 large_inception() = Inception_v4(6144)
 large_vgg() = Vgg416(320)
@@ -99,23 +99,34 @@ conventional_functions() = [
 
 function go()
     fns = (
-        #conventional_resnet(),
+        conventional_resnet(),
         #conventional_vgg(),
         #conventional_inception(),
         #conventional_densenet(),
-        conventional_transformer(), 
+        #conventional_transformer(), 
     )
 
     ratios = common_ratios()
 
     optimizers = (
-        #[Runner.Synchronous(r) for r in ratios],
+        [Runner.Synchronous(r) for r in ratios],
         [Runner.Static(r) for r in ratios],
         #[Runner.Asynchronous(r) for r in ratios],
         #[Runner.Numa(r) for r in ratios],
     )
 
-    Runner.entry(fns, optimizers, nGraph.Backend("CPU"); skip_base_check = true)
+    Runner.entry(fns, optimizers, nGraph.Backend("CPU"))
+end
+
+function plot_front()
+    fns = (
+        conventional_resnet(),
+        conventional_vgg(),
+        conventional_inception(),
+    )
+
+    ratio = 4 // 1
+    Runner.plot_front(fns, ratio; formulations = ("numa", "synchronous"))
 end
 
 function go_large()
@@ -153,6 +164,18 @@ function plot_2lm()
     )
 
     Runner.pgf_large_performance(fns)
+end
+
+function plot_error()
+    fns = (
+        #conventional_resnet(),
+        conventional_vgg(),
+        conventional_inception(),
+    )
+
+    ratios = common_ratios()
+
+    Runner.pgf_error_plot(fns, ratios; formulations = ("static", "synchronous"))
 end
 
 #####
@@ -231,7 +254,6 @@ function inception_analysis_plots()
                           file = "inception_movement.tex",
                           formulation = "synchronous"
                          )
-
 end
 
 #####
