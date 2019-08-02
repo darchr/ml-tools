@@ -59,22 +59,23 @@ factory(args...; kw...) = _factory(args...; kw...)
 
 # Ratio optimizers go through a refinement step
 function factory(
-        backend::nGraph.Backend{nGraph.CPU},
-        func,
-        opt::AbstractOptimizer{Rational{Int64}};
-        search_ratio = true,
-        refinements = 7,
+        backend::nGraph.Backend{nGraph.CPU}, 
+        func, 
+        opt::AbstractOptimizer{Rational{Int64}}; 
         kw...
     )
+    return ratiosearch(_factory, func, opt; kw...)
+end
 
+function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7, kw...)
     @info "Trying Ratio $(getratio(opt))"
 
     # Just return the inner factory if we aren't interesting in performing a binary search
     # for the actual ratio to input that will return the desired ratio
-    search_ratio || return _factory(backend, func, opt; kw...)
+    search_ratio || return f(backend, func, opt; kw...)
 
     # Perform a binary search
-    ret = _factory(backend, func, opt; kw...)
+    ret = f(backend, func, opt; kw...)
     fex = first(ret)
     args = Base.tail(ret)
 
@@ -112,7 +113,7 @@ function factory(
             current_ratio < 0 && break
 
             @info "Trying Ratio: $(convert(Float64, current_ratio))"
-            ret = _factory(backend, func, _optimizer(opt, current_ratio); kw...)
+            ret = f(backend, func, _optimizer(opt, current_ratio); kw...)
             fex = first(ret)
             args = Base.tail(ret)
 

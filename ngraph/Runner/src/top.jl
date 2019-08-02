@@ -33,7 +33,7 @@ function _entry(f, opt::Numa, backend)
         stats = deserialize(savefile)
     end
 
-    fex, limit = run_numa(backend, f, opt)
+    fex, limit = ratiosearch(run_numa, backend, f, opt)
     runtime = gettime(fex)
 
     run = Dict(
